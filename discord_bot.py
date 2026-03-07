@@ -25,6 +25,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import urllib.request
 import urllib.error
 
+from secret_store import encrypt_fields, decrypt_fields
+
 # Optional dependency: requests (used if installed). Fallback to urllib if missing.
 try:
     import requests  # type: ignore
@@ -129,6 +131,7 @@ class DiscordBotManager:
         if self.cfg_path.exists():
             try:
                 data = json.loads(self.cfg_path.read_text(encoding="utf-8"))
+                data = decrypt_fields(data, ["token", "internal_secret"], self.data_dir)
                 cfg.enabled = bool(data.get("enabled", False))
                 cfg.token = str(data.get("token", "") or "")
                 cfg.allowed_role_ids = [int(x) for x in (data.get("allowed_role_ids") or []) if str(x).strip().isdigit()]
@@ -151,7 +154,8 @@ class DiscordBotManager:
 
     def save_config(self, cfg: DiscordConfig) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.cfg_path.write_text(json.dumps(cfg.to_disk_dict(), indent=2), encoding="utf-8")
+        disk = encrypt_fields(cfg.to_disk_dict(), ["token", "internal_secret"], self.data_dir)
+        self.cfg_path.write_text(json.dumps(disk, indent=2), encoding="utf-8")
         self.config = cfg
 
     def status(self) -> Dict[str, Any]:
@@ -229,6 +233,7 @@ class DiscordBotManager:
                 from urllib.parse import urlencode
                 import urllib.request
                 import urllib.error
+
                 import json as _json
 
                 full_url = url

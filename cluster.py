@@ -26,6 +26,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from secret_store import encrypt_fields, decrypt_fields
+
 
 DISCOVERY_PORT = 47037
 # Faster LAN discovery without noticeable overhead.
@@ -310,13 +312,19 @@ class ClusterState:
     def _load(self) -> dict:
         if self.path.exists():
             try:
-                return json.loads(self.path.read_text(encoding="utf-8"))
+                data = json.loads(self.path.read_text(encoding="utf-8"))
+                dec = decrypt_fields(data, ["secret"], self.path.parent)
+                if dec != data:
+                    self.state = dec
+                    self._save()
+                return dec
             except Exception:
                 return {"enabled": False}
         return {"enabled": False}
 
     def _save(self) -> None:
-        self.path.write_text(json.dumps(self.state, indent=2), encoding="utf-8")
+        disk = encrypt_fields(self.state, ["secret"], self.path.parent)
+        self.path.write_text(json.dumps(disk, indent=2), encoding="utf-8")
         self._apply_broadcast_config()
 
     def _apply_broadcast_config(self) -> None:

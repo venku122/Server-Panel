@@ -1,7 +1,7 @@
 # =============================
 # Flask web panel settings
 # =============================
-FLASK_HOST = "0.0.0.0"
+FLASK_HOST = "127.0.0.1"
 FLASK_PORT = 5000
 
 # =============================
@@ -27,3 +27,11 @@ DEFAULT_SERVER_PORTS = [{"port": 7779, "name": "Default Server"}]
 
 # Optional hard fallback used only if ports.json is missing/corrupt
 SERVER_PORTS = [7779]
+
+# Panel security / proxy settings
+TRUST_REVERSE_PROXY = False
+TRUSTED_PROXY_IPS = ["127.0.0.1", "::1"]
+# Set True only when the panel is served over HTTPS by a trusted reverse proxy.
+SESSION_COOKIE_SECURE = False
+# Optional static secret. Leave empty to auto-generate and persist to .panel_secret_key.
+SECRET_KEY = ""

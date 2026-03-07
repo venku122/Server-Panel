@@ -379,10 +379,46 @@ from cluster import ClusterDiscovery, ClusterState, DISCOVERY_PORT, best_effort_
 import config
 import server_commands
 from discord_bot import DiscordBotManager
+from secret_store import encrypt_value, decrypt_value, encrypt_fields, decrypt_fields, is_encrypted_value
 
 
 # --- Path roots (stable regardless of current working directory) ---
 BASE_DIR = Path(__file__).resolve().parent
+SECRET_KEY_FILE = BASE_DIR / ".panel_secret_key"
+
+def _load_or_create_panel_secret() -> str:
+    env_secret = os.environ.get("NO_PANEL_SECRET_KEY", "").strip()
+    if env_secret:
+        return env_secret
+
+    cfg_secret = str(getattr(config, "SECRET_KEY", "") or "").strip()
+    if cfg_secret and cfg_secret != "CHANGE_ME_SECRET_KEY":
+        return cfg_secret
+
+    try:
+        if SECRET_KEY_FILE.exists():
+            existing = SECRET_KEY_FILE.read_text(encoding="utf-8").strip()
+            if existing:
+                return existing
+    except Exception:
+        pass
+
+    secret = secrets.token_urlsafe(48)
+    try:
+        SECRET_KEY_FILE.write_text(secret, encoding="utf-8")
+        if os.name != "nt":
+            os.chmod(SECRET_KEY_FILE, 0o600)
+    except Exception:
+        pass
+    return secret
+
+
+def _bool_config(name: str, default: bool = False) -> bool:
+    raw = getattr(config, name, default)
+    if isinstance(raw, bool):
+        return raw
+    return str(raw).strip().lower() in ("1", "true", "yes", "on")
+
 
 
 # ---------------- Branding (accent color + logo) ----------------
@@ -454,12 +490,16 @@ def _load_or_create_discord_internal_secret() -> str:
     """
     Used to allow the local Discord bot process to call API endpoints without a browser session.
     Safety: only accepted from localhost, and requires this secret header.
+    Stored encrypted at rest when persisted.
     """
     try:
         if DISCORD_CONFIG_PATH.exists():
             data = json.loads(DISCORD_CONFIG_PATH.read_text(encoding="utf-8"))
-            s = str(data.get("internal_secret", "") or "")
+            s = decrypt_value(str(data.get("internal_secret", "") or ""), BASE_DIR)
             if s:
+                if data.get("internal_secret") == s:
+                    data["internal_secret"] = encrypt_value(s, BASE_DIR)
+                    DISCORD_CONFIG_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
                 return s
     except Exception:
         pass
@@ -469,7 +509,7 @@ def _load_or_create_discord_internal_secret() -> str:
         existing = {}
         if DISCORD_CONFIG_PATH.exists():
             existing = json.loads(DISCORD_CONFIG_PATH.read_text(encoding="utf-8"))
-        existing["internal_secret"] = s
+        existing["internal_secret"] = encrypt_value(s, BASE_DIR)
         DISCORD_CONFIG_PATH.write_text(json.dumps(existing, indent=2), encoding="utf-8")
     except Exception:
         # if we can't persist, still return a secret for this run
@@ -572,6 +612,9 @@ class NoServersConfigured(RuntimeError):
 def _servers_file_path() -> Path:
     return BASE_DIR / getattr(config, "SERVERS_FILE", "servers.json")
 
+def _server_secret_fields() -> list[str]:
+    return ["password"]
+
 def load_servers() -> list[dict]:
     p = _servers_file_path()
     if not p.exists():
@@ -581,13 +624,31 @@ def load_servers() -> list[dict]:
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
         servers = data.get("servers", []) or []
-        return servers
+        out = []
+        changed = False
+        for s in servers:
+            if isinstance(s, dict):
+                dec = decrypt_fields(s, _server_secret_fields(), BASE_DIR)
+                if dec != s:
+                    changed = True
+                out.append(dec)
+            else:
+                out.append(s)
+        if changed:
+            save_servers(out)
+        return out
     except Exception:
         return []
 
 def save_servers(servers: list[dict]) -> None:
     p = _servers_file_path()
-    p.write_text(json.dumps({"servers": servers}, indent=2), encoding="utf-8")
+    disk_servers = []
+    for s in (servers or []):
+        if isinstance(s, dict):
+            disk_servers.append(encrypt_fields(s, _server_secret_fields(), BASE_DIR))
+        else:
+            disk_servers.append(s)
+    p.write_text(json.dumps({"servers": disk_servers}, indent=2), encoding="utf-8")
 
 
 def _update_server_fields(server_id: str, updates: dict) -> None:
@@ -759,7 +820,12 @@ def _update_server_game_query_ports_local(server_id: str, game_port: Optional[in
 # Flask app
 # =============================
 app = Flask(__name__, template_folder="templates", static_folder="static")
-app.secret_key = getattr(config, "SECRET_KEY", None) or os.environ.get("NO_PANEL_SECRET_KEY") or "CHANGE_ME_SECRET_KEY"
+app.secret_key = _load_or_create_panel_secret()
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=_bool_config("SESSION_COOKIE_SECURE", False),
+)
 
 # Used to invalidate browser sessions on panel restart.
 # Flask sessions are client-side cookies, so without this, a user may remain logged in
@@ -787,8 +853,14 @@ def _iso_now() -> str:
     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
 def _client_ip() -> str:
-    xff = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
-    return xff or request.remote_addr or "unknown"
+    trust_proxy = _bool_config("TRUST_REVERSE_PROXY", False)
+    remote = (request.remote_addr or "").strip()
+    trusted_proxies = {str(x).strip() for x in (getattr(config, "TRUSTED_PROXY_IPS", ["127.0.0.1", "::1"]) or []) if str(x).strip()}
+    if trust_proxy and remote in trusted_proxies:
+        xff = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+        if xff:
+            return xff
+    return remote or "unknown"
 
 def _is_localhost() -> bool:
     ip = request.remote_addr or ""
@@ -1060,7 +1132,9 @@ def login():
 
     if user.get("must_change_password"):
         return redirect(url_for("first_run"))
-    nxt = request.args.get("next") or "/"
+    nxt = (request.args.get("next") or "/").strip()
+    if not nxt.startswith("/") or nxt.startswith("//"):
+        nxt = "/"
     return redirect(nxt)
 
 @app.route("/logout")
@@ -1163,8 +1237,7 @@ def get_allowed_ports() -> list[int]:
 
     # server-defined ports (primary path)
     try:
-        data = load_servers()
-        for s in data.get("servers", []) or []:
+        for s in load_servers() or []:
             try:
                 allowed.add(int(s.get("remote_commands_port")))
             except Exception:
@@ -1519,6 +1592,18 @@ def find_steamcmd() -> Optional[str]:
 
     return None
 
+def _safe_extract_zip(zf: zipfile.ZipFile, dest_dir: Path) -> None:
+    dest_dir = dest_dir.resolve()
+    for member in zf.infolist():
+        member_name = member.filename
+        if not member_name:
+            continue
+        target = (dest_dir / member_name).resolve()
+        if os.path.commonpath([str(dest_dir), str(target)]) != str(dest_dir):
+            raise RuntimeError(f"Unsafe zip entry blocked: {member_name}")
+    zf.extractall(dest_dir)
+
+
 def ensure_steamcmd(download_dir: str) -> str:
     os.makedirs(download_dir, exist_ok=True)
     exe_path = os.path.join(download_dir, "steamcmd.exe")
@@ -1530,7 +1615,7 @@ def ensure_steamcmd(download_dir: str) -> str:
 
     urllib.request.urlretrieve(url, zip_path)
     with zipfile.ZipFile(zip_path, "r") as z:
-        z.extractall(download_dir)
+        _safe_extract_zip(z, Path(download_dir))
 
     if not os.path.isfile(exe_path):
         raise RuntimeError("SteamCMD download/extract finished but steamcmd.exe was not found.")
@@ -1616,7 +1701,7 @@ def index():
 @app.get("/api/whoami")
 @requires_login()
 def api_whoami():
-    return jsonify({"success": True, "username": session.get("username"), "role": session.get("role"), "is_local": (request.remote_addr in ("127.0.0.1","::1")), "ip": (request.headers.get("X-Forwarded-For","").split(",")[0].strip() or request.remote_addr)})
+    return jsonify({"success": True, "username": session.get("username"), "role": session.get("role"), "is_local": (request.remote_addr in ("127.0.0.1","::1")), "ip": _client_ip()})
 
 
 @app.get("/api/ports")
@@ -2133,7 +2218,7 @@ def _nobb_download_and_extract_zip(zip_url: str, dest_dir: Path, timeout: int = 
         shutil.rmtree(extract_dir, ignore_errors=True)
     extract_dir.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(tmp_zip, "r") as zf:
-        zf.extractall(extract_dir)
+        _safe_extract_zip(zf, extract_dir)
     return extract_dir
 
 def _nobb_install_local(server: dict) -> dict:
@@ -4874,9 +4959,9 @@ def api_cluster_servers_command():
         elif cmd == "banlist-clear":
             res = server_commands.banlist_clear(commander)
         elif cmd == "banlist-add":
-            res = server_commands.ban_player(commander, args.get("steam_id",""), args.get("reason",""))
+            res = server_commands.banlist_add(commander, args.get("steam_id",""), args.get("reason",""))
         elif cmd == "banlist-remove":
-            res = server_commands.unban_player(commander, args.get("steam_id",""))
+            res = server_commands.banlist_remove(commander, args.get("steam_id",""))
         else:
             return jsonify({"success": False, "error": f"Unknown cmd: {cmd}"}), 400
 
