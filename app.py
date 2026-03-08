@@ -642,6 +642,16 @@ def load_servers() -> list[dict]:
 
 def save_servers(servers: list[dict]) -> None:
     p = _servers_file_path()
+    old_servers: list[dict] = []
+    try:
+        if p.exists():
+            raw = json.loads(p.read_text(encoding="utf-8", errors="ignore") or "{}")
+            for s in (raw.get("servers", []) or []):
+                if isinstance(s, dict):
+                    old_servers.append(decrypt_fields(s, _server_secret_fields(), BASE_DIR))
+    except Exception:
+        old_servers = []
+
     disk_servers = []
     for s in (servers or []):
         if isinstance(s, dict):
@@ -649,6 +659,11 @@ def save_servers(servers: list[dict]) -> None:
         else:
             disk_servers.append(s)
     p.write_text(json.dumps({"servers": disk_servers}, indent=2), encoding="utf-8")
+
+    try:
+        _nobb_handle_server_renames(old_servers, servers or [])
+    except Exception:
+        pass
 
 
 def _update_server_fields(server_id: str, updates: dict) -> None:
@@ -718,17 +733,32 @@ def _cache_servers_view(items: list[dict]) -> None:
         if sid:
             _SERVERS_VIEW_CACHE[sid] = s
 
+def _path_is_within(child_path: Optional[str], parent_dir: Optional[str]) -> bool:
+    """Return True only when child_path is inside parent_dir (not just string-prefix matching)."""
+    try:
+        if not child_path or not parent_dir:
+            return False
+        child = Path(child_path).resolve()
+        parent = Path(parent_dir).resolve()
+        try:
+            child.relative_to(parent)
+            return True
+        except ValueError:
+            return False
+    except Exception:
+        return False
+
+
 def _is_server_running(install_dir: Optional[str]) -> bool:
     try:
         if not install_dir:
             return bool(find_running_server_exe())
-        base = os.path.abspath(install_dir)
         for proc in psutil.process_iter(["name", "exe"]):
             try:
                 if proc.info["name"] != SERVER_EXE_NAME:
                     continue
                 exe = proc.info.get("exe") or ""
-                if exe and os.path.abspath(exe).startswith(base):
+                if _path_is_within(exe, install_dir):
                     return True
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
@@ -1648,13 +1678,11 @@ def _stop_server_processes_in_dir(install_dir: Path, output: list[str]) -> None:
             if (proc.info.get("name") or "").lower() != SERVER_EXE_NAME.lower():
                 continue
             exe = proc.info.get("exe")
-            if not exe:
+            if not exe or not _path_is_within(exe, str(install_dir)):
                 continue
-            exe_path = Path(exe).resolve()
-            if str(exe_path).lower().startswith(str(install_dir).lower()):
-                found = True
-                output.append(f"Stopping {SERVER_EXE_NAME} for {install_dir} (PID {proc.pid})...")
-                proc.terminate()
+            found = True
+            output.append(f"Stopping {SERVER_EXE_NAME} for {install_dir} (PID {proc.pid})...")
+            proc.terminate()
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
 
@@ -1665,12 +1693,10 @@ def _stop_server_processes_in_dir(install_dir: Path, output: list[str]) -> None:
             if (proc.info.get("name") or "").lower() != SERVER_EXE_NAME.lower():
                 continue
             exe = proc.info.get("exe")
-            if not exe:
+            if not exe or not _path_is_within(exe, str(install_dir)):
                 continue
-            exe_path = Path(exe).resolve()
-            if str(exe_path).lower().startswith(str(install_dir).lower()):
-                output.append(f"Force-killing {SERVER_EXE_NAME} for {install_dir} (PID {proc.pid})...")
-                proc.kill()
+            output.append(f"Force-killing {SERVER_EXE_NAME} for {install_dir} (PID {proc.pid})...")
+            proc.kill()
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
 
@@ -2068,6 +2094,132 @@ def _nobb_settings_merge(server_id: str, values: dict) -> None:
     data[server_id] = cur
     _nobb_settings_save(data)
 
+
+def _nobb_safe_server_folder_name(name: str) -> str:
+    safe = re.sub(r'[^a-zA-Z0-9._\- ]+', '_', str(name or '').strip()).strip(' .')
+    return safe or 'Server'
+
+
+def _nobb_cfg_path_to_fs(norm_path: str) -> Path:
+    return Path(str(norm_path or '').replace('/', os.sep))
+
+
+def _nobb_is_exact_child_of(parent: Path, child: Path) -> bool:
+    try:
+        return child.parent.resolve() == parent.resolve()
+    except Exception:
+        try:
+            return child.parent == parent
+        except Exception:
+            return False
+
+
+def _nobb_move_root_files_to_dir(root_dir: Path, target_dir: Path) -> int:
+    moved = 0
+    try:
+        root_dir.mkdir(parents=True, exist_ok=True)
+        target_dir.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        return 0
+    for item in list(root_dir.iterdir()):
+        try:
+            if item.resolve() == target_dir.resolve():
+                continue
+        except Exception:
+            pass
+        try:
+            if not item.is_file():
+                continue
+            dest = target_dir / item.name
+            if dest.exists():
+                stem = dest.stem
+                suffix = dest.suffix
+                i = 1
+                while True:
+                    cand = target_dir / f"{stem}_{i}{suffix}"
+                    if not cand.exists():
+                        dest = cand
+                        break
+                    i += 1
+            shutil.move(str(item), str(dest))
+            moved += 1
+        except Exception:
+            continue
+    return moved
+
+
+def _nobb_autoscope_output_path(server: dict, requested_path: str | None = None, old_server_name: str | None = None, persist: bool = True) -> str | None:
+    try:
+        sid = str(server.get('id') or '').strip()
+        server_name = str(server.get('name') or sid or 'Server')
+        safe_name = _nobb_safe_server_folder_name(server_name)
+
+        cfg_text = _nobb_load_cfg(server)
+        cfg = _nobb_cfg_to_dict(cfg_text)
+        current_norm = _nobb_normalize_path(str(requested_path if requested_path is not None else (cfg.get('OutputPath') or '')))
+        if not current_norm:
+            return None
+
+        current_fs = _nobb_cfg_path_to_fs(current_norm)
+        final_dir = current_fs
+
+        old_safe = _nobb_safe_server_folder_name(old_server_name or '') if old_server_name else ''
+        if old_safe and current_fs.name == old_safe:
+            renamed_dir = current_fs.parent / safe_name
+            if renamed_dir != current_fs:
+                try:
+                    if current_fs.exists() and not renamed_dir.exists():
+                        current_fs.rename(renamed_dir)
+                        current_fs = renamed_dir
+                except Exception:
+                    pass
+                final_dir = renamed_dir
+        elif current_fs.name != safe_name:
+            final_dir = current_fs / safe_name
+            try:
+                moved = 0
+                if current_fs.exists() and current_fs.is_dir():
+                    moved = _nobb_move_root_files_to_dir(current_fs, final_dir)
+                else:
+                    final_dir.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pass
+
+        final_norm = _nobb_normalize_path(str(final_dir))
+
+        if persist and final_norm and final_norm != current_norm:
+            cfg_text = _nobb_set_kv(cfg_text, 'OutputPath', final_norm)
+            _nobb_save_cfg(server, cfg_text)
+            if sid:
+                try:
+                    _nobb_settings_merge(sid, {'OutputPath': final_norm})
+                except Exception:
+                    pass
+        return final_norm
+    except Exception:
+        return _nobb_normalize_path(str(requested_path or '')) or None
+
+
+def _nobb_handle_server_renames(old_servers: list[dict], new_servers: list[dict]) -> None:
+    old_by_id = {str(s.get('id') or ''): s for s in (old_servers or []) if isinstance(s, dict) and s.get('id')}
+    for s in (new_servers or []):
+        if not isinstance(s, dict):
+            continue
+        sid = str(s.get('id') or '').strip()
+        if not sid:
+            continue
+        old = old_by_id.get(sid)
+        if not old:
+            continue
+        old_name = str(old.get('name') or '')
+        new_name = str(s.get('name') or '')
+        if old_name.strip() == new_name.strip():
+            continue
+        try:
+            _nobb_autoscope_output_path(s, requested_path=None, old_server_name=old_name, persist=True)
+        except Exception:
+            pass
+
 def _nobb_job_init(server_id: str) -> None:
     with _NOBB_JOB_LOCK:
         _NOBB_JOBS[server_id] = {"lines": [], "done": False, "success": False, "error": None, "ts": time.time()}
@@ -2291,7 +2443,7 @@ def _nobb_install_local(server: dict) -> dict:
                     continue
                 vv = v
                 if key == "OutputPath":
-                    vv = _nobb_normalize_path(str(vv))
+                    vv = _nobb_autoscope_output_path(server, requested_path=str(vv), persist=False) or _nobb_normalize_path(str(vv))
                 if isinstance(vv, bool):
                     vv = "true" if vv else "false"
                 cfg_text = _nobb_set_kv(cfg_text, key, str(vv))
@@ -2391,6 +2543,7 @@ def api_noblackbox_get_config():
         resp = _cluster_signed_post_to_member(mem, "/api/cluster/noblackbox/config", {"server_id": sid}, timeout=25)
         return jsonify(resp)
 
+    _nobb_autoscope_output_path(server, persist=True)
     cfg_text = _nobb_load_cfg(server)
     return jsonify({"success": True, "config_text": cfg_text, "config": _nobb_cfg_to_dict(cfg_text)})
 
@@ -2421,7 +2574,7 @@ def api_noblackbox_set_config():
         if not key:
             continue
         if key == "OutputPath":
-            v = _nobb_normalize_path(str(v))
+            v = _nobb_autoscope_output_path(server, requested_path=str(v), persist=False) or _nobb_normalize_path(str(v))
         # Booleans are lower-case true/false
         if isinstance(v, bool):
             v = "true" if v else "false"
@@ -2541,6 +2694,7 @@ def api_cluster_noblackbox_config():
     server = _find_server_in_unified_view(sid)
     if not server:
         return jsonify({"success": False, "error": "Server not found"}), 404
+    _nobb_autoscope_output_path(server, persist=True)
     cfg_text = _nobb_load_cfg(server)
     return jsonify({"success": True, "config_text": cfg_text, "config": _nobb_cfg_to_dict(cfg_text)})
 
@@ -2559,7 +2713,7 @@ def api_cluster_noblackbox_config_set():
         if not key:
             continue
         if key == "OutputPath":
-            v = _nobb_normalize_path(str(v))
+            v = _nobb_autoscope_output_path(server, requested_path=str(v), persist=False) or _nobb_normalize_path(str(v))
         if isinstance(v, bool):
             v = "true" if v else "false"
         cfg_text = _nobb_set_kv(cfg_text, key, str(v))
@@ -3241,15 +3395,12 @@ def local_update_server():
 def _stop_server_processes_for_install_dir(install_dir: str, output: list[str]) -> bool:
     """Stop NuclearOptionServer.exe processes that live under install_dir."""
     stopped_any = False
-    base = os.path.abspath(install_dir)
     for proc in psutil.process_iter(["name", "exe"]):
         try:
             if proc.info.get("name") != SERVER_EXE_NAME:
                 continue
             exe = proc.info.get("exe") or ""
-            if not exe:
-                continue
-            if not os.path.abspath(exe).startswith(base):
+            if not exe or not _path_is_within(exe, install_dir):
                 continue
             stopped_any = True
             output.append(f"Stopping {SERVER_EXE_NAME} (PID {proc.pid})...")
@@ -6343,13 +6494,10 @@ def _gallery_cache_path_for_remote(server_name: str, filename: str) -> Path:
 # ----- Gallery (NOBlackBox recordings) -----
 def _gallery_get_output_path_for_server(server: dict) -> Path | None:
     try:
-        cfg_text = _nobb_load_cfg(server)
-        cfg = _nobb_cfg_to_dict(cfg_text)
-        outp = str(cfg.get("OutputPath") or "").strip()
+        outp = _nobb_autoscope_output_path(server, persist=True)
         if not outp:
             return None
-        outp = _nobb_normalize_path(outp)
-        return Path(outp)
+        return _nobb_cfg_path_to_fs(outp)
     except Exception:
         return None
 
@@ -6402,6 +6550,25 @@ def api_gallery_list():
     files = _gallery_list_files(out_dir)
     return jsonify({"success": True, "output_path": str(out_dir), "files": files})
 
+def _gallery_resolve_file_for_server(server: dict, name: str) -> Path:
+    if not name or "/" in name or "\\" in name or ".." in name:
+        raise ValueError("Invalid file name.")
+
+    if str(server.get("location") or "").lower() == "remote":
+        server_name = str(server.get("name") or server.get("server_name") or server.get("id") or "remote")
+        cache_path = _gallery_cache_path_for_remote(server_name, name)
+        if not cache_path.exists():
+            raise FileNotFoundError("Recording not downloaded yet. Click 'View in program' again after Fetch completes (or press Refresh).")
+        return cache_path
+
+    out_dir = _gallery_get_output_path_for_server(server)
+    if not out_dir:
+        raise RuntimeError("NOBlackBox OutputPath is not set for this server.")
+    fpath = out_dir / name
+    if not fpath.exists() or not fpath.is_file():
+        raise FileNotFoundError("File not found.")
+    return fpath
+
 @app.post("/api/gallery/open")
 @requires_login("admin")
 def api_gallery_open():
@@ -6411,23 +6578,15 @@ def api_gallery_open():
     server = _find_server_in_unified_view(sid)
     if not server:
         return jsonify({"success": False, "error": "Server not found"}), 404
-    if not name or "/" in name or "\\" in name or "\\" in name or ".." in name:
-        return jsonify({"success": False, "error": "Invalid file name."}), 400    # Remote server: open the cached local copy (fetch first if needed)
-    if str(server.get("location") or "").lower() == "remote":
-        server_name = str(server.get("name") or server.get("server_name") or server.get("id") or "remote")
-        cache_path = _gallery_cache_path_for_remote(server_name, name)
-        if not cache_path.exists():
-            return jsonify({"success": False, "error": "Recording not downloaded yet. Click 'View in program' again after Fetch completes (or press Refresh)."}), 400
-        fpath = cache_path
-    else:
-        out_dir = _gallery_get_output_path_for_server(server)
-        if not out_dir:
-            return jsonify({"success": False, "error": "NOBlackBox OutputPath is not set for this server."}), 400
-        fpath = (out_dir / name)
-        if not fpath.exists() or not fpath.is_file():
-            return jsonify({"success": False, "error": "File not found."}), 404
 
-
+    try:
+        fpath = _gallery_resolve_file_for_server(server, name)
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+    except FileNotFoundError as e:
+        return jsonify({"success": False, "error": str(e)}), 404
+    except RuntimeError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
     try:
         # Open in the default associated program (Tacview if associated with .acmi)
         if os.name == "nt":
@@ -6440,6 +6599,37 @@ def api_gallery_open():
     except Exception as e:
         return jsonify({"success": False, "error": f"Failed to open: {e}"}), 500
 
+
+@app.post("/api/gallery/open-path")
+@requires_login("admin")
+def api_gallery_open_path():
+    data = request.get_json(silent=True) or {}
+    sid = str(data.get("server_id") or "").strip()
+    name = str(data.get("name") or "").strip()
+    server = _find_server_in_unified_view(sid)
+    if not server:
+        return jsonify({"success": False, "error": "Server not found"}), 404
+
+    try:
+        fpath = _gallery_resolve_file_for_server(server, name)
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+    except FileNotFoundError as e:
+        return jsonify({"success": False, "error": str(e)}), 404
+    except RuntimeError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+
+    try:
+        parent = fpath.parent
+        if os.name == "nt":
+            subprocess.Popen(["explorer", "/select,", str(fpath)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", "-R", str(fpath)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            subprocess.Popen(["xdg-open", str(parent)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return jsonify({"success": True, "path": str(fpath), "folder": str(parent)})
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Failed to open file path: {e}"}), 500
 
 
 @app.post("/api/gallery/fetch")

@@ -944,7 +944,7 @@ class DiscordBotManager:
             # Discord upload limits vary; keep a conservative default unless configured elsewhere.
             max_bytes = 8 * 1024 * 1024  # 8MB
             if size and size > max_bytes:
-                await interaction.followup.send(f"❌ File is too large to upload (size={size/1024/1024:.1f}MB). Discord default limit is ~8MB.", ephemeral=True)
+                await interaction.followup.send(f"❌ File is too large to upload through Discord (size={size/1024/1024:.1f}MB). Please manually upload it from the panel Gallery using the 'Go to file path' button.", ephemeral=True)
                 return
 
             # Post the file into the channel where the command was run.

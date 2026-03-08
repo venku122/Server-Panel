@@ -616,7 +616,10 @@ function renderGalleryFiles(files){
       <td style="width: 28%;">${mtime}</td>
       <td style="width: 12%;">${escapeHtml(size)}</td>
       <td style="width: 18%; text-align:right;">
-        <button class="btn ghost btn-sm gallery-open" data-name="${name}">View in program</button>
+        <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
+          <button class="btn ghost btn-sm gallery-open" data-name="${name}">View in program</button>
+          <button class="btn ghost btn-sm gallery-path" data-name="${name}">Go to file path</button>
+        </div>
       </td>
     </tr>`;
   }).join("");
@@ -645,6 +648,13 @@ function renderGalleryFiles(files){
       const name = btn.getAttribute("data-name") || "";
       if(!name) return;
       await galleryFetchThenOpen(name, btn);
+    });
+  });
+  wrap.querySelectorAll(".gallery-path").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const name = btn.getAttribute("data-name") || "";
+      if(!name) return;
+      await galleryOpenPath(name, btn);
     });
   });
 }
@@ -720,6 +730,46 @@ async function galleryOpenFile(name){
     }
   }catch(e){
     if(status) status.textContent = "Failed to open.";
+  }
+}
+
+async function galleryOpenPath(name, btnEl){
+  const sid = gallerySelectedServerId || currentServerId;
+  const status = document.getElementById("gallery-status");
+  const s = _getServerById(sid);
+  const isRemote = s && String(s.location||"").toLowerCase() === "remote";
+  if(!sid) return;
+
+  if(isRemote){
+    if(status) status.textContent = "Fetching remote recording so its local file path can be opened…";
+    try{
+      if(btnEl){ btnEl.disabled = true; btnEl.textContent = "Fetching…"; }
+      const j = await apiPost("/api/gallery/fetch", { server_id: sid, name: name });
+      if(!j || !j.success){
+        if(status) status.textContent = (j && j.error) ? j.error : "Fetch failed.";
+        if(btnEl){ btnEl.disabled = false; btnEl.textContent = "Go to file path"; }
+        return;
+      }
+    }catch(e){
+      if(status) status.textContent = "Fetch failed.";
+      if(btnEl){ btnEl.disabled = false; btnEl.textContent = "Go to file path"; }
+      return;
+    }
+  }
+
+  try{
+    if(btnEl){ btnEl.disabled = true; }
+    const j = await apiPost("/api/gallery/open-path", { server_id: sid, name: name });
+    if(j && j.success){
+      const where = j.path || j.folder || "file location";
+      if(status) status.textContent = `Opened file path: ${where}`;
+    }else{
+      if(status) status.textContent = (j && j.error) ? j.error : "Failed to open file path.";
+    }
+  }catch(e){
+    if(status) status.textContent = "Failed to open file path.";
+  }finally{
+    if(btnEl){ btnEl.disabled = false; btnEl.textContent = "Go to file path"; }
   }
 }
 

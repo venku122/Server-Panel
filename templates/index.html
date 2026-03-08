@@ -749,7 +749,7 @@
               <div class="field">
                 <label>Recordings</label>
                 <div id="gallery-files" class="list" style="margin-top:10px;"></div>
-                <div class="help">Click <b>View in program</b> to open the .acmi in Tacview (or your default viewer). For remote servers, the panel will fetch it first.</div>
+                <div class="help">Click <b>View in program</b> to open the .acmi in Tacview (or your default viewer), or <b>Go to file path</b> to open the clip location for manual upload. For remote servers, the panel will fetch it first.</div>
               </div>
             </div>
           </div>
@@ -1068,6 +1068,6 @@
   <script>
     window.NO_ALLOWED_PORTS = {{ allowed_ports|tojson }};
   </script>
-  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script src="{{ url_for('static', filename='app.js') }}?v=20260308b"></script>
 </body>
 </html>
