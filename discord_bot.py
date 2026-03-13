@@ -371,6 +371,166 @@ class DiscordBotManager:
             f"`{p}cmd <server> <command...>` — send remote command\n"
         )
 
+    def send_message(self, content: str) -> Tuple[bool, str]:
+        text = str(content or '').strip()
+        if not text:
+            return False, 'Empty message'
+        with self._lock:
+            running = self._thread is not None and self._thread.is_alive()
+            client = self._client
+            loop = self._loop
+            cfg = self.config
+        if not running or client is None or loop is None:
+            return False, 'Discord bot is not running.'
+        if not cfg.channel_id:
+            return False, 'Discord bot channel_id is not configured.'
+
+        async def _send():
+            channel = client.get_channel(int(cfg.channel_id))
+            if channel is None:
+                try:
+                    channel = await client.fetch_channel(int(cfg.channel_id))
+                except Exception as e:
+                    raise RuntimeError(f'Unable to resolve Discord channel: {e}')
+            await channel.send(text)
+
+        try:
+            fut = asyncio.run_coroutine_threadsafe(_send(), loop)
+            fut.result(timeout=15)
+            return True, 'sent'
+        except Exception as e:
+            log.exception('send_message failed')
+            return False, str(e)
+
+    def send_moderation_kick_alert(self, payload: Dict[str, Any]) -> Tuple[bool, str]:
+        with self._lock:
+            running = self._thread is not None and self._thread.is_alive()
+            client = self._client
+            loop = self._loop
+            cfg = self.config
+        if not running or client is None or loop is None:
+            return False, 'Discord bot is not running.'
+        if not cfg.channel_id:
+            return False, 'Discord bot channel_id is not configured.'
+        payload = dict(payload or {})
+
+        async def _send():
+            channel = client.get_channel(int(cfg.channel_id))
+            if channel is None:
+                channel = await client.fetch_channel(int(cfg.channel_id))
+            await client.manager._send_moderation_alert_message(channel, payload)
+
+        try:
+            fut = asyncio.run_coroutine_threadsafe(_send(), loop)
+            fut.result(timeout=20)
+            return True, 'sent'
+        except Exception as e:
+            log.exception('send_moderation_kick_alert failed')
+            return False, str(e)
+
+    async def _send_moderation_alert_message(self, channel, payload: Dict[str, Any]):
+        import discord  # type: ignore
+
+        player_name = str(payload.get('player_name') or 'Unknown').strip() or 'Unknown'
+        steam_id = str(payload.get('steam_id') or '').strip()
+        server_name = str(payload.get('server_name') or 'Server').strip() or 'Server'
+        aircraft = int(payload.get('aircraft_ff') or 0)
+        vehicle = int(payload.get('vehicle_ff') or 0)
+        ship = int(payload.get('ship_ff') or 0)
+        monitored = bool(payload.get('monitored'))
+        description = 'Player was kicked for exceeding the configured friendly-fire threshold.'
+        if monitored:
+            description += '\n\n🚨 **MONITORED PLAYER ALERT** 🚨\n**This SteamID was being monitored and has triggered another auto-kick.**'
+        embed = discord.Embed(
+            title='Friendly-Fire Auto-Kick',
+            description=description,
+            color=discord.Color.orange(),
+        )
+        player_label = player_name + (f' ({steam_id})' if steam_id else '')
+        embed.add_field(name='Player', value=player_label, inline=False)
+        embed.add_field(name='Server', value=server_name, inline=True)
+        embed.add_field(name='Counts', value=f'Aircraft FF: {aircraft} | Vehicle FF: {vehicle} | Ship FF: {ship}', inline=False)
+        embed.add_field(name='Options', value='1. Monitor this SteamID for the next auto-kick.\n2. Ban this player now.', inline=False)
+        embed.set_footer(text='Use the buttons below to take action.')
+
+        class ModerationActionView(discord.ui.View):
+            def __init__(self, manager: "DiscordBotManager", kick_payload: Dict[str, Any]):
+                super().__init__(timeout=None)
+                self.manager = manager
+                self.kick_payload = dict(kick_payload or {})
+
+            async def _allowed(self, interaction: discord.Interaction) -> bool:
+                member = getattr(interaction, 'user', None)
+                if getattr(interaction.guild, 'id', None) and not self.manager._author_allowed(member):
+                    await interaction.response.send_message('❌ You are not allowed to use moderation actions.', ephemeral=True)
+                    return False
+                return True
+
+            async def _send_channel_notice(self, interaction: discord.Interaction, text: str):
+                try:
+                    if interaction.response.is_done():
+                        await interaction.followup.send(text, ephemeral=False)
+                    else:
+                        await interaction.response.send_message(text, ephemeral=False)
+                except Exception:
+                    try:
+                        await interaction.channel.send(text)
+                    except Exception:
+                        pass
+
+            @discord.ui.button(label='Option 1: Monitor SteamID', style=discord.ButtonStyle.secondary)
+            async def monitor_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+                if not await self._allowed(interaction):
+                    return
+                actor = getattr(interaction.user, 'display_name', None) or getattr(interaction.user, 'name', None) or 'discord'
+                resp = await self.manager._panel_api_async('POST', '/api/moderation/ticket_action', {
+                    'server_id': self.kick_payload.get('server_id'),
+                    'steam_id': self.kick_payload.get('steam_id'),
+                    'action': 'monitor_once',
+                    'actor': str(actor),
+                }, timeout_sec=20)
+                if resp.get('success'):
+                    await self._send_channel_notice(interaction, f'👀 Monitoring armed for {player_label} on {server_name}. The next auto-kick will raise a monitored alert.')
+                else:
+                    err = resp.get('error') or resp.get('message') or 'Action failed.'
+                    await self._send_channel_notice(interaction, f'❌ Failed to arm monitor for {player_label}: {err}')
+
+            @discord.ui.button(label='Option 2: Ban Player', style=discord.ButtonStyle.danger)
+            async def ban_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+                if not await self._allowed(interaction):
+                    return
+                actor = getattr(interaction.user, 'display_name', None) or getattr(interaction.user, 'name', None) or 'discord'
+                resp = await self.manager._panel_api_async('POST', '/api/moderation/ticket_action', {
+                    'server_id': self.kick_payload.get('server_id'),
+                    'steam_id': self.kick_payload.get('steam_id'),
+                    'action': 'ban',
+                    'actor': str(actor),
+                }, timeout_sec=30)
+                if resp.get('success'):
+                    await self._send_channel_notice(interaction, f'🔨 Ban issued for {player_label} on {server_name}.')
+                else:
+                    err = resp.get('error') or resp.get('message') or 'Action failed.'
+                    await self._send_channel_notice(interaction, f'❌ Failed to ban {player_label}: {err}')
+
+            @discord.ui.button(label='Option 3: Unkick + Reset', style=discord.ButtonStyle.success)
+            async def unkick_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+                if not await self._allowed(interaction):
+                    return
+                actor = getattr(interaction.user, 'display_name', None) or getattr(interaction.user, 'name', None) or 'discord'
+                resp = await self.manager._panel_api_async('POST', '/api/moderation/ticket_action', {
+                    'server_id': self.kick_payload.get('server_id'),
+                    'steam_id': self.kick_payload.get('steam_id'),
+                    'action': 'unkick',
+                    'actor': str(actor),
+                }, timeout_sec=30)
+                if resp.get('success'):
+                    await self._send_channel_notice(interaction, f'✅ Unkick issued for {player_label} on {server_name}. Counts were reset.')
+                else:
+                    err = resp.get('error') or resp.get('message') or 'Action failed.'
+                    await self._send_channel_notice(interaction, f'❌ Failed to unkick {player_label}: {err}')
+
+        await channel.send(embed=embed, view=ModerationActionView(self, payload))
+
     def _run_thread(self) -> None:
         try:
             import discord  # type: ignore

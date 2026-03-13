@@ -3856,6 +3856,11 @@ def unkick_player():
     c, e = get_commander_from_json(data)
     if e: return e
     code, body = server_commands.unkick_player(c, data["steam_id"])
+    try:
+        if str(code).lower() == 'success':
+            _mod_reset_counts_for_server(sid, [str(data.get('steam_id') or '')], 'Counts reset after unkick by panel.')
+    except Exception:
+        pass
     return ok(code, body)
 
 @app.post("/command/clear-kicked-players")
@@ -3871,6 +3876,11 @@ def clear_kicked_players():
     c, e = get_commander_from_json(data)
     if e: return e
     code, body = server_commands.clear_kicked_players(c)
+    try:
+        if str(code).lower() == 'success':
+            _mod_reset_counts_for_server(sid, None, 'Counts reset after clear-kicked-players by panel.')
+    except Exception:
+        pass
     return ok(code, body)
 
 @app.post("/command/banlist-reload")
@@ -4576,6 +4586,887 @@ def api_sync_workshop_missions():
 
 
 # =============================
+# Moderation backend integration
+# =============================
+MOD_RELEASE_DLL_URL = "https://github.com/Talon-One-Fighter-Squadron/Auto-Moderation-Panel/releases/download/V4/NO_KillFeedConsole.dll"
+MOD_PLUGIN_DIRNAME = "NO_KillFeedConsole"
+MOD_PLUGIN_FILENAME = "NO_KillFeedConsole.dll"
+MOD_CFG_FILENAME = "com.nicho.no.killfeedconsole.cfg"
+MOD_STATE_DIRNAME = "NO_KillFeedConsoleAdmin"
+MOD_STATE_FILENAME = "moderation-state.json"
+
+_MOD_JOB_LOCK = threading.Lock()
+_MOD_JOBS: dict[str, dict] = {}
+
+def _mod_plugin_dir_for(server: dict) -> Path | None:
+    try:
+        install_dir = _server_install_dir_for(server)
+        if not install_dir:
+            return None
+        return Path(install_dir) / "BepInEx" / "plugins" / MOD_PLUGIN_DIRNAME
+    except Exception:
+        return None
+
+def _mod_plugin_path_for(server: dict) -> Path | None:
+    try:
+        pdir = _mod_plugin_dir_for(server)
+        return (pdir / MOD_PLUGIN_FILENAME) if pdir else None
+    except Exception:
+        return None
+
+def _mod_job_init(server_id: str) -> None:
+    with _MOD_JOB_LOCK:
+        _MOD_JOBS[server_id] = {"lines": [], "done": False, "success": False, "error": None, "ts": time.time()}
+
+def _mod_job_add(server_id: str, line: str) -> None:
+    if not server_id:
+        return
+    msg = (line or "").strip()
+    if not msg:
+        return
+    with _MOD_JOB_LOCK:
+        job = _MOD_JOBS.setdefault(server_id, {"lines": [], "done": False, "success": False, "error": None, "ts": time.time()})
+        job["lines"].append(msg)
+        job["ts"] = time.time()
+        if len(job["lines"]) > 250:
+            job["lines"] = job["lines"][-250:]
+
+def _mod_job_finish(server_id: str, success: bool, error: str | None = None) -> None:
+    with _MOD_JOB_LOCK:
+        job = _MOD_JOBS.setdefault(server_id, {"lines": [], "done": False, "success": False, "error": None, "ts": time.time()})
+        job["done"] = True
+        job["success"] = bool(success)
+        job["error"] = (error or None)
+        job["ts"] = time.time()
+
+def _mod_job_get(server_id: str) -> dict:
+    with _MOD_JOB_LOCK:
+        j = _MOD_JOBS.get(server_id) or {}
+        return {
+            "success": True,
+            "server_id": server_id,
+            "done": bool(j.get("done")),
+            "ok": bool(j.get("success")),
+            "error": j.get("error"),
+            "lines": list(j.get("lines") or []),
+        }
+
+def _mod_status_for(server: dict) -> dict:
+    plugin_path = _mod_plugin_path_for(server)
+    cfg_path = _mod_cfg_path_for(server)
+    state_path = _mod_state_path_for(server)
+    plugin_installed = bool(plugin_path and plugin_path.exists())
+    cfg_exists = bool(cfg_path and cfg_path.exists())
+    state_exists = bool(state_path and state_path.exists())
+    return {
+        "success": True,
+        "installed": plugin_installed,
+        "config_exists": cfg_exists,
+        "state_exists": state_exists,
+        "plugin_path": str(plugin_path) if plugin_path else None,
+        "cfg_path": str(cfg_path) if cfg_path else None,
+        "state_path": str(state_path) if state_path else None,
+    }
+
+def _install_moderation_mod(server: dict, dll_url: str | None = None) -> dict:
+    install_dir = Path(server.get("install_dir") or "")
+    if not install_dir.exists():
+        return {"success": False, "error": f"Install dir not found: {install_dir}", "output": []}
+
+    output: list[str] = []
+    bepinex_dir = install_dir / "BepInEx"
+    plugins_dir = bepinex_dir / "plugins"
+    plugin_dir = plugins_dir / MOD_PLUGIN_DIRNAME
+    plugin_path = plugin_dir / MOD_PLUGIN_FILENAME
+    dll_url = str(dll_url or MOD_RELEASE_DLL_URL).strip() or MOD_RELEASE_DLL_URL
+
+    if not plugins_dir.exists():
+        output.append("BepInEx not found for this server. Downloading and installing BepInEx...")
+        try:
+            _install_bepinex_into_server_dir(install_dir, output=output)
+        except Exception as e:
+            return {"success": False, "error": f"Failed to install BepInEx: {e}", "output": output}
+        try:
+            _run_server_for_seconds(install_dir, seconds=10, output=output)
+        except Exception as e:
+            return {"success": False, "error": f"BepInEx installed but initial run failed: {e}", "output": output}
+
+    try:
+        plugin_dir.mkdir(parents=True, exist_ok=True)
+        output.append(f"Downloading moderation mod from: {dll_url}")
+        data = _download_bytes(dll_url, timeout=90)
+        plugin_path.write_bytes(data)
+        output.append(f"Installed moderation mod to: {plugin_path}")
+    except Exception as e:
+        return {"success": False, "error": f"Failed to install moderation mod: {e}", "output": output}
+
+    try:
+        _run_server_for_seconds(install_dir, seconds=10, output=output)
+    except Exception as e:
+        return {"success": False, "error": f"Moderation mod installed but config generation run failed: {e}", "output": output}
+
+    cfg_path = _mod_cfg_path_for(server)
+    state_path = _mod_state_path_for(server)
+    output.append(f"Config path: {cfg_path if cfg_path and cfg_path.exists() else 'not found yet'}")
+    output.append(f"State path: {state_path if state_path and state_path.exists() else 'not found yet'}")
+    return {
+        "success": True,
+        "output": output,
+        "plugin_path": str(plugin_path),
+        "cfg_path": str(cfg_path) if cfg_path else None,
+        "state_path": str(state_path) if state_path else None,
+    }
+
+def _mod_cfg_path_for(server: dict) -> Path | None:
+    try:
+        install_dir = _server_install_dir_for(server)
+        if not install_dir:
+            return None
+        return Path(install_dir) / "BepInEx" / "config" / MOD_CFG_FILENAME
+    except Exception:
+        return None
+
+def _mod_state_path_for(server: dict) -> Path | None:
+    try:
+        install_dir = _server_install_dir_for(server)
+        if not install_dir:
+            return None
+        return Path(install_dir) / "BepInEx" / "config" / MOD_STATE_DIRNAME / MOD_STATE_FILENAME
+    except Exception:
+        return None
+
+def _mod_parse_cfg_text(text: str) -> dict:
+    out = {}
+    section = ""
+    for raw in (text or "").splitlines():
+        line = raw.strip()
+        if not line or line.startswith('#') or line.startswith(';'):
+            continue
+        if line.startswith('[') and line.endswith(']'):
+            section = line[1:-1].strip()
+            out.setdefault(section, {})
+            continue
+        if '=' in line:
+            k, v = line.split('=', 1)
+            out.setdefault(section, {})[k.strip()] = v.strip()
+    return out
+
+def _mod_parse_bool(v, default=False) -> bool:
+    s = str(v if v is not None else '').strip().lower()
+    if s in ('true','1','yes','on'): return True
+    if s in ('false','0','no','off'): return False
+    return bool(default)
+
+def _mod_parse_int(v, default=0) -> int:
+    try:
+        return int(str(v).strip())
+    except Exception:
+        return int(default)
+
+def _mod_set_cfg_value(text: str, section: str, key: str, value: str) -> str:
+    lines = (text or '').splitlines()
+    sec_header = f'[{section}]'
+    target_header = sec_header.lower()
+    in_target = False
+    found_section = False
+    wrote_key = False
+    out = []
+
+    def flush_missing_key_if_needed():
+        nonlocal wrote_key
+        if in_target and not wrote_key:
+            out.append(f'{key} = {value}')
+            wrote_key = True
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith('[') and stripped.endswith(']'):
+            flush_missing_key_if_needed()
+            in_target = stripped.lower() == target_header
+            if in_target:
+                found_section = True
+            out.append(line)
+            continue
+
+        if in_target and '=' in line and not stripped.startswith('#'):
+            lhs = line.split('=', 1)[0].strip()
+            if lhs == key:
+                if not wrote_key:
+                    out.append(f'{key} = {value}')
+                    wrote_key = True
+                continue
+
+        out.append(line)
+
+    flush_missing_key_if_needed()
+
+    if not found_section:
+        if out and out[-1].strip() != '':
+            out.append('')
+        out.append(sec_header)
+        out.append(f'{key} = {value}')
+
+    return '\n'.join(out) + ('\n' if out else '')
+
+
+def _mod_settings_snapshot(server: dict) -> dict:
+    cfg_path = _mod_cfg_path_for(server)
+    state_path = _mod_state_path_for(server)
+    cfg_text = ''
+    parsed = {}
+    if cfg_path and cfg_path.exists():
+        try:
+            cfg_text = cfg_path.read_text(encoding='utf-8', errors='ignore')
+            parsed = _mod_parse_cfg_text(cfg_text)
+        except Exception:
+            parsed = {}
+    kick = parsed.get('Kick', {})
+    integ = parsed.get('Integration', {})
+    disc = parsed.get('Discord', {})
+    filt = parsed.get('Filter', {})
+    state = _load_json_file(state_path, {}) if state_path else {}
+    tickets = list(state.get('Tickets') or state.get('tickets') or [])
+    tickets.sort(key=lambda t: str(t.get('UpdatedUtc') or t.get('updatedUtc') or t.get('updated_at') or ''), reverse=True)
+    open_tickets, closed_tickets = [], []
+    for t in tickets:
+        status = str(t.get('Status') or t.get('status') or 'open').lower()
+        (closed_tickets if status == 'closed' else open_tickets).append(t)
+    settings = (state.get('Settings') or state.get('settings') or {}) if isinstance(state, dict) else {}
+    plugin_path = _mod_plugin_path_for(server)
+    return {
+        'installed': bool(plugin_path and plugin_path.exists()),
+        'plugin_path': str(plugin_path) if plugin_path else None,
+        'cfg_path': str(cfg_path) if cfg_path else None,
+        'state_path': str(state_path) if state_path else None,
+        'settings': {
+            'enable_auto_kick': _mod_parse_bool(kick.get('EnableAutoKick'), settings.get('EnableAutoKick', False)),
+            'aircraft_tolerance': _mod_parse_int(kick.get('AircraftFriendlyFireTolerance'), settings.get('AircraftFriendlyFireTolerance', 0)),
+            'vehicle_tolerance': _mod_parse_int(kick.get('VehicleFriendlyFireTolerance'), settings.get('VehicleFriendlyFireTolerance', 1)),
+            'ship_tolerance': _mod_parse_int(kick.get('ShipFriendlyFireTolerance'), settings.get('ShipFriendlyFireTolerance', 0)),
+            'mod_webhook_enabled': _mod_parse_bool(disc.get('EnableWebhook'), settings.get('EnableDiscordWebhook', False)),
+            'export_moderation_state': _mod_parse_bool(integ.get('ExportModerationState'), True),
+            'require_real_player_involved': _mod_parse_bool(filt.get('RequireRealPlayerInvolved'), settings.get('RequireRealPlayerInvolved', True)),
+            'panel_discord_notifications': bool(server.get('moderation_bot_notifications', False)),
+        },
+        'tickets': open_tickets,
+        'closed_tickets': closed_tickets,
+        'last_updated': state.get('LastUpdatedUtc') or state.get('lastUpdatedUtc'),
+    }
+
+def _mod_write_settings(server_id: str, payload: dict) -> tuple[bool, str | None]:
+    server = get_server_by_id(server_id)
+    cfg_path = _mod_cfg_path_for(server)
+    if not cfg_path or not cfg_path.exists():
+        return False, 'Moderation mod config not found on selected server.'
+    text = cfg_path.read_text(encoding='utf-8', errors='ignore')
+    text = _mod_set_cfg_value(text, 'Kick', 'EnableAutoKick', 'true' if bool(payload.get('enable_auto_kick')) else 'false')
+    text = _mod_set_cfg_value(text, 'Kick', 'AircraftFriendlyFireTolerance', str(int(payload.get('aircraft_tolerance', 0))))
+    text = _mod_set_cfg_value(text, 'Kick', 'VehicleFriendlyFireTolerance', str(int(payload.get('vehicle_tolerance', 1))))
+    text = _mod_set_cfg_value(text, 'Kick', 'ShipFriendlyFireTolerance', str(int(payload.get('ship_tolerance', 0))))
+    text = _mod_set_cfg_value(text, 'Discord', 'EnableWebhook', 'false')
+    cfg_path.write_text(text, encoding='utf-8')
+    _update_server_fields(server_id, {
+        'moderation_bot_notifications': bool(payload.get('panel_discord_notifications', False))
+    })
+    return True, None
+
+def _mod_load_state_doc(server: dict) -> tuple[dict, Path | None]:
+    state_path = _mod_state_path_for(server)
+    if not state_path:
+        return {'Tickets': []}, None
+    data = _load_json_file(state_path, {'Tickets': []})
+    if 'Tickets' not in data and 'tickets' in data:
+        data['Tickets'] = data.get('tickets') or []
+    return data, state_path
+
+def _mod_save_state_doc(path: Path | None, data: dict) -> None:
+    if not path:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data['LastUpdatedUtc'] = _iso_now()
+    _save_json_file(path, data)
+
+def _mod_find_ticket(data: dict, steam_id):
+    sid = str(steam_id or '').strip()
+    for t in list(data.get('Tickets') or []):
+        if str(t.get('OffenderSteamId') or t.get('offenderSteamId') or '') == sid:
+            return t
+    return None
+
+def _mod_add_comment_to_ticket(ticket: dict, author: str, text: str, is_system: bool = False):
+    ticket.setdefault('Comments', [])
+    ticket['Comments'].append({
+        'Id': uuid.uuid4().hex,
+        'TimestampUtc': _iso_now(),
+        'Author': author,
+        'Text': text,
+        'IsSystem': bool(is_system),
+    })
+    ticket['UpdatedUtc'] = _iso_now()
+
+
+def _mod_reset_ticket_counts(data: dict, steam_ids: list[str] | None = None, reason: str = 'Counts reset by panel.') -> bool:
+    tickets = list(data.get('Tickets') or [])
+    targets = None if not steam_ids else {str(x).strip() for x in steam_ids if str(x).strip()}
+    changed = False
+    for ticket in tickets:
+        sid = str(ticket.get('OffenderSteamId') or ticket.get('offenderSteamId') or '').strip()
+        if targets is not None and sid not in targets:
+            continue
+        had_counts = any(int(ticket.get(k, 0) or 0) != 0 for k in ('AircraftCount','VehicleCount','ShipCount'))
+        ticket['AircraftCount'] = 0
+        ticket['VehicleCount'] = 0
+        ticket['ShipCount'] = 0
+        ticket['UpdatedUtc'] = _iso_now()
+        if reason:
+            _mod_add_comment_to_ticket(ticket, 'system', reason, True)
+        changed = changed or had_counts or bool(reason)
+    return changed
+
+
+def _mod_reset_counts_for_server(server_id: str, steam_ids: list[str] | None = None, reason: str = 'Counts reset by panel.') -> tuple[bool, str]:
+    server = get_server_by_id(server_id)
+    data, state_path = _mod_load_state_doc(server)
+    if not state_path:
+        return False, 'Moderation state file not found.'
+    changed = _mod_reset_ticket_counts(data, steam_ids, reason)
+    if changed:
+        _mod_save_state_doc(state_path, data)
+    server_obj = get_server_by_id(server_id)
+    if steam_ids:
+        kick_seen = [str(x) for x in (server_obj.get('moderation_kick_alert_keys') or []) if str(x)]
+        steam_set = {str(x).strip() for x in steam_ids if str(x).strip()}
+        kick_seen = [k for k in kick_seen if not any(k.startswith(f'{sid}:') for sid in steam_set)]
+        notified = [str(x) for x in (server_obj.get('moderation_notified_incident_ids') or []) if str(x)]
+        _update_server_fields(server_id, {
+            'moderation_kick_alert_keys': kick_seen,
+            'moderation_notified_incident_ids': notified,
+        })
+    else:
+        _update_server_fields(server_id, {
+            'moderation_kick_alert_keys': [],
+            'moderation_notified_incident_ids': [],
+        })
+    return True, 'Counts reset.'
+
+
+def _mod_build_match_marker_from_body(body) -> str:
+    try:
+        if isinstance(body, dict):
+            cur = body.get('currentMission') or body.get('CurrentMission') or body.get('mission_name') or body.get('missionName') or body.get('current') or body.get('Current')
+            nxt = body.get('nextMission') or body.get('NextMission') or body.get('next') or body.get('Next')
+            rem = body.get('timeRemaining') or body.get('TimeRemaining') or body.get('remaining') or body.get('Remaining')
+            return json.dumps({'current': cur, 'next': nxt, 'remaining': rem}, sort_keys=True, default=str)
+        return json.dumps(body, sort_keys=True, default=str)
+    except Exception:
+        return str(body)
+
+def _mod_local_commander_for_server(server_id: str):
+    server = get_server_by_id(server_id)
+    port = int(server.get('remote_commands_port') or 0)
+    if not validate_port(port):
+        raise RuntimeError('Selected server remote commands port is invalid or unavailable.')
+    return create_remote_commander(port)
+
+def _mod_apply_ticket_action_local(server_id: str, steam_id: str, action: str, comment_text=None, actor_override: str | None = None) -> tuple[bool, str]:
+    server = get_server_by_id(server_id)
+    data, state_path = _mod_load_state_doc(server)
+    ticket = _mod_find_ticket(data, steam_id)
+    if not ticket and str(action or '').lower() not in ('kick','ban'):
+        return False, 'Ticket not found.'
+    actor = str(actor_override or session.get('username') or 'panel')
+    action = str(action or '').strip().lower()
+    if action == 'claim':
+        ticket['ClaimedBy'] = actor
+        ticket['UpdatedUtc'] = _iso_now()
+    elif action == 'unclaim':
+        ticket['ClaimedBy'] = ''
+        ticket['UpdatedUtc'] = _iso_now()
+    elif action == 'close':
+        ticket['Status'] = 'closed'
+        _mod_add_comment_to_ticket(ticket, actor, 'Ticket closed from Server Panel.', True)
+    elif action == 'reopen':
+        ticket['Status'] = 'open'
+        _mod_add_comment_to_ticket(ticket, actor, 'Ticket reopened from Server Panel.', True)
+    elif action == 'comment':
+        txt = str(comment_text or '').strip()
+        if not txt:
+            return False, 'Comment text is required.'
+        _mod_add_comment_to_ticket(ticket, actor, txt, False)
+    elif action == 'kick':
+        c = _mod_local_commander_for_server(server_id)
+        code, body = server_commands.kick_player(c, str(steam_id))
+        if str(code).lower() != 'success':
+            return False, str(body)
+        if ticket:
+            _mod_add_comment_to_ticket(ticket, actor, f'Kick issued for SteamID {steam_id}.', True)
+    elif action == 'ban':
+        c = _mod_local_commander_for_server(server_id)
+        reason = f'Banned from panel moderation by {actor}'
+        code, body = server_commands.banlist_add(c, str(steam_id), reason)
+        if str(code).lower() != 'success':
+            return False, str(body)
+        try:
+            server_commands.banlist_reload(c)
+        except Exception:
+            pass
+        try:
+            server_commands.kick_player(c, str(steam_id))
+        except Exception:
+            pass
+        if ticket:
+            _mod_add_comment_to_ticket(ticket, actor, f'Ban issued for SteamID {steam_id}.', True)
+    elif action == 'unkick':
+        c = _mod_local_commander_for_server(server_id)
+        code, body = server_commands.unkick_player(c, str(steam_id))
+        if str(code).lower() != 'success':
+            return False, str(body)
+        _mod_reset_counts_for_server(server_id, [str(steam_id)], 'Counts reset after Discord unkick action.')
+        data, state_path = _mod_load_state_doc(server)
+        ticket = _mod_find_ticket(data, steam_id)
+        if ticket:
+            _mod_add_comment_to_ticket(ticket, actor, f'Unkick issued for SteamID {steam_id}; counts reset.', True)
+            _mod_save_state_doc(state_path, data)
+        return True, 'ok'
+    else:
+        return False, 'Unsupported action.'
+    _mod_save_state_doc(state_path, data)
+    return True, 'ok'
+
+def _mod_watchlist_get(server: dict) -> list[str]:
+    return [str(x).strip() for x in (server.get('moderation_monitor_once') or []) if str(x).strip()]
+
+def _mod_set_monitor_once(server_id: str, steam_id: str, actor: str = 'panel') -> tuple[bool, str]:
+    sid = str(steam_id or '').strip()
+    if not sid:
+        return False, 'SteamID is required.'
+    server = get_server_by_id(server_id)
+    watch = _mod_watchlist_get(server)
+    if sid in watch:
+        return True, f'Monitor already armed for SteamID {sid}.'
+    watch.append(sid)
+    _update_server_fields(server_id, {'moderation_monitor_once': watch})
+    try:
+        data, state_path = _mod_load_state_doc(server)
+        ticket = _mod_find_ticket(data, sid)
+        if ticket:
+            _mod_add_comment_to_ticket(ticket, actor, f'Monitor armed for next auto-kick on SteamID {sid}.', True)
+            _mod_save_state_doc(state_path, data)
+    except Exception:
+        pass
+    return True, f'Monitor armed for SteamID {sid}. The next auto-kick will raise a monitored alert.'
+
+def _mod_ticket_exceeds_threshold(ticket: dict, settings: dict) -> bool:
+    try:
+        aircraft = int(ticket.get('AircraftCount', 0) or 0)
+        vehicle = int(ticket.get('VehicleCount', 0) or 0)
+        ship = int(ticket.get('ShipCount', 0) or 0)
+        a_tol = int(settings.get('aircraft_tolerance', 0) or 0)
+        v_tol = int(settings.get('vehicle_tolerance', 1) or 0)
+        s_tol = int(settings.get('ship_tolerance', 0) or 0)
+        return aircraft > a_tol or vehicle > v_tol or ship > s_tol
+    except Exception:
+        return False
+
+def _mod_emit_discord_kick_alert_if_needed(server: dict, ticket: dict, monitored: bool = False):
+    try:
+        if not bool(server.get('moderation_bot_notifications', False)):
+            return
+        payload = {
+            'server_id': str(server.get('id') or ''),
+            'server_name': str(server.get('name') or 'Server').strip() or 'Server',
+            'steam_id': str(ticket.get('OffenderSteamId') or ticket.get('offenderSteamId') or '').strip(),
+            'player_name': str(ticket.get('OffenderName') or ticket.get('offenderName') or 'Unknown').strip() or 'Unknown',
+            'aircraft_ff': int(ticket.get('AircraftCount', 0) or 0),
+            'vehicle_ff': int(ticket.get('VehicleCount', 0) or 0),
+            'ship_ff': int(ticket.get('ShipCount', 0) or 0),
+            'monitored': bool(monitored),
+        }
+        discord_manager.send_moderation_kick_alert(payload)
+    except Exception:
+        pass
+
+def _mod_emit_discord_notification_if_needed(server: dict, incident: dict, ticket: dict | None):
+    try:
+        if not bool(server.get('moderation_bot_notifications', False)):
+            return
+        summary = str(incident.get('Summary') or incident.get('summary') or '').strip()
+        if not summary:
+            offender = str(incident.get('OffenderName') or incident.get('offenderName') or 'Unknown').strip()
+            offender_sid = str(incident.get('OffenderSteamId') or incident.get('offenderSteamId') or '').strip()
+            attacker_type = str(incident.get('AttackerType') or incident.get('attackerType') or '').strip()
+            victim = str(incident.get('VictimName') or incident.get('victimName') or 'Unknown').strip()
+            victim_sid = str(incident.get('VictimSteamId') or incident.get('victimSteamId') or '').strip()
+            victim_type = str(incident.get('VictimType') or incident.get('victimType') or '').strip()
+            verb = str(incident.get('Verb') or incident.get('verb') or 'hit').strip()
+            offender_label = offender
+            if offender_sid:
+                offender_label += f' ({offender_sid})'
+            if attacker_type:
+                offender_label += f' in {attacker_type}'
+            victim_label = victim
+            if victim_sid:
+                victim_label += f' ({victim_sid})'
+            elif victim_type and victim.lower() != victim_type.lower():
+                victim_label += f' [{victim_type}]'
+            summary = f'{offender_label} {verb} {victim_label}.'
+        else:
+            summary = summary.removeprefix('Friendly fire:').strip()
+            if summary and not summary.endswith('.'):
+                summary += '.'
+        counts_suffix = ''
+        if ticket:
+            aircraft = int(ticket.get('AircraftCount', 0) or 0)
+            vehicle = int(ticket.get('VehicleCount', 0) or 0)
+            ship = int(ticket.get('ShipCount', 0) or 0)
+            counts_suffix = f' Aircraft FF: {aircraft} | Vehicle FF: {vehicle} | Ship FF: {ship}'
+        msg = f'Friendly fire: {summary}'
+        if counts_suffix:
+            msg += '\n' + counts_suffix
+        discord_manager.send_message(msg)
+    except Exception:
+        pass
+
+def _moderation_notification_loop():
+    while True:
+        try:
+            servers = load_servers() or []
+            changed = False
+            for server in servers:
+                try:
+                    if not bool(server.get('moderation_bot_notifications', False)):
+                        continue
+                    state_path = _mod_state_path_for(server)
+                    if not state_path or not state_path.exists():
+                        continue
+                    data = _load_json_file(state_path, {'Tickets': []})
+                    state_session_id = str(data.get('SessionId') or data.get('sessionId') or '').strip()
+                    if state_session_id:
+                        prev_session_id = str(server.get('moderation_last_session_id') or '').strip()
+                        if prev_session_id != state_session_id:
+                            server['moderation_kick_alert_keys'] = []
+                            server['moderation_notified_incident_ids'] = []
+                            server['moderation_last_session_id'] = state_session_id
+                            changed = True
+                    seen = [str(x) for x in (server.get('moderation_notified_incident_ids') or [])]
+                    seen_set = set(seen)
+                    new_seen = list(seen)
+                    settings = _mod_settings_snapshot(server).get('settings') or {}
+                    try:
+                        marker = ''
+                        sid_local = str(server.get('id') or '')
+                        local_port = int(server.get('remote_commands_port') or 0)
+                        if sid_local and str(server.get('location') or '').lower() == 'remote':
+                            prox = _proxy_server_op_if_remote(sid_local, '/api/cluster/servers/command', {'cmd':'get-mission','args':{}}, timeout=10)
+                            if prox:
+                                payload, _status = prox
+                                marker = _mod_build_match_marker_from_body((payload or {}).get('response'))
+                        elif local_port:
+                            try:
+                                commander = create_remote_commander(local_port)
+                                code2, body2 = server_commands.get_mission(commander)
+                                if str(code2).lower() == 'success':
+                                    marker = _mod_build_match_marker_from_body(body2)
+                            except Exception:
+                                marker = ''
+                        if marker:
+                            prev_marker = str(server.get('moderation_last_match_marker') or '')
+                            if prev_marker and prev_marker != marker:
+                                _mod_reset_counts_for_server(str(server.get('id') or ''), None, 'Counts reset because a new match started.')
+                                server['moderation_kick_alert_keys'] = []
+                                server['moderation_notified_incident_ids'] = []
+                                changed = True
+                            server['moderation_last_match_marker'] = marker
+                    except Exception:
+                        pass
+                    try:
+                        running_now = False
+                        if str(server.get('location') or '').lower() != 'remote':
+                            server_dir = _server_install_dir_for(server)
+                            if server_dir:
+                                running_now = _is_server_running(server_dir)
+                        last_running = bool(server.get('moderation_last_running', False))
+                        if running_now and not last_running:
+                            _mod_reset_counts_for_server(str(server.get('id') or ''), None, 'Counts reset because the server started a new session.')
+                            server['moderation_kick_alert_keys'] = []
+                            server['moderation_notified_incident_ids'] = []
+                            changed = True
+                        server['moderation_last_running'] = running_now
+                    except Exception:
+                        pass
+                    kick_seen = [str(x) for x in (server.get('moderation_kick_alert_keys') or []) if str(x)]
+                    kick_seen_set = set(kick_seen)
+                    kick_seen_new = list(kick_seen)
+                    watch = _mod_watchlist_get(server)
+                    watch_set = set(watch)
+                    watch_changed = False
+                    for ticket in list(data.get('Tickets') or data.get('tickets') or []):
+                        incidents = list(ticket.get('Incidents') or ticket.get('incidents') or [])
+                        incidents.sort(key=lambda i: str(i.get('TimestampUtc') or i.get('timestampUtc') or ''))
+                        for inc in incidents:
+                            iid = str(inc.get('Id') or inc.get('id') or '')
+                            if not iid or iid in seen_set:
+                                continue
+                            _mod_emit_discord_notification_if_needed(server, inc, ticket)
+                            seen_set.add(iid)
+                            new_seen.append(iid)
+                            changed = True
+                        if bool(settings.get('enable_auto_kick')) and _mod_ticket_exceeds_threshold(ticket, settings):
+                            sid = str(ticket.get('OffenderSteamId') or ticket.get('offenderSteamId') or '').strip()
+                            aircraft = int(ticket.get('AircraftCount', 0) or 0)
+                            vehicle = int(ticket.get('VehicleCount', 0) or 0)
+                            ship = int(ticket.get('ShipCount', 0) or 0)
+                            key = f"{sid}:A{aircraft}:V{vehicle}:S{ship}"
+                            if sid and key not in kick_seen_set:
+                                monitored = sid in watch_set
+                                _mod_emit_discord_kick_alert_if_needed(server, ticket, monitored=monitored)
+                                kick_seen_set.add(key)
+                                kick_seen_new.append(key)
+                                changed = True
+                                if monitored:
+                                    watch_set.discard(sid)
+                                    watch_changed = True
+                    if len(new_seen) > 200:
+                        new_seen = new_seen[-200:]
+                    if len(kick_seen_new) > 200:
+                        kick_seen_new = kick_seen_new[-200:]
+                    server['moderation_notified_incident_ids'] = new_seen
+                    server['moderation_kick_alert_keys'] = kick_seen_new
+                    if watch_changed:
+                        server['moderation_monitor_once'] = list(watch_set)
+                except Exception:
+                    continue
+            if changed:
+                save_servers(servers)
+        except Exception:
+            pass
+        time.sleep(10)
+
+@app.get('/api/moderation/status')
+@requires_login()
+def api_moderation_status_get():
+    sid = _get_request_server_id()
+    proxied = _proxy_server_op_if_remote(sid, '/api/cluster/servers/moderation/status', {}, timeout=20)
+    if proxied:
+        payload, status = proxied
+        return jsonify(payload), status
+    try:
+        server = get_server_by_id(sid)
+        return jsonify(_mod_status_for(server))
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.get('/api/moderation/job')
+@requires_login()
+def api_moderation_job_get():
+    sid = _get_request_server_id()
+    proxied = _proxy_server_op_if_remote(sid, '/api/cluster/servers/moderation/job', {}, timeout=15)
+    if proxied:
+        payload, status = proxied
+        return jsonify(payload), status
+    return jsonify(_mod_job_get(sid))
+
+@app.post('/api/moderation/install')
+@requires_login('admin')
+def api_moderation_install():
+    data = request.get_json(silent=True) or {}
+    sid = str(data.get('server_id') or _get_request_server_id() or '').strip()
+    dll_url = str(data.get('dll_url') or MOD_RELEASE_DLL_URL).strip() or MOD_RELEASE_DLL_URL
+    proxied = _proxy_server_op_if_remote(sid, '/api/cluster/servers/moderation/install', {'server_id': sid, 'dll_url': dll_url}, timeout=60)
+    if proxied:
+        payload, status = proxied
+        return jsonify(payload), status
+
+    _mod_job_init(sid)
+    _mod_job_add(sid, 'Starting moderation mod install...')
+
+    def worker():
+        try:
+            server = get_server_by_id(sid)
+            result = _install_moderation_mod(server, dll_url=dll_url)
+            for line in list(result.get('output') or []):
+                _mod_job_add(sid, line)
+            if result.get('success'):
+                _mod_job_finish(sid, True, None)
+            else:
+                _mod_job_add(sid, f"Install failed: {result.get('error')}")
+                _mod_job_finish(sid, False, result.get('error'))
+        except Exception as e:
+            _mod_job_add(sid, f'Install failed: {e}')
+            _mod_job_finish(sid, False, str(e))
+
+    threading.Thread(target=worker, daemon=True).start()
+    return jsonify({'success': True, 'started': True})
+
+@app.get('/api/moderation/state')
+@requires_login()
+def api_moderation_state_get():
+    sid = str(request.args.get('server_id') or '').strip()
+    proxied = _proxy_server_op_if_remote(sid, '/api/cluster/servers/moderation/get_state', {}, timeout=20)
+    if proxied:
+        payload, code = proxied
+        return jsonify(payload), code
+    try:
+        server = get_server_by_id(sid)
+        snap = _mod_settings_snapshot(server)
+        return jsonify({'success': True, 'server_id': sid or server.get('id'), **snap})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.post('/api/moderation/settings')
+@requires_login(role='admin')
+def api_moderation_settings_set():
+    data = request.get_json(force=True, silent=True) or {}
+    sid = str(data.get('server_id') or '').strip()
+    proxied = _proxy_server_op_if_remote(sid, '/api/cluster/servers/moderation/set_settings', data, timeout=20)
+    if proxied:
+        payload, code = proxied
+        return jsonify(payload), code
+    try:
+        ok2, err = _mod_write_settings(sid, data)
+        if not ok2:
+            return jsonify({'success': False, 'error': err or 'Failed to save moderation settings.'}), 400
+        server = get_server_by_id(sid)
+        snap = _mod_settings_snapshot(server)
+        return jsonify({'success': True, **snap})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.post('/api/moderation/ticket_action')
+@requires_login()
+def api_moderation_ticket_action():
+    data = request.get_json(force=True, silent=True) or {}
+    sid = str(data.get('server_id') or '').strip()
+    actor = str(data.get('actor') or session.get('username') or 'panel').strip() or 'panel'
+    data['actor'] = actor
+    proxied = _proxy_server_op_if_remote(sid, '/api/cluster/servers/moderation/ticket_action', data, timeout=30)
+    if proxied:
+        payload, code = proxied
+        return jsonify(payload), code
+    try:
+        steam_id = str(data.get('steam_id') or '').strip()
+        action = str(data.get('action') or '').strip()
+        actor = str(data.get('actor') or session.get('username') or 'panel').strip() or 'panel'
+        if action == 'monitor_once':
+            ok2, msg = _mod_set_monitor_once(sid, steam_id, actor)
+        else:
+            ok2, msg = _mod_apply_ticket_action_local(sid, steam_id, action, data.get('text'), actor)
+        if not ok2:
+            return jsonify({'success': False, 'error': msg}), 400
+        server = get_server_by_id(sid)
+        snap = _mod_settings_snapshot(server)
+        return jsonify({'success': True, 'message': msg, **snap})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.post('/api/cluster/servers/moderation/status')
+def api_cluster_moderation_status():
+    try:
+        payload = request.get_json(silent=True) or {}
+        sid = str(payload.get('server_id') or '').strip()
+        _cluster_verify_or_abort(sid, payload)
+        server = get_server_by_id(sid)
+        return jsonify(_mod_status_for(server))
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.post('/api/cluster/servers/moderation/job')
+def api_cluster_moderation_job():
+    try:
+        payload = request.get_json(silent=True) or {}
+        sid = str(payload.get('server_id') or '').strip()
+        _cluster_verify_or_abort(sid, payload)
+        return jsonify(_mod_job_get(sid))
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.post('/api/cluster/servers/moderation/install')
+def api_cluster_moderation_install():
+    try:
+        payload = request.get_json(silent=True) or {}
+        sid = str(payload.get('server_id') or '').strip()
+        dll_url = str(payload.get('dll_url') or MOD_RELEASE_DLL_URL).strip() or MOD_RELEASE_DLL_URL
+        _cluster_verify_or_abort(sid, payload)
+        _mod_job_init(sid)
+        _mod_job_add(sid, 'Starting moderation mod install...')
+
+        def worker():
+            try:
+                server = get_server_by_id(sid)
+                result = _install_moderation_mod(server, dll_url=dll_url)
+                for line in list(result.get('output') or []):
+                    _mod_job_add(sid, line)
+                if result.get('success'):
+                    _mod_job_finish(sid, True, None)
+                else:
+                    _mod_job_add(sid, f"Install failed: {result.get('error')}")
+                    _mod_job_finish(sid, False, result.get('error'))
+            except Exception as e:
+                _mod_job_add(sid, f'Install failed: {e}')
+                _mod_job_finish(sid, False, str(e))
+
+        threading.Thread(target=worker, daemon=True).start()
+        return jsonify({'success': True, 'started': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.post('/api/cluster/servers/moderation/get_state')
+def api_cluster_moderation_get_state():
+    body_bytes = request.get_data() or b''
+    ok_sig, msg = cluster_state.verify_signed_request(request.method, request.path, body_bytes, dict(request.headers))
+    if not ok_sig:
+        return jsonify({'success': False, 'error': msg}), 401
+    data = request.get_json(force=True, silent=True) or {}
+    sid = str(data.get('server_id') or '').strip()
+    try:
+        server = get_server_by_id(sid)
+        snap = _mod_settings_snapshot(server)
+        return jsonify({'success': True, 'server_id': sid or server.get('id'), **snap})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.post('/api/cluster/servers/moderation/set_settings')
+def api_cluster_moderation_set_settings():
+    body_bytes = request.get_data() or b''
+    ok_sig, msg = cluster_state.verify_signed_request(request.method, request.path, body_bytes, dict(request.headers))
+    if not ok_sig:
+        return jsonify({'success': False, 'error': msg}), 401
+    data = request.get_json(force=True, silent=True) or {}
+    sid = str(data.get('server_id') or '').strip()
+    try:
+        ok2, err = _mod_write_settings(sid, data)
+        if not ok2:
+            return jsonify({'success': False, 'error': err}), 400
+        server = get_server_by_id(sid)
+        snap = _mod_settings_snapshot(server)
+        return jsonify({'success': True, **snap})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.post('/api/cluster/servers/moderation/ticket_action')
+def api_cluster_moderation_ticket_action():
+    body_bytes = request.get_data() or b''
+    ok_sig, msg = cluster_state.verify_signed_request(request.method, request.path, body_bytes, dict(request.headers))
+    if not ok_sig:
+        return jsonify({'success': False, 'error': msg}), 401
+    data = request.get_json(force=True, silent=True) or {}
+    sid = str(data.get('server_id') or '').strip()
+    try:
+        action = str(data.get('action') or '').strip()
+        actor = str(data.get('actor') or 'panel').strip() or 'panel'
+        if action == 'monitor_once':
+            ok2, msg2 = _mod_set_monitor_once(sid, str(data.get('steam_id') or ''), actor)
+        else:
+            ok2, msg2 = _mod_apply_ticket_action_local(sid, str(data.get('steam_id') or ''), action, data.get('text'), actor)
+        if not ok2:
+            return jsonify({'success': False, 'error': msg2}), 400
+        server = get_server_by_id(sid)
+        snap = _mod_settings_snapshot(server)
+        return jsonify({'success': True, 'message': msg2, **snap})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# =============================
 # Panel Users / Moderation
 # =============================
 
@@ -5103,8 +5994,20 @@ def api_cluster_servers_command():
             res = server_commands.kick_player(commander, args.get("steam_id",""))
         elif cmd == "unkick-player":
             res = server_commands.unkick_player(commander, args.get("steam_id",""))
+            try:
+                status_code_tmp = res[0] if isinstance(res, (list, tuple)) and len(res) == 2 else 'Success'
+                if str(status_code_tmp).lower() == 'success':
+                    _mod_reset_counts_for_server(sid, [str(args.get('steam_id') or '')], 'Counts reset after unkick by panel.')
+            except Exception:
+                pass
         elif cmd == "clear-kicked-players":
             res = server_commands.clear_kicked_players(commander)
+            try:
+                status_code_tmp = res[0] if isinstance(res, (list, tuple)) and len(res) == 2 else 'Success'
+                if str(status_code_tmp).lower() == 'success':
+                    _mod_reset_counts_for_server(sid, None, 'Counts reset after clear-kicked-players by panel.')
+            except Exception:
+                pass
         elif cmd == "banlist-reload":
             res = server_commands.banlist_reload(commander)
         elif cmd == "banlist-clear":
@@ -6780,6 +7683,9 @@ def api_cluster_gallery_fetch():
 
 
 if __name__ == "__main__":
+    _mod_thread = threading.Thread(target=_moderation_notification_loop, daemon=True)
+    _mod_thread.start()
+
     # Background MOTD broadcaster (daemon)
     try:
         t = threading.Thread(target=_motd_scheduler_loop, daemon=True)

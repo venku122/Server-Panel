@@ -112,6 +112,11 @@ const pages = {
     sub: "Manage ports and server names",
     el: document.getElementById("page-ports"),
   },
+  moderation: {
+    title: "Moderation",
+    sub: "Friendly-fire settings and notifications",
+    el: document.getElementById("page-moderation"),
+  },
   manage: {
     title: "Server Deployment",
     sub: "Deploy, delete, and select server instances",
@@ -215,6 +220,7 @@ function setActivePage(key){
   if (key === "cluster") loadClusterPage();
   if (key === "discord") (window.__discordRefreshStatus || window.refreshDiscordStatus)?.();
   if (key === "noblackbox") (window.loadNoBlackBox || (()=>{}))();
+  if (key === "moderation") (window.loadModerationPage || (()=>{}))();
 }
 
 async function apiFetch(url, opts={}){
@@ -1673,6 +1679,7 @@ function renderAllServerPills(){
 
   // NoBlackBox server dropdown (if page exists)
   try{ window.__nobbSyncServerSelect && window.__nobbSyncServerSelect(); }catch{}
+  try{ window.loadModerationPage && window.loadModerationPage(); }catch{}
 }
 
 async function loadServers(){
@@ -3072,3 +3079,202 @@ document.addEventListener("DOMContentLoaded", async () => {
     await load();
   };
 })();
+
+// -----------------------------
+// Moderation
+// -----------------------------
+let moderationState = { tickets: [], closed_tickets: [], settings: {} };
+let moderationSelectedSteamId = null;
+let moderationInstallPoll = null;
+let moderationFormDirty = false;
+
+function moderationSetInstallLines(lines){
+  const wrap = document.getElementById('mod-install-progress');
+  if (!wrap) return;
+  const arr = Array.isArray(lines) ? lines : [];
+  wrap.innerHTML = arr.length ? arr.map(x => `<div class="list-item"><div>${escapeHtml(String(x||''))}</div></div>`).join('') : '<div class="muted small">Install output will appear here.</div>';
+}
+
+function moderationSetInstallStatus(text){
+  const el = document.getElementById('mod-install-status');
+  if (el) el.textContent = text || '';
+}
+
+async function moderationRefreshStatus(){
+  if (!currentServerId) return null;
+  const res = await apiFetch(`/api/moderation/status?server_id=${encodeURIComponent(currentServerId)}`, { method:'GET' });
+  if (!res.ok || !res.data?.success){
+    moderationSetInstallStatus(res.data?.error || 'Failed to load moderation status.');
+    return null;
+  }
+  const st = res.data;
+  moderationSetInstallStatus(`Installed: ${st.installed ? 'yes' : 'no'} | Plugin: ${st.plugin_path || 'not found'} | Config: ${st.cfg_path || 'not found'} | State: ${st.state_path || 'not found'}`);
+  return st;
+}
+
+async function moderationPollInstallJob(){
+  if (!currentServerId) return;
+  const res = await apiFetch(`/api/moderation/job?server_id=${encodeURIComponent(currentServerId)}`, { method:'GET' });
+  if (!res.ok || !res.data?.success) return;
+  moderationSetInstallLines(res.data.lines || []);
+  if (res.data.done){
+    if (moderationInstallPoll){ clearInterval(moderationInstallPoll); moderationInstallPoll = null; }
+    await moderationRefreshStatus();
+    await window.loadModerationPage();
+    if (!res.data.ok) alert(res.data.error || 'Moderation mod install failed.');
+  }
+}
+
+function moderationTicketSteamId(t){ return String(t?.OffenderSteamId ?? t?.offenderSteamId ?? ''); }
+function moderationTicketStatus(t){ return String(t?.Status ?? t?.status ?? 'open').toLowerCase(); }
+function moderationTicketClaimedBy(t){ return String(t?.ClaimedBy ?? t?.claimedBy ?? ''); }
+function moderationTicketName(t){ return String(t?.OffenderName ?? t?.offenderName ?? moderationTicketSteamId(t) ?? 'Unknown'); }
+function moderationTicketIncidents(t){ return Array.isArray(t?.Incidents) ? t.Incidents : (Array.isArray(t?.incidents) ? t.incidents : []); }
+function moderationTicketComments(t){ return Array.isArray(t?.Comments) ? t.Comments : (Array.isArray(t?.comments) ? t.comments : []); }
+
+function renderModerationLists(){
+  const openWrap = document.getElementById('mod-open-tickets');
+  const closedWrap = document.getElementById('mod-closed-tickets');
+  const renderOne = (t) => {
+    const sid = moderationTicketSteamId(t);
+    const active = sid === moderationSelectedSteamId ? ' style="border-color:var(--accent);"' : '';
+    const counts = `A:${Number(t?.AircraftCount ?? 0)} V:${Number(t?.VehicleCount ?? 0)} S:${Number(t?.ShipCount ?? 0)}`;
+    const claimed = moderationTicketClaimedBy(t) || 'none';
+    return `<button class="pill" ${active} data-mod-ticket="${escapeAttr(sid)}"><b>${escapeHtml(moderationTicketName(t))}</b> • ${escapeHtml(sid)} • ${escapeHtml(counts)} • claimed by ${escapeHtml(claimed)}</button>`;
+  };
+  renderList(openWrap, (moderationState.tickets||[]).length ? moderationState.tickets.map(renderOne).join(' ') : '<div class="muted small">No open tickets.</div>');
+  renderList(closedWrap, (moderationState.closed_tickets||[]).length ? moderationState.closed_tickets.map(renderOne).join(' ') : '<div class="muted small">No closed tickets.</div>');
+  document.querySelectorAll('[data-mod-ticket]').forEach(btn => btn.onclick = () => { moderationSelectedSteamId = btn.dataset.modTicket; renderModerationDetail(); renderModerationLists(); });
+}
+
+function renderModerationDetail(){
+  const wrap = document.getElementById('mod-ticket-detail');
+  const all = [...(moderationState.tickets||[]), ...(moderationState.closed_tickets||[])];
+  const t = all.find(x => moderationTicketSteamId(x) === moderationSelectedSteamId);
+  if (!wrap) return;
+  if (!t){ wrap.innerHTML = '<div class="muted small">Select a ticket.</div>'; return; }
+  const incidents = moderationTicketIncidents(t).slice().sort((a,b)=> String(b?.TimestampUtc||b?.timestampUtc||'').localeCompare(String(a?.TimestampUtc||a?.timestampUtc||'')));
+  const comments = moderationTicketComments(t).slice().sort((a,b)=> String(a?.TimestampUtc||a?.timestampUtc||'').localeCompare(String(b?.TimestampUtc||b?.timestampUtc||'')));
+  const isClosed = moderationTicketStatus(t) === 'closed';
+  wrap.innerHTML = `
+    <div class="field"><label>Offender</label><div>${escapeHtml(moderationTicketName(t))} (${escapeHtml(moderationTicketSteamId(t))})</div></div>
+    <div class="field"><label>Status</label><div>${escapeHtml(moderationTicketStatus(t))} • claimed by ${escapeHtml(moderationTicketClaimedBy(t) || 'none')}</div></div>
+    <div class="btns">
+      <button class="btn ghost" data-mod-action="claim">Claim</button>
+      <button class="btn ghost" data-mod-action="unclaim">Unclaim</button>
+      <button class="btn ${isClosed ? 'good' : 'warn'}" data-mod-action="${isClosed ? 'reopen' : 'close'}">${isClosed ? 'Reopen' : 'Close'}</button>
+      <button class="btn danger" data-mod-action="kick">Kick</button>
+      <button class="btn danger" data-mod-action="ban">Ban</button>
+    </div>
+    <div class="field"><label>Add comment</label><div class="row"><input id="mod-comment-text" class="grow" placeholder="Comment for other moderators" /><button class="btn primary" id="mod-comment-btn" type="button">Post</button></div></div>
+    <div class="field"><label>Incidents</label><div class="list">${incidents.length ? incidents.map(i => `<div class="list-item"><div><b>${escapeHtml(String(i?.Summary ?? i?.summary ?? ''))}</b></div><div class="muted small">${escapeHtml(String(i?.TimestampUtc ?? i?.timestampUtc ?? ''))}</div></div>`).join('') : '<div class="muted small">No incidents.</div>'}</div></div>
+    <div class="field"><label>Comments</label><div class="list">${comments.length ? comments.map(c => `<div class="list-item"><div><b>${escapeHtml(String(c?.Author ?? c?.author ?? ''))}</b> • ${escapeHtml(String(c?.TimestampUtc ?? c?.timestampUtc ?? ''))}</div><div>${escapeHtml(String(c?.Text ?? c?.text ?? ''))}</div></div>`).join('') : '<div class="muted small">No comments.</div>'}</div></div>
+  `;
+  wrap.querySelectorAll('[data-mod-action]').forEach(btn => btn.onclick = async () => {
+    const action = btn.dataset.modAction;
+    const res = await apiFetch('/api/moderation/ticket_action', { method:'POST', body: JSON.stringify({ server_id: currentServerId, steam_id: moderationSelectedSteamId, action }) });
+    if (!res.ok || !res.data?.success){ alert(res.data?.error || 'Moderation action failed.'); return; }
+    await window.loadModerationPage();
+  });
+  const commentBtn = document.getElementById('mod-comment-btn');
+  if (commentBtn) commentBtn.onclick = async () => {
+    const text = document.getElementById('mod-comment-text')?.value || '';
+    const res = await apiFetch('/api/moderation/ticket_action', { method:'POST', body: JSON.stringify({ server_id: currentServerId, steam_id: moderationSelectedSteamId, action: 'comment', text }) });
+    if (!res.ok || !res.data?.success){ alert(res.data?.error || 'Comment failed.'); return; }
+    await window.loadModerationPage();
+  };
+}
+
+window.loadModerationPage = async function(){
+  if (!currentServerId) return;
+  await moderationRefreshStatus();
+  const res = await apiFetch('/api/moderation/state');
+  if (!res.ok || !res.data?.success){
+    moderationState = { tickets: [], closed_tickets: [], settings: {} };
+    renderModerationLists();
+    renderModerationDetail();
+    const hint = document.getElementById('mod-paths-hint');
+    if (hint) hint.textContent = res.data?.error || 'Failed to load moderation state. Install the moderation mod to generate config/state files.';
+    return;
+  }
+  moderationState = res.data;
+  const s = res.data.settings || {};
+  const setChecked = (id,v) => { const el = document.getElementById(id); if (el) el.checked = !!v; };
+  const setValue = (id,v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
+  if (!moderationFormDirty) {
+    setChecked('mod-enable-autokick', s.enable_auto_kick);
+    setChecked('mod-bot-notify', s.panel_discord_notifications);
+    setValue('mod-aircraft-tol', s.aircraft_tolerance);
+    setValue('mod-vehicle-tol', s.vehicle_tolerance);
+    setValue('mod-ship-tol', s.ship_tolerance);
+  }
+  const hint = document.getElementById('mod-paths-hint');
+  if (hint) hint.textContent = `Config: ${res.data.cfg_path || 'not found'} | State: ${res.data.state_path || 'not found'}`;
+  const all = [...(res.data.tickets||[]), ...(res.data.closed_tickets||[])];
+  if (moderationSelectedSteamId && !all.find(t => moderationTicketSteamId(t) === moderationSelectedSteamId)) moderationSelectedSteamId = null;
+  if (!moderationSelectedSteamId && (res.data.tickets||[]).length) moderationSelectedSteamId = moderationTicketSteamId(res.data.tickets[0]);
+  renderModerationLists();
+  renderModerationDetail();
+};
+
+document.addEventListener('click', (ev) => {
+  const saveBtn = ev.target?.closest?.('#mod-save-btn');
+  if (!saveBtn) return;
+  (async()=>{
+    const payload = {
+      server_id: currentServerId,
+      enable_auto_kick: !!document.getElementById('mod-enable-autokick')?.checked,
+      panel_discord_notifications: !!document.getElementById('mod-bot-notify')?.checked,
+      aircraft_tolerance: parseInt(document.getElementById('mod-aircraft-tol')?.value || '0', 10),
+      vehicle_tolerance: parseInt(document.getElementById('mod-vehicle-tol')?.value || '1', 10),
+      ship_tolerance: parseInt(document.getElementById('mod-ship-tol')?.value || '0', 10),
+    };
+    const res = await apiFetch('/api/moderation/settings', { method:'POST', body: JSON.stringify(payload) });
+    if (!res.ok || !res.data?.success){ alert(res.data?.error || 'Failed to save moderation settings.'); return; }
+    moderationFormDirty = false;
+    await window.loadModerationPage();
+    try{ pushResponse('Moderation settings saved.'); }catch{}
+  })();
+});
+
+document.addEventListener('click', (ev) => {
+  const btn = ev.target?.closest?.('#mod-refresh-status-btn');
+  if (!btn) return;
+  (async()=>{ await moderationRefreshStatus(); })();
+});
+
+document.addEventListener('click', (ev) => {
+  const btn = ev.target?.closest?.('#mod-install-btn');
+  if (!btn) return;
+  (async()=>{
+    if (!currentServerId){ alert('Select a server first.'); return; }
+    moderationSetInstallLines(['Starting moderation mod install...']);
+    moderationSetInstallStatus('Installing moderation mod...');
+    const res = await apiFetch('/api/moderation/install', { method:'POST', body: JSON.stringify({ server_id: currentServerId }) });
+    if (!res.ok || !res.data?.success){ alert(res.data?.error || 'Failed to start moderation mod install.'); return; }
+    if (moderationInstallPoll){ clearInterval(moderationInstallPoll); }
+    moderationInstallPoll = setInterval(moderationPollInstallJob, 1500);
+    await moderationPollInstallJob();
+  })();
+});
+
+document.addEventListener('click', (ev) => {
+  const btn = ev.target?.closest?.('#mod-load-btn');
+  if (!btn) return;
+  moderationFormDirty = false;
+  window.loadModerationPage();
+});
+
+document.addEventListener('input', (ev) => {
+  const el = ev.target;
+  if (el && (el.id === 'mod-aircraft-tol' || el.id === 'mod-vehicle-tol' || el.id === 'mod-ship-tol')) {
+    moderationFormDirty = true;
+  }
+});
+
+document.addEventListener('change', (ev) => {
+  const el = ev.target;
+  if (el && (el.id === 'mod-enable-autokick' || el.id === 'mod-bot-notify')) {
+    moderationFormDirty = true;
+  }
+});
