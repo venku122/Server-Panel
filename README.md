@@ -1,5 +1,5 @@
 # Nuclear Option Server Panel (Modern UI)
-
+IMPORTANT: THIS DOES STILL REQUIRE PORT FORWARDING LIKE MOST DEDICATED GAME SERVERS REQUIRE. BY DEFAULT PORTS 7777 and 7778 are used by the NO Server if not changed in deployment settings and youll need to have those ports forwarded for the default server to function properly.
 A Windows-based Python control panel for managing **Nuclear Option** dedicated servers from a web UI and optional Discord bot.
 
 This panel can:
