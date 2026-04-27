@@ -97,7 +97,7 @@ This is especially useful if a Discord upload is too large and you need to uploa
 
 ## Discord bot
 
-The optional Discord bot can control servers and help with footage access.
+The optional Discord bot can control servers and help with footage access. youll need to go to discord dev portal and create/add bot to server. look it up on yt
 
 Discord bot permissions needed:
 
