@@ -119,21 +119,7 @@ Invite scopes:
 bot
 applications.commands
 
-Minimal permission integer:
 
-414464724032
-
-If you want the bot to kick/ban players from Discord buttons, also add:
-
-Kick Members
-Ban Members
-
-Permission integer with kick/ban:
-
-414464724038
-
-Important:
-The bot’s Discord role must be above any roles it needs to kick or ban in Server Settings > Roles.
 
 
 ## Cluster / remote nodes
