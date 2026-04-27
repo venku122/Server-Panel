@@ -108,6 +108,7 @@ Attach Files
 Read Message History
 Use External Emojis
 Add Reactions
+Use Slash Commands
 
 Bot settings to enable in Discord Developer Portal > Bot:
 
