@@ -413,7 +413,7 @@ class WorkshopLibrary:
 
     def resolve(self, request: WorkshopResolveRequest | str) -> dict[str, Any]:
         """Resolve input against local files and expand locally known collections."""
-        value = request.reference if isinstance(request, WorkshopResolveRequest) else request
+        value = request if isinstance(request, str) else request.reference
         reference = parse_workshop_reference(value)
         by_id = {item.item_id: item for item in self.scan()}
         item = by_id.get(reference.item_id)
