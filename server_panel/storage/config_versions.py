@@ -9,7 +9,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from .db import Repository, connect
 
@@ -307,7 +307,8 @@ class ConfigVersionService:
         self.database_path = Path(database_path)
 
     def _connection(self) -> sqlite3.Connection:
-        return cast(sqlite3.Connection, connect(self.database_path))
+        connection: sqlite3.Connection = connect(self.database_path)
+        return connection
 
     @staticmethod
     def _validate_resource(resource_type: str) -> None:
