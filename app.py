@@ -2938,9 +2938,7 @@ def api_config_versions_list():
         payload, code = proxy
         return jsonify(payload), code
     try:
-        versions = CONFIG_VERSION_SERVICE.list(
-            server_id=server_id, resource_type=resource_type, limit=200
-        )
+        versions = CONFIG_VERSION_SERVICE.list(server_id=server_id, resource_type=resource_type, limit=200)
     except ValueError as error:
         return jsonify({"success": False, "error": str(error)}), 400
     return jsonify({"success": True, "versions": versions})
@@ -3004,9 +3002,7 @@ def api_cluster_config_versions_list():
     server_id = str(data.get("server_id") or "").strip()
     resource_type = str(data.get("resource_type") or "").strip() or None
     try:
-        versions = CONFIG_VERSION_SERVICE.list(
-            server_id=server_id, resource_type=resource_type, limit=200
-        )
+        versions = CONFIG_VERSION_SERVICE.list(server_id=server_id, resource_type=resource_type, limit=200)
     except ValueError as error:
         return jsonify({"success": False, "error": str(error)}), 400
     return jsonify({"success": True, "versions": versions})
@@ -4677,9 +4673,7 @@ def api_set_startup_settings():
                 change_summary="Updated MaxPlayers from startup settings",
             )
 
-    return jsonify(
-        {"success": True, "restart_required": restart_required, "config_version": version}
-    )
+    return jsonify({"success": True, "restart_required": restart_required, "config_version": version})
 
 
 # =============================
