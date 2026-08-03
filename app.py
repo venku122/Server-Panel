@@ -6323,10 +6323,7 @@ def _workshop_rotation_memberships(server_id: str) -> dict[str, list[str]]:
 
 
 def _workshop_library(server_id: str):
-    roots = [
-        library / "steamapps" / "workshop" / "content" / "2168680"
-        for library in _get_steam_library_paths()
-    ]
+    roots = [library / "steamapps" / "workshop" / "content" / "2168680" for library in _get_steam_library_paths()]
     return _workshop_storage.WorkshopLibrary(
         roots,
         MISSIONS_DIR,
@@ -6369,9 +6366,7 @@ def api_workshop_resolve(server_id: str):
         return jsonify({"success": False, "error": "Server not found."}), 404
     payload = request.get_json(force=True, silent=True) or {}
     try:
-        result = _workshop_library(server_id).resolve(
-            str(payload.get("reference") or "")
-        )
+        result = _workshop_library(server_id).resolve(str(payload.get("reference") or ""))
     except ValueError as error:
         return jsonify({"success": False, "error": str(error)}), 400
     return jsonify({"success": True, **result})
@@ -6416,9 +6411,7 @@ def _place_workshop_missions(
             updated2 = {"group": "User", "name": name, "max_time": 7200.0}
             added.append(name)
         if not added:
-            raise ValueError(
-                "The current two-slot rotation is full. Choose a slot to replace."
-            )
+            raise ValueError("The current two-slot rotation is full. Choose a slot to replace.")
     return updated1, updated2, added
 
 
@@ -6448,9 +6441,7 @@ def api_workshop_add_to_rotation(server_id: str):
         library = _workshop_library(server_id)
         mission_names = library.copy_item_to_missions(item_id)
         config_data, slot1, slot2 = _workshop_slots_for_server(server_id)
-        slot1, slot2, added = _place_workshop_missions(
-            mission_names, slot1, slot2, placement
-        )
+        slot1, slot2, added = _place_workshop_missions(mission_names, slot1, slot2, placement)
         updates = {
             "mission1_group": slot1.get("group") or "BuiltIn",
             "mission1_name": slot1.get("name") or "",
@@ -6482,9 +6473,7 @@ def api_workshop_add_to_rotation(server_id: str):
     except ValueError as error:
         return jsonify({"success": False, "error": str(error)}), 409
     except (OSError, json.JSONDecodeError) as error:
-        return jsonify(
-            {"success": False, "error": f"Could not update the local library: {error}"}
-        ), 500
+        return jsonify({"success": False, "error": f"Could not update the local library: {error}"}), 500
     return jsonify(
         {
             "success": True,
