@@ -4,7 +4,19 @@
 {% block body_class %}panel-page global-page{% endblock %}
 {% block body %}
     <div class="shell global-shell">
-        <aside class="sidebar" aria-label="Panel sidebar">
+        <header class="mobile-appbar">
+            <button class="btn ghost sidebar-toggle"
+                    type="button"
+                    aria-controls="panel-sidebar"
+                    aria-expanded="false">Menu</button>
+            <span class="mobile-context">Panel</span>
+        </header>
+        <button class="sidebar-backdrop"
+                type="button"
+                data-sidebar-close
+                aria-label="Close navigation"
+                hidden></button>
+        <aside class="sidebar" id="panel-sidebar" aria-label="Panel sidebar" tabindex="-1">
             <div class="sidebar-head">
                 {{ brand() }}
                 <button class="sidebar-collapse"
@@ -13,6 +25,7 @@
                         aria-label="Collapse sidebar"
                         aria-expanded="true">‹</button>
             </div>
+            <button class="btn ghost sidebar-close" type="button" data-sidebar-close>Close</button>
             {{ global_navigation(active_page) }}
             <div class="sidebar-foot">
                 <div class="scope-label">Panel scope</div>
@@ -29,6 +42,7 @@
                  class="notice page-status"
                  role="status"
                  aria-live="polite"
+                 tabindex="-1"
                  hidden></div>
             {% if active_page in ('ports', 'cluster', 'users', 'discord', 'about') %}
                 <div class="settings-layout">
@@ -47,6 +61,7 @@
 {% include "components/shell_overlays.html" %}
 {% endblock %}
 {% block scripts %}
+    <script defer src="{{ url_for('static', filename='js/core/navigation.js') }}"></script>
     {% if load_panel_script %}
         <script>window.NO_ALLOWED_PORTS = {{ allowed_ports|default([], true)|tojson }}; window.NO_PANEL_CONTEXT = {scope: "global", serverId: null, activePage: {{ active_page|tojson }}, serversPath: {{ url_for('servers_index')|tojson }}};</script>
         <script defer src="{{ url_for('static', filename='app.js') }}?v=20260811ux"></script>
