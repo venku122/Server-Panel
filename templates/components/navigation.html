@@ -29,7 +29,7 @@
     <nav class="nav" aria-label="Panel navigation">
         <span class="nav-group-label">Workspace</span>
         {{ nav_link('servers', 'Servers', url_for('servers_index'), active_page) }}
-        {{ nav_link('activity', 'Activity', '/activity', active_page, admin_only=true) }}
+        {{ nav_link('activity', 'Activity', url_for('activity_page'), active_page, admin_only=true) }}
         {{ nav_link('jobs', 'Jobs', '/jobs', active_page, admin_only=true) }}
         {{ nav_link('manage', 'Deployment', url_for('deployment_page'), active_page, 'deployment', admin_only=true) }}
         <span class="nav-group-label">Configuration</span>

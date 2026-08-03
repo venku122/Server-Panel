@@ -1,0 +1,118 @@
+.audit-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin-block-end: var(--space-4);
+}
+
+.audit-filter-actions {
+  grid-column: 1 / -1;
+}
+
+.audit-timeline {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.audit-event {
+  padding: var(--space-4);
+}
+
+.audit-event-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.audit-event-meta,
+.audit-target {
+  color: var(--color-muted);
+  font-size: var(--font-size-sm);
+}
+
+.audit-event-title {
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-size-lg);
+}
+
+.audit-summary {
+  margin-block: var(--space-3) var(--space-2);
+}
+
+.audit-outcome {
+  flex: none;
+  padding: var(--space-1) var(--space-2);
+  color: #d8dbe8;
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  text-transform: uppercase;
+  background: rgb(255 255 255 / 0.08);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+}
+
+.audit-outcome--success {
+  color: #9ff1c0;
+  background: rgb(28 138 79 / 0.18);
+  border-color: rgb(83 206 128 / 0.4);
+}
+
+.audit-outcome--failure,
+.audit-outcome--denied {
+  color: #ffb2bb;
+  background: rgb(178 42 61 / 0.18);
+  border-color: rgb(255 102 122 / 0.4);
+}
+
+.audit-details {
+  margin-block-start: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.audit-identifiers {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.audit-identifiers > div {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.3fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.audit-identifiers dt {
+  color: var(--color-muted);
+}
+
+.audit-identifiers dd {
+  min-inline-size: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.audit-json {
+  min-block-size: 0;
+  max-block-size: 320px;
+}
+
+@media (max-width: 760px) {
+  .audit-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .audit-filter-actions {
+    grid-column: auto;
+  }
+
+  .audit-event-header {
+    align-items: flex-start;
+  }
+
+  .audit-identifiers > div {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
+}
