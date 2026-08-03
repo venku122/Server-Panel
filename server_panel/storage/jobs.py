@@ -12,6 +12,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, cast
 
+from pydantic import ValidationError
+
 from server_panel.contracts.jobs import JobResult
 
 from .audit import serialize_payload
@@ -928,14 +930,17 @@ class JobWorker:
         try:
             if handler is None:
                 raise RuntimeError(f"No worker handler is registered for {job.job_type!r}.")
-            result = handler(
+            raw_result = handler(
                 JobContext(self.service, job, self.owner, self.lease_seconds, lease_lost),
                 parameters,
             )
             if lease_lost.is_set():
                 raise LeaseLost(str(lease_error[-1]) if lease_error else "The worker heartbeat lost the lease.")
-            _strict_json_payload(result)
-            result = JobResult.model_validate(result).root
+            _strict_json_payload(raw_result)
+            try:
+                result = JobResult.model_validate(raw_result).root
+            except ValidationError as error:
+                raise RuntimeError("Job handler returned a non-JSON result.") from error
             terminal_status = "succeeded"
         except JobCancelled as error:
             terminal_status = "cancelled"
