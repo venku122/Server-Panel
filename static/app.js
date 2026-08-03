@@ -504,8 +504,9 @@ async function sendCommand(endpoint, body){
     });
 
     const data = await res.json().catch(() => ({}));
-    if (pill) pill.textContent = data.success ? "Done" : "Error";
-    setMeta(cmdName, data.success ? "ok" : "error");
+    const queued = Boolean(data.success && data.job?.id);
+    if (pill) pill.textContent = queued ? "Queued" : (data.success ? "Done" : "Error");
+    setMeta(cmdName, queued ? "queued" : (data.success ? "ok" : "error"));
 
     panelDiagnostics?.render({
       request: {method: "POST", url: withServerId(endpoint), body: payload},
@@ -513,10 +514,13 @@ async function sendCommand(endpoint, body){
     });
     setPageStatus(
       data.success
-        ? `${cmdName} completed for ${s.name}.`
+        ? (queued ? `${cmdName} queued for ${s.name}. It will continue if this page closes.` : `${cmdName} completed for ${s.name}.`)
         : `${cmdName} failed for ${s.name}: ${data.error || "Unknown error"}`,
       data.success ? "status" : "error",
     );
+    if (queued) {
+      setResponse(`Job queued: ${data.job.id}\nTrack it at /servers/${encodeURIComponent(s.id)}/jobs`);
+    }
     return data;
   }catch(err){
     if (pill) pill.textContent = "Error";
@@ -2054,13 +2058,8 @@ function wireSyncWorkshopUI(){
         pushResponse("Workshop sync failed: " + msg);
         if(status) status.textContent = "Sync failed: " + msg;
       } else {
-        pushResponse(`Workshop sync complete: ${j.synced_count} mission folder(s), ${j.missions_copied} mission file(s).`);
-        if(j.copied && j.copied.length){
-          pushResponse("Copied: " + j.copied.slice(0,8).join(", ") + (j.copied.length>8 ? " ..." : ""));
-        }
-        if(status) status.textContent = `Done. Synced ${j.synced_count} folder(s).`;
-        // Refresh mission dropdown lists (User missions)
-        try{ await loadMissionSlotsIntoUI(); }catch(e){}
+        pushResponse(`Workshop sync queued as job ${j.job.id}. It will continue if this page closes.`);
+        if(status) status.textContent = `Queued. Track job ${j.job.id.slice(0,8)} on the Jobs page.`;
       }
     }catch(err){
       pushResponse("Workshop sync error: " + (err?.message || String(err)));
@@ -3121,15 +3120,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         notify(err || "Install failed", "error");
         return;
       }
-      // Show live progress from the backend job.
-      // Also start a status-probe watcher in parallel to guarantee we print completion.
-      
-      // The backend install may run asynchronously and completion detection can vary by host.
-      // Instead of waiting on status/config detection, show completion after a short fixed delay,
-      // then refresh status/config. (This avoids getting stuck on "Starting install..." especially on remote nodes.)
-      await sleep(20000);
-      appendProgress("✅ Install complete.");
-      try { await load(); } catch(_) {}
+      const jobId = String(r.data.job?.id || "");
+      appendProgress(`Install queued as job ${jobId}.`);
+      appendProgress("It will continue if this page closes. Track durable progress on the server Jobs page.");
 });
 
     if (el.uninstallBtn) el.uninstallBtn.addEventListener("click", async () => {
