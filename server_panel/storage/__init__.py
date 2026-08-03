@@ -4,6 +4,7 @@ from pathlib import Path
 
 from flask import Flask
 
+from .config_versions import ConfigVersion, ConfigVersionService
 from .db import (
     Repository,
     connect,
@@ -47,6 +48,8 @@ def configure_storage(
 
 
 __all__ = [
+    "ConfigVersion",
+    "ConfigVersionService",
     "Job",
     "JobCancelled",
     "JobContext",
