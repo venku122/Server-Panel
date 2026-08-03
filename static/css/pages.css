@@ -104,10 +104,15 @@ th.table-col-actions {
   .job-row-main > span:nth-child(6) { grid-column: 2; grid-row: 4; text-align: right; }
   .recent-job-meta .job-state { display: none; }
 }
-
 @media (min-width: 901px) and (max-width: 1320px) {
   .job-toolbar .job-search { min-width: 220px; flex: 1 1 220px; }
   .job-toolbar label, .job-toolbar .job-scope-control { min-width: 104px; }
   .job-list-head { grid-template-columns: 100px minmax(180px,1.35fr) minmax(90px,.75fr) 100px 125px 60px 42px; }
   .job-row-main { grid-template-columns: 100px minmax(180px,1.35fr) minmax(90px,.75fr) 100px 125px 60px; }
+}
+
+.config-history-list {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
 }
