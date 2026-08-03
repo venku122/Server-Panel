@@ -1497,9 +1497,9 @@ const j = await apiPost("/api/startup-settings", {
   }
 
   if(j.restart_required){
-    notify("Restart required for FPS / Remote Command port changes to take effect.", "status");
+    notify(`Startup settings saved as v${j.config_version?.version?.version_number || "?"}. Restart required for FPS / Remote Command port changes to take effect.`, "status");
   }else{
-    notify("Startup settings saved.", "success");
+    notify(`Startup settings saved as v${j.config_version?.version?.version_number || "?"}.`, "success");
   }
 
   // Remote Commands Port changes no longer affect the Ports tab (which is now Game/Query only).
@@ -1552,7 +1552,7 @@ async function saveDedicatedConfigFromUI(){
     return;
   }
 
-  notify("DedicatedServerConfig.json saved.", "success");
+  notify(`DedicatedServerConfig.json saved as v${j.config_version?.version?.version_number || "?"}.`, "success");
   // (Optional) you can press Reload Config in Commands tab to apply some changes without restart.
 }
 
@@ -2980,7 +2980,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       appendProgress(`❌ Save failed: ${err}`);
       return false;
     }
-    appendProgress("✅ Settings saved.");
+    appendProgress(`✅ Settings saved as v${resp.data.config_version?.version?.version_number || "?"}.`);
     return true;
   }
 
