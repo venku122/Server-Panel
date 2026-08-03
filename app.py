@@ -61,6 +61,8 @@ from pathlib import Path
 from functools import wraps
 from typing import NamedTuple, Optional, Tuple
 
+from server_panel.storage import configure_storage
+
 
 # =============================
 # Windows Firewall management (best-effort, rules created/owned by panel only)
@@ -381,7 +383,6 @@ import config
 import server_commands
 from discord_bot import DiscordBotManager
 from secret_store import encrypt_value, decrypt_value, encrypt_fields, decrypt_fields, is_encrypted_value
-from server_panel.storage import configure_storage
 
 
 # --- Path roots (stable regardless of current working directory) ---
