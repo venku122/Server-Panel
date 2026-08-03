@@ -23,9 +23,11 @@ def _utc_now() -> str:
 
 
 def _lease_deadline(seconds: int) -> str:
-    return (datetime.now(timezone.utc) + timedelta(seconds=max(1, seconds))).isoformat(
-        timespec="milliseconds"
-    ).replace("+00:00", "Z")
+    return (
+        (datetime.now(timezone.utc) + timedelta(seconds=max(1, seconds)))
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
 
 
 def _deserialize(value: str | None, fallback: Any) -> Any:
@@ -136,9 +138,7 @@ class JobRepository(Repository):
             cancel_requested=bool(row["cancel_requested"]),
             attempt=int(row["attempt"]),
             lease_owner=str(row["lease_owner"]) if row["lease_owner"] is not None else None,
-            lease_expires_at=(
-                str(row["lease_expires_at"]) if row["lease_expires_at"] is not None else None
-            ),
+            lease_expires_at=(str(row["lease_expires_at"]) if row["lease_expires_at"] is not None else None),
             parent_job_id=str(row["parent_job_id"]) if row["parent_job_id"] is not None else None,
             correlation_id=str(row["correlation_id"]),
             replay_safe=bool(row["replay_safe"]),
@@ -179,9 +179,7 @@ class JobRepository(Repository):
         ).fetchall()
         return [self._event(row) for row in rows]
 
-    def append_event(
-        self, job_id: str, level: str, message: str, data: Any | None = None
-    ) -> JobEvent:
+    def append_event(self, job_id: str, level: str, message: str, data: Any | None = None) -> JobEvent:
         normalized_level = level if level in {"debug", "info", "warning", "error"} else "info"
         sequence_row = self.connection.execute(
             "SELECT COALESCE(MAX(sequence), 0) + 1 AS next_sequence FROM job_events WHERE job_id = ?",
@@ -202,9 +200,7 @@ class JobRepository(Repository):
                 _utc_now(),
             ),
         )
-        row = self.connection.execute(
-            "SELECT * FROM job_events WHERE id = ?", (cursor.lastrowid,)
-        ).fetchone()
+        row = self.connection.execute("SELECT * FROM job_events WHERE id = ?", (cursor.lastrowid,)).fetchone()
         if row is None:
             raise RuntimeError("Job event was not readable after insert.")
         return self._event(row)
@@ -534,9 +530,7 @@ class JobService:
                     parent_job_id=original.id,
                     attempt=original.attempt + 1,
                 )
-                repository.append_event(
-                    original.id, "info", "A linked retry was queued.", {"retry_job_id": retried.id}
-                )
+                repository.append_event(original.id, "info", "A linked retry was queued.", {"retry_job_id": retried.id})
                 return retried
         finally:
             connection.close()
