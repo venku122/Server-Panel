@@ -10,7 +10,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from pydantic import ValidationError
 
@@ -412,7 +412,8 @@ class JobService:
         self.database_path = Path(database_path)
 
     def _connection(self) -> sqlite3.Connection:
-        return cast(sqlite3.Connection, connect(self.database_path))
+        connection: sqlite3.Connection = connect(self.database_path)
+        return connection
 
     def create(self, **values: Any) -> Job:
         connection = self._connection()
