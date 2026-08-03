@@ -1983,7 +1983,7 @@ SERVER_SECTION_PAGES = {
         "show_response": True,
     },
     "moderation": {
-        "template": "server/moderation.html",
+        "template": "moderation/index.html",
         "active_page": "moderation",
         "title": "Moderation",
         "subtitle": "Friendly-fire settings and notifications",
