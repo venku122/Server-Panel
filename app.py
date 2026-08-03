@@ -1836,7 +1836,7 @@ def global_panel_page():
     route_key = request.path.lstrip("/")
     active_page = GLOBAL_PANEL_PAGES.get(route_key)
     if active_page is None:
-        abort(404)
+        return abort(404)
     return _render_panel_shell(active_page)
 
 
