@@ -3,6 +3,12 @@
 
   const terminal = new Set(["succeeded", "failed", "cancelled", "interrupted"]);
 
+  function jobCards() {
+    return [...document.querySelectorAll("[data-job-id]")].map(
+      (element) => /** @type {HTMLElement} */ (element),
+    );
+  }
+
   async function jobRequest(url, options = {}) {
     const response = await fetch(url, {
       headers: { "Content-Type": "application/json", ...(options.headers || {}) },
@@ -46,7 +52,7 @@
     return payload.job;
   }
 
-  document.querySelectorAll("[data-job-id]").forEach((card) => {
+  jobCards().forEach((card) => {
     card.querySelector("details")?.addEventListener("toggle", () => {
       if (card.querySelector("details")?.open) refresh(card).catch(() => {});
     });
@@ -61,8 +67,9 @@
   });
 
   async function poll() {
-    await Promise.all([...document.querySelectorAll("[data-job-id]")].map(async (card) => {
-      const state = card.querySelector("[data-job-status]")?.dataset.jobStatus;
+    await Promise.all(jobCards().map(async (card) => {
+      const status = /** @type {HTMLElement | null} */ (card.querySelector("[data-job-status]"));
+      const state = status?.dataset.jobStatus;
       if (!terminal.has(state)) await refresh(card).catch(() => {});
     }));
   }
