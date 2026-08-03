@@ -7308,9 +7308,7 @@ def _moderation_enqueue_install(install_request):
 
 def _moderation_install_job_status(server_id: str) -> dict:
     jobs = [
-        job
-        for job in JOB_SERVICE.list(server_id=server_id, limit=50)
-        if job.get("job_type") == "moderation_install"
+        job for job in JOB_SERVICE.list(server_id=server_id, limit=50) if job.get("job_type") == "moderation_install"
     ]
     if not jobs:
         return {"success": True, "server_id": server_id, "done": False, "ok": False, "error": None, "lines": []}
@@ -7391,6 +7389,7 @@ def _moderation_legacy_route(function):
     """Keep old callables import-compatible while live routes belong to the blueprint."""
     return function
 
+
 @_moderation_legacy_route
 @requires_login()
 def api_moderation_status_get():
@@ -7404,6 +7403,7 @@ def api_moderation_status_get():
         return jsonify(_mod_status_for(server))
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
+
 
 @_moderation_legacy_route
 @requires_login()
@@ -7425,6 +7425,7 @@ def api_moderation_job_get():
         }
     )
 
+
 @_moderation_legacy_route
 @requires_login('admin')
 def api_moderation_install():
@@ -7441,6 +7442,7 @@ def api_moderation_install():
     )
     return jsonify({"success": True, "started": True, "job": job.to_dict()}), 202
 
+
 @_moderation_legacy_route
 @requires_login()
 def api_moderation_state_get():
@@ -7455,6 +7457,7 @@ def api_moderation_state_get():
         return jsonify({'success': True, 'server_id': sid or server.get('id'), **snap})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @_moderation_legacy_route
 @requires_login(role='admin')
@@ -7474,6 +7477,7 @@ def api_moderation_settings_set():
         return jsonify({'success': True, **snap})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @_moderation_legacy_route
 @requires_login()
@@ -7502,6 +7506,7 @@ def api_moderation_ticket_action():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
 @_moderation_legacy_route
 def api_cluster_moderation_status():
     try:
@@ -7513,6 +7518,7 @@ def api_cluster_moderation_status():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
+
 @_moderation_legacy_route
 def api_cluster_moderation_job():
     try:
@@ -7522,6 +7528,7 @@ def api_cluster_moderation_job():
         return jsonify(_mod_job_get(sid))
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
+
 
 @_moderation_legacy_route
 def api_cluster_moderation_install():
@@ -7543,6 +7550,7 @@ def api_cluster_moderation_install():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
+
 @_moderation_legacy_route
 def api_cluster_moderation_get_state():
     body_bytes = request.get_data() or b''
@@ -7557,6 +7565,7 @@ def api_cluster_moderation_get_state():
         return jsonify({'success': True, 'server_id': sid or server.get('id'), **snap})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @_moderation_legacy_route
 def api_cluster_moderation_set_settings():
@@ -7575,6 +7584,7 @@ def api_cluster_moderation_set_settings():
         return jsonify({'success': True, **snap})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @_moderation_legacy_route
 def api_cluster_moderation_ticket_action():
