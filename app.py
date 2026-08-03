@@ -2514,7 +2514,7 @@ def _enqueue_job(
     correlation_id: Optional[str] = None,
 ):
     actor = str(created_by or session.get("username") or "system")
-    correlation = str(correlation_id or getattr(g, "correlation_id", uuid.uuid4()))
+    correlation = str(correlation_id or getattr(g, "correlation_id", None) or uuid.uuid4())
     job = JOB_SERVICE.create(
         job_type=job_type,
         scope_type=scope_type,
@@ -2635,8 +2635,9 @@ def api_cluster_job_enqueue():
     sid = str(data.get("server_id") or "").strip()
     if not sid or _find_server_by_id(sid) is None:
         return jsonify({"success": False, "error": "Local server not found"}), 404
-    parameters = data.get("parameters") if isinstance(data.get("parameters"), dict) else {}
-    parameters = {**parameters, "server_id": sid}
+    raw_parameters = data.get("parameters")
+    parameters: dict = dict(raw_parameters) if isinstance(raw_parameters, dict) else {}
+    parameters["server_id"] = sid
     if job_type == "workshop_sync":
         parameters["local_only"] = True
     totals = {"server_update": 4, "workshop_sync": 2, "noblackbox_install": 3}
