@@ -371,7 +371,7 @@ def _fw_cleanup_stale_panel_rules() -> tuple[int, int, list[str]]:
 
 import psutil
 import socket
-from flask import Flask, jsonify, request, Response, render_template, session, redirect, url_for, abort, g
+from flask import Flask, jsonify, request, Response, render_template, session, redirect, url_for, abort, g, has_request_context
 
 # Cluster (LAN)
 from cluster import ClusterDiscovery, ClusterState, DISCOVERY_PORT, best_effort_local_ip, http_post_json
@@ -901,7 +901,8 @@ app.config.update(
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=_bool_config("SESSION_COOKIE_SECURE", False),
 )
-PANEL_DATABASE_PATH = importlib.import_module("server_panel.storage").configure_storage(
+_panel_storage = importlib.import_module("server_panel.storage")
+PANEL_DATABASE_PATH = _panel_storage.configure_storage(
     app,
     BASE_DIR,
     os.environ.get("NO_PANEL_DATABASE_PATH") or getattr(config, "DATABASE_PATH", None),
@@ -914,6 +915,18 @@ PANEL_DATABASE_PATH = importlib.import_module("server_panel.storage").configure_
 PANEL_BOOT_ID = secrets.token_urlsafe(16)
 
 
+@app.before_request
+def _assign_correlation_id() -> None:
+    requested = str(request.headers.get("X-Correlation-ID") or "").strip()
+    g.correlation_id = requested if re.fullmatch(r"[A-Za-z0-9._-]{8,128}", requested) else str(uuid.uuid4())
+
+
+@app.after_request
+def _expose_correlation_id(response: Response) -> Response:
+    response.headers["X-Correlation-ID"] = str(getattr(g, "correlation_id", ""))
+    return response
+
+
 
 # =============================
 # Auth (Session-based + users.json)
@@ -923,6 +936,12 @@ USERS_FILE = BASE_DIR / "panel_users.json"
 LOGIN_AUDIT_FILE = BASE_DIR / "login_attempts.json"
 BLOCKED_IPS_FILE = BASE_DIR / "blocked_ips.json"
 AUDIT_LOG_FILE = BASE_DIR / "panel_audit.jsonl"
+AUDIT_SERVICE = importlib.import_module("server_panel.storage.audit").AuditService(
+    _panel_storage.get_db,
+    AUDIT_LOG_FILE,
+)
+with app.app_context():
+    AUDIT_SERVICE.import_legacy()
 
 DEFAULT_BOOTSTRAP_USERNAME = getattr(config, "USERNAME", "admin")
 DEFAULT_BOOTSTRAP_PASSWORD = getattr(config, "PASSWORD", "changeme")
@@ -959,16 +978,16 @@ def _save_json_file(path: Path, data) -> None:
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 def _append_audit(event: str, details: dict) -> None:
-    rec = {
-        "ts": _now_ts(),
-        "time": _iso_now(),
-        "ip": _client_ip(),
-        "user": session.get("username"),
-        "event": event,
-        "details": details or {},
-    }
-    with AUDIT_LOG_FILE.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    correlation_id = str(getattr(g, "correlation_id", "")) if has_request_context() else None
+    actor = session.get("username") if has_request_context() else None
+    ip_address = _client_ip() if has_request_context() else None
+    AUDIT_SERVICE.record_legacy_action(
+        event,
+        details,
+        actor=actor,
+        correlation_id=correlation_id,
+        ip_address=ip_address,
+    )
 
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -1786,7 +1805,7 @@ GLOBAL_PAGE_REGISTRY = {
         PageSpec("servers", "Servers", "/servers", "servers"),
         # Activity and Jobs are activated by their owning downstream PRs. Their
         # route metadata lives here so scope switching never relies on client state.
-        PageSpec("activity", "Activity", "/activity", None, "admin"),
+        PageSpec("activity", "Activity", "/activity", "activity", "admin"),
         PageSpec("jobs", "Jobs", "/jobs", None, "admin"),
         PageSpec("deployment", "Deployment", "/deployment", "manage", "admin"),
         PageSpec("settings", "Settings", "/settings", "ports", "admin", "settings"),
@@ -1858,7 +1877,7 @@ SERVER_PAGE_REGISTRY = {
             compatibility_paths=("/moderation",),
         ),
         PageSpec("workshop", "Workshop", "/workshop", None),
-        PageSpec("activity", "Activity", "/activity", None, "admin", global_peer="activity"),
+        PageSpec("activity", "Activity", "/activity", "activity", "admin", global_peer="activity"),
         PageSpec("jobs", "Jobs", "/jobs", None, "admin", global_peer="jobs"),
         PageSpec(
             "recordings",
@@ -1949,6 +1968,13 @@ SERVER_SECTION_PAGES = {
         "subtitle": "Browse NoBlackBox recordings",
         "show_response": False,
     },
+    "activity": {
+        "template": "server/activity.html",
+        "active_page": "activity",
+        "title": "Activity",
+        "subtitle": "Structured actions and outcomes for this server",
+        "show_response": False,
+    },
 }
 GLOBAL_PANEL_PAGES = {
     "deployment": {
@@ -1957,6 +1983,13 @@ GLOBAL_PANEL_PAGES = {
         "title": "Deployment",
         "subtitle": "Deploy and remove server instances",
         "show_response": True,
+    },
+    "activity": {
+        "template": "global/activity.html",
+        "active_page": "activity",
+        "title": "Activity",
+        "subtitle": "Structured panel and server actions",
+        "show_response": False,
     },
     "ports": {
         "template": "global/ports.html",
@@ -2091,6 +2124,19 @@ def _render_panel_shell(
 
     ports = load_ports()
     allowed_ports = [port["port"] for port in ports]
+    activity_filters = {
+        "server_id": server_id or str(request.args.get("server_id") or "").strip(),
+        "outcome": str(request.args.get("outcome") or "").strip(),
+        "actor": str(request.args.get("actor") or "").strip(),
+    }
+    activity_events = []
+    if page["active_page"] == "activity":
+        activity_events = AUDIT_SERVICE.list_events(
+            server_id=activity_filters["server_id"] or None,
+            outcome=activity_filters["outcome"] or None,
+            actor=activity_filters["actor"] or None,
+            limit=200,
+        )
     return render_template(
         page["template"],
         ports=ports,
@@ -2114,6 +2160,9 @@ def _render_panel_shell(
         server_view_warnings=server_view_warnings,
         current_user=session.get("username"),
         current_role=session.get("role"),
+        activity_events=activity_events,
+        activity_filters=activity_filters,
+        activity_outcomes=("success", "failure", "denied", "unknown"),
     )
 
 
@@ -2152,6 +2201,7 @@ def _render_server_registry_page(server_id: str, page_key: str):
         "recordings": "noblackbox",
         "recordings-gallery": "gallery",
         "settings": "settings",
+        "activity": "activity",
     }
     page = SERVER_SECTION_PAGES.get(section_keys.get(page_key, ""))
     if page is None:
@@ -2210,6 +2260,7 @@ def server_section(server_id: str, section: str):
         "noblackbox": "recordings",
         "gallery": "recordings-gallery",
         "configuration-history": "settings-history",
+        "activity": "activity",
     }
     page_key = aliases.get(section)
     if page_key is None:
@@ -2257,6 +2308,12 @@ def settings_index():
 @requires_login()
 def settings_ports_page():
     return _render_global_panel_page("settings-ports")
+
+
+@app.get("/activity")
+@requires_login()
+def activity_page():
+    return _render_global_panel_page("activity")
 
 
 @app.get("/ports")
@@ -7867,23 +7924,14 @@ def api_cluster_users_apply():
 def api_audit_logs_get():
     if not _is_localhost():
         return jsonify({"success": False, "error": "Localhost only."}), 403
-    if not AUDIT_LOG_FILE.exists():
-        return jsonify({"success": True, "logs": []})
-    lines = AUDIT_LOG_FILE.read_text(encoding="utf-8", errors="ignore").splitlines()
-    logs = []
-    for line in lines[-500:]:
-        try:
-            logs.append(json.loads(line))
-        except Exception:
-            continue
-    return jsonify({"success": True, "logs": logs})
+    return jsonify({"success": True, "logs": AUDIT_SERVICE.list_events(limit=500)})
 
 @app.delete("/api/audit-logs")
 @requires_login(role="admin")
 def api_audit_logs_clear():
     if not _is_localhost():
         return jsonify({"success": False, "error": "Localhost only."}), 403
-    AUDIT_LOG_FILE.write_text("", encoding="utf-8")
+    AUDIT_SERVICE.clear()
     _append_audit("audit_logs_cleared", {})
     return jsonify({"success": True})
 
