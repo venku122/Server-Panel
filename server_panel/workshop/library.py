@@ -11,7 +11,7 @@ import json
 import re
 import shutil
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import parse_qs, urlparse
@@ -149,7 +149,7 @@ def _mission_jsons(item_dir: Path) -> list[Path]:
 
 def _modified_iso(path: Path) -> str | None:
     try:
-        return datetime.fromtimestamp(path.stat().st_mtime, tz=UTC).isoformat()
+        return datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat()
     except OSError:
         return None
 
