@@ -1,0 +1,88 @@
+.workshop-toolbar,
+.workshop-preview {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.workshop-search,
+.workshop-resolve,
+.workshop-add-row {
+  align-items: end;
+  display: flex;
+  gap: var(--space-3);
+}
+
+.workshop-search-query {
+  flex: 1 1 24rem;
+}
+
+.workshop-grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+}
+
+.workshop-item {
+  background: rgb(255 255 255 / 0.025);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.workshop-item-header,
+.workshop-item-footer {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+
+.workshop-item-title {
+  font-size: 1rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.workshop-item-copy {
+  color: var(--muted);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+.workshop-metadata {
+  display: grid;
+  gap: var(--space-2) var(--space-4);
+  grid-template-columns: max-content minmax(0, 1fr);
+  margin: 0;
+}
+
+.workshop-metadata dt {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.workshop-metadata dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 700px) {
+  .workshop-search,
+  .workshop-resolve,
+  .workshop-add-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .workshop-search-query {
+    flex-basis: auto;
+  }
+
+  .workshop-search .btn,
+  .workshop-resolve .btn,
+  .workshop-add-row .btn {
+    inline-size: 100%;
+  }
+}
