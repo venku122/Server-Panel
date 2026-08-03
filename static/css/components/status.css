@@ -19,3 +19,55 @@
 .section-divider {
   margin-block: var(--space-6);
 }
+
+.field-error {
+  margin: var(--space-1) 0 0;
+  color: #ff9aa7;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.diagnostics-disclosure {
+  padding: 0;
+}
+
+.diagnostics-disclosure > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-block-size: var(--control-height);
+  padding: var(--space-4);
+  cursor: pointer;
+  list-style: none;
+}
+
+.diagnostics-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.diagnostics-summary-action {
+  color: #c9c5ff;
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+}
+
+.diagnostics-disclosure[open] .diagnostics-summary-action {
+  font-size: 0;
+}
+
+.diagnostics-disclosure[open] .diagnostics-summary-action::after {
+  content: "Hide details";
+  font-size: var(--font-size-sm);
+}
+
+.diagnostics-content {
+  display: grid;
+  gap: var(--space-3);
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.diagnostics-content .response {
+  min-block-size: 160px;
+  max-block-size: 420px;
+}

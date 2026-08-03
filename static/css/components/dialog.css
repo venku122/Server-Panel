@@ -1,0 +1,63 @@
+.app-dialog {
+  inline-size: min(520px, calc(100% - 2 * var(--space-6)));
+  max-block-size: min(720px, calc(100dvh - 2 * var(--space-6)));
+  padding: 0;
+  overflow: auto;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 80px rgb(0 0 0 / 0.55);
+}
+
+.app-dialog::backdrop {
+  background: rgb(4 6 10 / 0.78);
+  backdrop-filter: blur(5px);
+}
+
+.app-dialog-form {
+  display: grid;
+  gap: var(--space-6);
+  padding: var(--space-8);
+}
+
+.app-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.app-dialog-header h2,
+.app-dialog-message {
+  margin: 0;
+}
+
+.app-dialog-header h2 {
+  margin-block-start: var(--space-1);
+}
+
+.app-dialog-close {
+  min-inline-size: var(--control-height);
+  padding: 0;
+  font-size: 24px;
+}
+
+.app-dialog-actions {
+  justify-content: flex-end;
+}
+
+@media (max-width: 760px) {
+  .app-dialog {
+    inline-size: calc(100% - 2 * var(--space-3));
+    margin-block-end: max(var(--space-3), env(safe-area-inset-bottom));
+  }
+
+  .app-dialog-form {
+    padding: var(--space-6);
+  }
+
+  .app-dialog-actions .btn {
+    flex: 1;
+  }
+}
