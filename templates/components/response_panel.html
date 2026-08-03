@@ -1,25 +1,15 @@
-<div class="col col-right">
-    <div class="card">
-        <div class="card-h">
-            <div>
-                <div class="card-t">Server response</div>
-                <div class="card-s" id="cmd-meta">Awaiting command…</div>
-            </div>
-            <button class="btn tiny" id="copy-btn" title="Copy response">Copy</button>
+<details class="card diagnostics-disclosure space-before-4">
+    <summary>
+        <span>
+            <span class="card-t">Request/response diagnostics</span>
+            <span class="card-s" id="cmd-meta">Hidden by default • sensitive values are redacted</span>
+        </span>
+        <span class="diagnostics-summary-action">Show details</span>
+    </summary>
+    <div class="diagnostics-content">
+        <div class="actions actions--end">
+            <button class="btn tiny" id="copy-btn" type="button">Copy redacted details</button>
         </div>
-        <pre class="response" id="response-area">Awaiting command…</pre>
+        <pre class="response" id="response-area">No request has been recorded on this page.</pre>
     </div>
-    <div class="card">
-        <div class="card-h">
-            <div>
-                <div class="card-t">Tips</div>
-                <div class="card-s">Multiple servers? Add ports in the <b>Ports</b> page</div>
-            </div>
-        </div>
-        <ul class="tips">
-            <li>Run this panel on the same machine as the server (uses <code>127.0.0.1</code>).</li>
-            <li>Put it behind Nginx/Caddy for HTTPS.</li>
-            <li>Change the default password immediately.</li>
-        </ul>
-    </div>
-</div>
+</details>

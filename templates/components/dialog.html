@@ -1,0 +1,24 @@
+<dialog class="app-dialog" id="app-dialog" aria-labelledby="app-dialog-title">
+    <form class="app-dialog-form" id="app-dialog-form">
+        <div class="app-dialog-header">
+            <div>
+                <div class="scope-label">Confirmation</div>
+                <h2 id="app-dialog-title">Confirm action</h2>
+            </div>
+            <button class="btn ghost app-dialog-close"
+                    id="app-dialog-close"
+                    type="button"
+                    aria-label="Close dialog">×</button>
+        </div>
+        <p class="app-dialog-message" id="app-dialog-message"></p>
+        <div class="field" id="app-dialog-input-field" hidden>
+            <label for="app-dialog-input" id="app-dialog-input-label">Value</label>
+            <input id="app-dialog-input" autocomplete="off">
+            <div class="help" id="app-dialog-input-help"></div>
+        </div>
+        <div class="actions app-dialog-actions">
+            <button class="btn ghost" id="app-dialog-cancel" type="button">Cancel</button>
+            <button class="btn" id="app-dialog-confirm" type="submit">Confirm</button>
+        </div>
+    </form>
+</dialog>

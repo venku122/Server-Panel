@@ -19,6 +19,33 @@ const copyBtn = document.getElementById("copy-btn");
  */
 /** @type {PanelContext} */
 const panelContext = /** @type {Window & typeof globalThis & {NO_PANEL_CONTEXT?: PanelContext}} */ (window).NO_PANEL_CONTEXT || {};
+const panelStatus = (/** @type {any} */ (window)).NO_PANEL_STATUS;
+const panelDialog = (/** @type {any} */ (window)).NO_PANEL_DIALOG;
+const panelDiagnostics = (/** @type {any} */ (window)).NO_PANEL_DIAGNOSTICS;
+
+function notify(message, level="status", field=null){
+  if(field && level === "error"){
+    panelStatus?.fieldError(field, message);
+    return;
+  }
+  panelStatus?.show(message, {level, focus: level === "error"});
+}
+
+async function confirmAction(options){
+  if(!panelDialog){
+    notify("Confirmation controls are unavailable. Reload the page and try again.", "error");
+    return false;
+  }
+  return panelDialog.confirm(options);
+}
+
+async function promptAction(options){
+  if(!panelDialog){
+    notify("Input controls are unavailable. Reload the page and try again.", "error");
+    return null;
+  }
+  return panelDialog.prompt(options);
+}
 
 // -----------------------------
 // Multi-server selection state
@@ -95,12 +122,7 @@ function withServerId(url){
 }
 
 function setPageStatus(message, level="status"){
-  if (!pageStatus) return;
-  const text = String(message || "").trim();
-  pageStatus.hidden = !text;
-  pageStatus.textContent = text;
-  pageStatus.classList.toggle("notice-warn", level === "error");
-  pageStatus.setAttribute("role", level === "error" ? "alert" : "status");
+  panelStatus?.show(message, {level, target: pageStatus});
 }
 
 // -----------------------------
@@ -204,8 +226,14 @@ function initializePage(key){
   if (key === "moderation") (window.loadModerationPage || (()=>{}))();
 }
 
+function diagnosticRequestBody(body){
+  if(typeof body !== "string") return body || null;
+  try { return JSON.parse(body); } catch { return body; }
+}
+
 async function apiFetch(url, opts={}){
-  const r = await fetch(withServerId(url), {
+  const effectiveUrl = withServerId(url);
+  const r = await fetch(effectiveUrl, {
     credentials: "same-origin",
     ...opts,
     headers: {
@@ -219,6 +247,10 @@ async function apiFetch(url, opts={}){
   }
   let data = null;
   try { data = await r.json(); } catch(e){ data = null; }
+  panelDiagnostics?.render({
+    request: {method: opts.method || "GET", url: effectiveUrl, body: diagnosticRequestBody(opts.body)},
+    response: {status: r.status, data},
+  });
   return { ok: r.ok, status: r.status, data };
 }
 
@@ -307,7 +339,7 @@ async function loadPanelUsers(){
       const password = document.getElementById("new-user-pass")?.value || "";
       const role = document.getElementById("new-user-role")?.value || "mod";
       const r = await apiFetch("/api/panel-users", { method:"POST", body: JSON.stringify({username, password, role}) });
-      if (!r.ok) alert(r.data?.error || "Create failed");
+      if (!r.ok) notify(r.data?.error || "Create failed", "error", document.getElementById("new-user-name"));
       else {
         document.getElementById("new-user-name").value = "";
         document.getElementById("new-user-pass").value = "";
@@ -319,10 +351,18 @@ async function loadPanelUsers(){
   document.querySelectorAll("[data-reset-user]").forEach(btn => {
     btn.onclick = async () => {
       const u = btn.getAttribute("data-reset-user");
-      const pw = prompt(`Set a new password for ${u}: (6+ chars)`);
+      const pw = await promptAction({
+        title: "Reset user password",
+        message: `Set a new password for ${u}.`,
+        label: "New password",
+        inputType: "password",
+        autocomplete: "new-password",
+        minLength: 6,
+        confirmLabel: "Reset password",
+      });
       if (!pw) return;
       const r = await apiFetch("/api/panel-users/reset-password", { method:"POST", body: JSON.stringify({username:u, password:pw}) });
-      if (!r.ok) alert(r.data?.error || "Reset failed");
+      if (!r.ok) notify(r.data?.error || "Reset failed", "error");
       else await loadPanelUsers();
     };
   });
@@ -330,9 +370,15 @@ async function loadPanelUsers(){
   document.querySelectorAll("[data-del-user]").forEach(btn => {
     btn.onclick = async () => {
       const u = btn.getAttribute("data-del-user");
-      if (!confirm(`Delete user ${u}?`)) return;
+      if (!await confirmAction({
+        title: "Delete panel user",
+        message: `Delete ${u}? This account will immediately lose panel access.`,
+        confirmLabel: "Delete user",
+        tone: "danger",
+        requireText: u,
+      })) return;
       const r = await apiFetch(`/api/panel-users/${encodeURIComponent(u)}`, { method:"DELETE" });
-      if (!r.ok) alert(r.data?.error || "Delete failed");
+      if (!r.ok) notify(r.data?.error || "Delete failed", "error");
       else await loadPanelUsers();
     };
   });
@@ -341,7 +387,7 @@ async function loadPanelUsers(){
     btn.onclick = async () => {
       const ip = btn.getAttribute("data-unblock-ip");
       const r = await apiFetch("/api/panel-users/unblock", { method:"POST", body: JSON.stringify({ip}) });
-      if (!r.ok) alert(r.data?.error || "Unblock failed");
+      if (!r.ok) notify(r.data?.error || "Unblock failed", "error");
       else await loadPanelUsers();
     };
   });
@@ -353,19 +399,25 @@ async function loadPanelUsers(){
     auditView.dataset.wired="1";
     auditView.addEventListener("click", async ()=>{
       const r = await apiFetch("/api/audit-logs");
-      if (!r.ok) { alert(r.data?.error || "Audit fetch failed"); return; }
-      const lines = (r.data.logs || []).map(x => JSON.stringify(x)).join("\n");
+      if (!r.ok) { notify(r.data?.error || "Audit fetch failed", "error"); return; }
+      const lines = (r.data.logs || []).map(x => panelDiagnostics?.stringify(x) || String(x)).join("\n");
       auditOut.textContent = lines || "";
     });
   }
   if (auditClear && !auditClear.dataset.wired){
     auditClear.dataset.wired="1";
     auditClear.addEventListener("click", async ()=>{
-      if (!confirm("Delete all audit logs?")) return;
+      if (!await confirmAction({
+        title: "Delete all audit logs",
+        message: "This permanently removes the current file-backed audit history.",
+        confirmLabel: "Delete audit logs",
+        tone: "danger",
+        requireText: "DELETE LOGS",
+      })) return;
       const r = await apiFetch("/api/audit-logs", { method:"DELETE" });
-      if (!r.ok) { alert(r.data?.error || "Audit clear failed"); return; }
+      if (!r.ok) { notify(r.data?.error || "Audit clear failed", "error"); return; }
       if (auditOut) auditOut.textContent = "";
-      alert("Audit logs cleared.");
+      notify("Audit logs cleared.", "success");
     });
   }
 }
@@ -381,32 +433,21 @@ function setMeta(cmdName, status){
   meta.textContent = `${cmdName} • ${status} • ${ts()}`;
 }
 
-function pretty(obj){
-  try { return JSON.stringify(obj, null, 2); } catch { return String(obj); }
-}
-
 // Append a short status line to the live response area without risking runtime errors.
 // Used by missions/password saves.
 function pushResponse(msg){
   if(!responseArea) return;
   const line = `[${ts()}] ${msg}`;
   const cur = responseArea.textContent || "";
-  responseArea.textContent = cur ? (line + "\n" + cur) : line;
+  const safeLine = String(panelDiagnostics?.redact(line) || line);
+  responseArea.textContent = cur ? (safeLine + "\n" + cur) : safeLine;
 }
 
 // Back-compat helper used by some feature modules (e.g., Discord bot).
 // Safely replaces the response panel contents.
 function setResponse(val){
   if(!responseArea) return;
-  try {
-    if (typeof val === 'string') {
-      responseArea.textContent = val;
-    } else {
-      responseArea.textContent = JSON.stringify(val, null, 2);
-    }
-  } catch(e){
-    responseArea.textContent = String(val);
-  }
+  responseArea.textContent = panelDiagnostics?.stringify(val) || String(val);
 }
 
 // -----------------------------
@@ -418,7 +459,7 @@ async function sendCommand(endpoint, body){
     const msg = "No server selected. Create your first server (Server Management tab) and select it.";
     if (pill) pill.textContent = "Ready";
     setMeta(endpoint.split("/").pop(), "blocked");
-    if (responseArea) responseArea.textContent = msg;
+    setResponse(msg);
     setPageStatus(msg, "error");
     return {success:false, error: msg};
   }
@@ -428,7 +469,7 @@ async function sendCommand(endpoint, body){
     const msg = "Selected server has no Remote Commands Port configured. Edit it in Server Settings or recreate the server.";
     if (pill) pill.textContent = "Ready";
     setMeta(endpoint.split("/").pop(), "blocked");
-    if (responseArea) responseArea.textContent = msg;
+    setResponse(msg);
     setPageStatus(msg, "error");
     return {success:false, error: msg};
   }
@@ -440,7 +481,7 @@ async function sendCommand(endpoint, body){
   setMeta(cmdName, `${escapeHtml(s.name)} • port ${port}`);
 
   if (responseArea){
-    responseArea.textContent = `Server: ${s.name} (Remote Commands: ${port})\nLoading…`;
+    setResponse(`Server: ${s.name} (Remote Commands: ${port})\nLoading…`);
   }
 
   try{
@@ -458,9 +499,10 @@ async function sendCommand(endpoint, body){
     if (pill) pill.textContent = data.success ? "Done" : "Error";
     setMeta(cmdName, data.success ? "ok" : "error");
 
-    if (responseArea){
-      responseArea.textContent = pretty(data);
-    }
+    panelDiagnostics?.render({
+      request: {method: "POST", url: withServerId(endpoint), body: payload},
+      response: {status: res.status, data},
+    });
     setPageStatus(
       data.success
         ? `${cmdName} completed for ${s.name}.`
@@ -471,7 +513,7 @@ async function sendCommand(endpoint, body){
   }catch(err){
     if (pill) pill.textContent = "Error";
     setMeta(cmdName, "error");
-    if (responseArea) responseArea.textContent = String(err);
+    setResponse(String(err));
     setPageStatus(`${cmdName} failed for ${s.name}: ${String(err)}`, "error");
     return {success:false, error:String(err)};
   }
@@ -484,7 +526,7 @@ async function sendLocal(endpoint, body){
     const msg = "No server selected. Create your first server (Server Management tab) and select it.";
     if (pill) pill.textContent = "Ready";
     setMeta(endpoint.split("/").pop(), "blocked");
-    if (responseArea) responseArea.textContent = msg;
+    setResponse(msg);
     setPageStatus(msg, "error");
     return {success:false, error: msg};
   }
@@ -495,7 +537,7 @@ async function sendLocal(endpoint, body){
   setPageStatus("");
   setMeta(cmdName, `${escapeHtml(s.name)}`);
   if (responseArea){
-    responseArea.textContent = `Server: ${s.name}\nLoading…`;
+    setResponse(`Server: ${s.name}\nLoading…`);
   }
 
   try{
@@ -512,9 +554,10 @@ async function sendLocal(endpoint, body){
     if (pill) pill.textContent = data.success ? "Done" : "Error";
     setMeta(cmdName, data.success ? "ok" : "error");
 
-    if (responseArea){
-      responseArea.textContent = pretty(data);
-    }
+    panelDiagnostics?.render({
+      request: {method: "POST", url: withServerId(endpoint), body: payload},
+      response: {status: res.status, data},
+    });
     setPageStatus(
       data.success
         ? `${cmdName} completed for ${s.name}.`
@@ -525,15 +568,32 @@ async function sendLocal(endpoint, body){
   }catch(err){
     if (pill) pill.textContent = "Error";
     setMeta(cmdName, "error");
-    if (responseArea) responseArea.textContent = String(err);
+    setResponse(String(err));
     setPageStatus(`${cmdName} failed for ${s.name}: ${String(err)}`, "error");
     return {success:false, error:String(err)};
   }
 }
 // One-click commands
+const commandConfirmations = {
+  "clear-kicked-players": {
+    title: "Clear kicked players",
+    message: "Remove every player from the selected server's kicked list?",
+    confirmLabel: "Clear kicked list",
+    tone: "danger",
+  },
+  "banlist-clear": {
+    title: "Clear ban list",
+    message: "Remove every player from the selected server's ban list?",
+    confirmLabel: "Clear ban list",
+    tone: "danger",
+    requireText: "CLEAR BANS",
+  },
+};
+
 document.querySelectorAll("[data-command]").forEach(btn => {
-  btn.addEventListener("click", () => {
+  btn.addEventListener("click", async () => {
     const cmd = btn.getAttribute("data-command");
+    if (commandConfirmations[cmd] && !await confirmAction(commandConfirmations[cmd])) return;
     const body = {};
 
     // Support simple payload attributes for quick-action buttons
@@ -553,13 +613,17 @@ document.querySelectorAll("[data-command]").forEach(btn => {
 });
 
 // Forms
-function wireForm(id, endpoint, mapper){
+function wireForm(id, endpoint, mapper, confirmation=null){
   const form = document.getElementById(id);
   if(!form) return;
-  form.addEventListener("submit", (e) => {
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(form);
     const body = mapper(fd);
+    if(confirmation){
+      const options = typeof confirmation === "function" ? confirmation(body) : confirmation;
+      if(!await confirmAction(options)) return;
+    }
     sendCommand(endpoint, body);
   });
 }
@@ -920,9 +984,29 @@ wireForm("set-next-mission-form", "/command/set-next-mission", (fd)=>({
   name: fd.get("name"),
   max_time: fd.get("max_time"),
 }));
-wireForm("kick-player-form", "/command/kick-player", (fd)=>({steam_id: fd.get("steam_id")}));
+wireForm(
+  "kick-player-form",
+  "/command/kick-player",
+  (fd)=>({steam_id: fd.get("steam_id")}),
+  (body)=>({
+    title: "Kick player",
+    message: `Kick Steam ID ${body.steam_id || "(unknown)"} from the selected server?`,
+    confirmLabel: "Kick player",
+    tone: "danger",
+  }),
+);
 wireForm("unkick-player-form", "/command/unkick-player", (fd)=>({steam_id: fd.get("steam_id")}));
-wireForm("ban-player-form", "/command/banlist-add", (fd)=>({steam_id: fd.get("steam_id"), reason: fd.get("reason")}));
+wireForm(
+  "ban-player-form",
+  "/command/banlist-add",
+  (fd)=>({steam_id: fd.get("steam_id"), reason: fd.get("reason")}),
+  (body)=>({
+    title: "Ban player",
+    message: `Ban Steam ID ${body.steam_id || "(unknown)"} from the selected server?`,
+    confirmLabel: "Ban player",
+    tone: "danger",
+  }),
+);
 wireForm("unban-player-form", "/command/banlist-remove", (fd)=>({steam_id: fd.get("steam_id")}));
 
 copyBtn?.addEventListener("click", async () => {
@@ -936,8 +1020,13 @@ copyBtn?.addEventListener("click", async () => {
 });
 
 // Update Server button -> local endpoint
-document.getElementById("update-server-btn")?.addEventListener("click", () => {
-  if (!confirm("This will stop the selected server and update via SteamCMD. Continue?")) return;
+document.getElementById("update-server-btn")?.addEventListener("click", async () => {
+  if (!await confirmAction({
+    title: "Update selected server",
+    message: "This stops the selected server, updates it through SteamCMD, and starts it again.",
+    confirmLabel: "Stop and update",
+    tone: "danger",
+  })) return;
   sendLocal("/local/update-server", {});
 });
 
@@ -945,12 +1034,22 @@ document.getElementById("update-server-btn")?.addEventListener("click", () => {
 document.getElementById("start-server-btn")?.addEventListener("click", () => {
   sendLocal("/local/start-server", {});
 });
-document.getElementById("stop-server-btn")?.addEventListener("click", () => {
-  if (!confirm("Stop the selected server?")) return;
+document.getElementById("stop-server-btn")?.addEventListener("click", async () => {
+  if (!await confirmAction({
+    title: "Stop selected server",
+    message: "Connected players will be disconnected.",
+    confirmLabel: "Stop server",
+    tone: "danger",
+  })) return;
   sendLocal("/local/stop-server", {});
 });
-document.getElementById("restart-server-btn")?.addEventListener("click", () => {
-  if (!confirm("Restart the selected server?")) return;
+document.getElementById("restart-server-btn")?.addEventListener("click", async () => {
+  if (!await confirmAction({
+    title: "Restart selected server",
+    message: "Connected players will be disconnected while the server restarts.",
+    confirmLabel: "Restart server",
+    tone: "danger",
+  })) return;
   sendLocal("/local/restart-server", {});
 });
 
@@ -1063,7 +1162,7 @@ async function initPortsUI(){
     try{
       await loadPortsAndRefreshUI();
     }catch(e){
-      alert(e.message || String(e));
+      notify(e.message || String(e), "error");
     }
   });
 
@@ -1073,17 +1172,21 @@ async function initPortsUI(){
       const saved = await savePorts(ports);
       renderPortsTable(saved);
       refreshPortDropdown(saved);
-      alert("Ports saved.");
+      notify("Ports saved.", "success");
     }catch(e){
-      alert(e.message || String(e));
+      notify(e.message || String(e), "error");
     }
   });
 
   document.getElementById("cleanup-firewall")?.addEventListener("click", async ()=>{
     try{
-      const ok = confirm(
-        "This will remove stale Windows Firewall rules created by the panel (NuclearOptionPanel::* / group: 'Nuclear Option Server Panel') that are no longer needed for current cluster + server ports.\n\nContinue?"
-      );
+      const ok = await confirmAction({
+        title: "Clean up firewall rules",
+        message: "Remove stale Windows Firewall rules created by this panel that are no longer needed for current cluster and server ports.",
+        confirmLabel: "Remove stale rules",
+        tone: "danger",
+        requireText: "CLEANUP",
+      });
       if(!ok) return;
 
       const res = await fetch("/api/firewall/cleanup", {
@@ -1102,12 +1205,13 @@ async function initPortsUI(){
       const sample = Array.isArray(data.removed) ? data.removed.slice(0, 20) : [];
       const extra = (Array.isArray(data.removed) && data.removed.length > 20) ? `\n...and ${data.removed.length - 20} more` : "";
 
-      alert(
+      notify(
         `Firewall cleanup complete.\n\nRemoved: ${removed}\nKept: ${kept}` +
-        (sample.length ? `\n\nRemoved rules (sample):\n- ${sample.join("\n- ")}${extra}` : "")
+        (sample.length ? `\n\nRemoved rules (sample):\n- ${sample.join("\n- ")}${extra}` : ""),
+        "success",
       );
     }catch(e){
-      alert(e.message || String(e));
+      notify(e.message || String(e), "error");
     }
   });
 }
@@ -1216,6 +1320,12 @@ async function uploadBrandLogo(){
 
 async function resetBrandLogo(){
   const statusEl = document.getElementById("branding-status");
+  if(!await confirmAction({
+    title: "Reset panel logo",
+    message: "Remove the uploaded logo and restore the built-in panel mark?",
+    confirmLabel: "Reset logo",
+    tone: "danger",
+  })) return;
   try{
     const j = await apiPost("/api/branding/logo/reset", {});
     if(j && j.success){
@@ -1286,7 +1396,7 @@ async function saveMotdFromUI(){
   if(!tEl || !rEl) return;
 
   if(!currentServerId){
-    alert("Create/select a server first.");
+    notify("Create or select a server first.", "error");
     return;
   }
 
@@ -1294,7 +1404,7 @@ async function saveMotdFromUI(){
   const rep = safeInt(rEl.value);
   const repeatMinutes = (rep === null) ? 0 : rep;
   if(repeatMinutes < 0){
-    alert("Repeat minutes must be 0 or greater.");
+    notify("Repeat minutes must be 0 or greater.", "error", rEl);
     return;
   }
 
@@ -1304,10 +1414,10 @@ async function saveMotdFromUI(){
     repeat_minutes: repeatMinutes,
   });
   if(!j.success){
-    alert(j.error || "Failed to save MOTD");
+    notify(j.error || "Failed to save MOTD", "error");
     return;
   }
-  alert("MOTD saved.");
+  notify("MOTD saved.", "success");
   await loadMotdIntoUI();
 }
 
@@ -1326,7 +1436,7 @@ async function loadStartupSettingsIntoUI(){
 
   const j = await apiGet("/api/startup-settings");
   if(!j.success){
-    alert(j.error || "Failed to load startup settings");
+    notify(j.error || "Failed to load startup settings", "error");
     return;
   }
   fpsEl.value = (j.settings?.fps ?? "") === null ? "" : (j.settings?.fps ?? "");
@@ -1345,15 +1455,15 @@ async function saveStartupSettingsFromUI(){
   const rp = safeInt(portEl.value);
 
   if (fps !== null && (fps < 1 || fps > 1000)){
-    alert("FPS must be between 1 and 1000.");
+    notify("FPS must be between 1 and 1000.", "error", fpsEl);
     return;
   }
   if (mp !== null && (mp < 1 || mp > 256)){
-    alert("Max Players must be between 1 and 256.");
+    notify("Max Players must be between 1 and 256.", "error", mpEl);
     return;
   }
   if (rp !== null && (rp < 1 || rp > 65535)){
-    alert("Remote Commands Port must be between 1 and 65535.");
+    notify("Remote Commands Port must be between 1 and 65535.", "error", portEl);
     return;
   }
 
@@ -1369,14 +1479,14 @@ const j = await apiPost("/api/startup-settings", {
 });
 
   if(!j.success){
-    alert(j.error || "Failed to save startup settings");
+    notify(j.error || "Failed to save startup settings", "error");
     return;
   }
 
   if(j.restart_required){
-    alert("Restart required for FPS / Remote Command port changes to take effect.");
+    notify("Restart required for FPS / Remote Command port changes to take effect.", "status");
   }else{
-    alert("Startup settings saved.");
+    notify("Startup settings saved.", "success");
   }
 
   // Remote Commands Port changes no longer affect the Ports tab (which is now Game/Query only).
@@ -1401,7 +1511,7 @@ async function loadDedicatedConfigIntoUI(){
 
   const j = await apiGet("/api/dedicated-config");
   if(!j.success){
-    alert(j.error || "Failed to load DedicatedServerConfig.json");
+    notify(j.error || "Failed to load DedicatedServerConfig.json", "error");
     return;
   }
 if(j.exists === false || j.config == null){
@@ -1419,17 +1529,17 @@ async function saveDedicatedConfigFromUI(){
   try{
     obj = JSON.parse(txt.value);
   }catch(e){
-    alert("Invalid JSON: " + (e?.message || e));
+    notify("Invalid JSON: " + (e?.message || e), "error", txt);
     return;
   }
 
   const j = await apiPost("/api/dedicated-config", { config: obj });
   if(!j.success){
-    alert(j.error || "Failed to save DedicatedServerConfig.json");
+    notify(j.error || "Failed to save DedicatedServerConfig.json", "error", txt);
     return;
   }
 
-  alert("DedicatedServerConfig.json saved.");
+  notify("DedicatedServerConfig.json saved.", "success");
   // (Optional) you can press Reload Config in Commands tab to apply some changes without restart.
 }
 
@@ -1460,12 +1570,12 @@ async function savePasswordFromUI(){
   const pwEl = document.getElementById("server-password");
   if(!pwEl) return;
   if (!currentServerId){
-    alert("Create/select a server first.");
+    notify("Create or select a server first.", "error");
     return;
   }
   const res = await apiPost("/api/server-password", { server_id: currentServerId, password: pwEl.value || "" });
   if(!res.success){
-    alert(res.error || "Failed to save password");
+    notify(res.error || "Failed to save password", "error", pwEl);
     return;
   }
   const msg = "Password saved. Restart the server for it to take effect.";
@@ -1496,8 +1606,7 @@ function fillMissionSelect(selectEl, missions, selectedValue){
 function showSettingsNotice(msg){
   const el = document.getElementById("server-settings-notice");
   if(!el){
-    // Fallback (some older builds)
-    try{ alert(msg); }catch{}
+    notify(msg, "status");
     return;
   }
   el.textContent = msg || "";
@@ -1560,7 +1669,7 @@ async function saveMissionSlotsFromUI(){
   if(!g1 || !n1 || !g2 || !n2) return;
 
   if(!currentServerId){
-    alert("Create/select a server first.");
+    notify("Create or select a server first.", "error");
     return;
   }
 
@@ -1572,7 +1681,7 @@ async function saveMissionSlotsFromUI(){
 
   const res = await apiPost("/api/mission-slots", payload);
   if(!res.success){
-    alert(res.error || "Failed to save missions");
+    notify(res.error || "Failed to save missions", "error");
     return;
   }
   const msg = "Missions saved. Restart the server for them to take effect.";
@@ -1871,18 +1980,28 @@ async function deleteSelectedServer(){
     setSmStatus("No server selected.");
     return;
   }
+  const deleteFiles = !!smDeleteFiles?.checked;
+  if(!await confirmAction({
+    title: deleteFiles ? "Delete server and files" : "Remove server from panel",
+    message: deleteFiles
+      ? `Permanently remove ${s.name} and its installation files from disk.`
+      : `Remove ${s.name} from this panel. Existing installation files will remain on disk.`,
+    confirmLabel: deleteFiles ? "Delete server and files" : "Remove server",
+    tone: "danger",
+    requireText: deleteFiles ? s.name : "",
+  })) return;
   setSmStatus("Deleting server…");
   const res = await fetch(`/api/servers/${encodeURIComponent(s.id)}`, {
     method: "DELETE",
     headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ delete_files: !!smDeleteFiles?.checked })
+    body: JSON.stringify({ delete_files: deleteFiles })
   });
   const j = await res.json();
   if (!res.ok || !j.success){
     setSmStatus(`Delete failed: ${j.error || res.statusText}`);
     return;
   }
-  setSmStatus(`Deleted: ${j.removed.name}`);
+  setSmStatus(`Deleted: ${j.removed?.name || s.name}`);
   currentServerId = null;
   window.location.assign(panelContext.serversPath || "/servers");
 }
@@ -2053,7 +2172,13 @@ function wireClusterUI(){
 
 
   if(breakBtn) breakBtn.addEventListener("click", async () => {
-    if(!confirm("Break from cluster? This is a local-only failsafe and will NOT notify the coordinator.")) return;
+    if(!await confirmAction({
+      title: "Break from cluster locally",
+      message: "This failsafe removes local cluster state without notifying the coordinator.",
+      confirmLabel: "Break locally",
+      tone: "danger",
+      requireText: "BREAK",
+    })) return;
     breakBtn.disabled = true;
     try{
       const r = await apiFetch("/api/cluster/break", {method: "POST", body: JSON.stringify({})});
@@ -2071,7 +2196,12 @@ function wireClusterUI(){
   });
 
   if(leaveBtn) leaveBtn.addEventListener("click", async () => {
-    if(!confirm("Leave the cluster cleanly? (Coordinator will remove this node)")) return;
+    if(!await confirmAction({
+      title: "Leave cluster",
+      message: "The coordinator will remove this node from the cluster.",
+      confirmLabel: "Leave cluster",
+      tone: "danger",
+    })) return;
     leaveBtn.disabled = true;
     try{
       const r = await apiFetch("/api/cluster/leave", { method: "POST" });
@@ -2089,7 +2219,13 @@ function wireClusterUI(){
   });
 
   if(disbandBtn) disbandBtn.addEventListener("click", async () => {
-    if(!confirm("Disband the cluster? This will remove all members (clean)")) return;
+    if(!await confirmAction({
+      title: "Disband cluster",
+      message: "This removes every member and permanently disbands the cluster.",
+      confirmLabel: "Disband cluster",
+      tone: "danger",
+      requireText: "DISBAND",
+    })) return;
     disbandBtn.disabled = true;
     try{
       const r = await apiFetch("/api/cluster/disband", { method: "POST" });
@@ -2471,7 +2607,7 @@ function wireDiscordUI(){
   async function refreshStatus(){
     try{
       const resp = await apiFetch("/api/discord/status");
-      if(statusEl) statusEl.textContent = JSON.stringify(resp, null, 2);
+      if(statusEl) statusEl.textContent = panelDiagnostics?.stringify(resp) || String(resp);
 
       const d = resp?.data || {};
       const st = d?.data?.status || d?.status || {};
@@ -2567,6 +2703,12 @@ function wireDiscordUI(){
     stopBtn.addEventListener("click", async (ev) => {
       try{
         ev.preventDefault();
+        if(!await confirmAction({
+          title: "Stop Discord bot",
+          message: "Panel commands through Discord will be unavailable until the bot starts again.",
+          confirmLabel: "Stop bot",
+          tone: "danger",
+        })) return;
         console.log("[discord] stop:start");
         setBusy(stopBtn, "Stopping...");
         setResponse("Stopping Discord bot...");
@@ -2954,6 +3096,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (el.installBtn) el.installBtn.addEventListener("click", async () => {
       const sid = currentServerId || "";
       if (!sid) return;
+      if (!await confirmAction({
+        title: "Install NoBlackBox",
+        message: "Install BepInEx and the public-source NoBlackBox plugin into the selected server?",
+        confirmLabel: "Install NoBlackBox",
+      })) return;
       clearProgress();
       setProgress(["Starting NOBlackBox install..."]);
       const r = await apiFetch("/api/noblackbox/install", {
@@ -2963,7 +3110,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (!(r?.ok && r.data?.success)){
         const err = r?.data?.error || (r?.ok ? "unknown error" : `HTTP ${r?.status || ""}`);
         appendProgress(`❌ Install request failed: ${err}`);
-        return toast(err || "Install failed", "bad");
+        notify(err || "Install failed", "error");
+        return;
       }
       // Show live progress from the backend job.
       // Also start a status-probe watcher in parallel to guarantee we print completion.
@@ -2979,6 +3127,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (el.uninstallBtn) el.uninstallBtn.addEventListener("click", async () => {
       const sid = currentServerId || "";
       if (!sid) return;
+      if (!await confirmAction({
+        title: "Uninstall NoBlackBox",
+        message: "Remove the NoBlackBox plugin files from the selected server? Existing recordings are not removed.",
+        confirmLabel: "Uninstall NoBlackBox",
+        tone: "danger",
+        requireText: "UNINSTALL",
+      })) return;
       const r = await apiFetch("/api/noblackbox/uninstall", {
         method: "POST",
         body: JSON.stringify({ server_id: sid }),
@@ -2986,7 +3141,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (!(r?.ok && r.data?.success)){
         const err = r?.data?.error || (r?.ok ? "unknown error" : `HTTP ${r?.status || ""}`);
         appendProgress(`❌ Uninstall failed: ${err}`);
-        return toast(err || "Uninstall failed", "bad");
+        notify(err || "Uninstall failed", "error");
+        return;
       }
       appendProgress("🗑️ NOBlackBox uninstalled.");
       await load();
@@ -2998,11 +3154,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (!(r?.ok && r.data?.success)){
         const err = r?.data?.error || (r?.ok ? "unknown error" : `HTTP ${r?.status || ""}`);
         appendProgress("❌ Pick path failed: " + err);
-        return toast(err || "Pick folder failed", "bad");
+        notify(err || "Pick folder failed", "error");
+        return;
       }
       if (el.outputPath) el.outputPath.value = r.data.path || "";
       appendProgress("✅ Selected: " + (r.data.path || ""));
-      toast("Path selected", "good");
+      notify("Path selected", "success");
     });
 
     if (el.applyPathBtn) el.applyPathBtn.addEventListener("click", async () => {
@@ -3105,7 +3262,7 @@ async function moderationPollInstallJob(){
     if (moderationInstallPoll){ clearInterval(moderationInstallPoll); moderationInstallPoll = null; }
     await moderationRefreshStatus();
     await window.loadModerationPage();
-    if (!res.data.ok) alert(res.data.error || 'Moderation mod install failed.');
+    if (!res.data.ok) notify(res.data.error || 'Moderation mod install failed.', 'error');
   }
 }
 
@@ -3156,15 +3313,21 @@ function renderModerationDetail(){
   `;
   wrap.querySelectorAll('[data-mod-action]').forEach(btn => btn.onclick = async () => {
     const action = btn.dataset.modAction;
+    if ((action === 'kick' || action === 'ban') && !await confirmAction({
+      title: `${action === 'ban' ? 'Ban' : 'Kick'} ticketed player`,
+      message: `${action === 'ban' ? 'Ban' : 'Kick'} Steam ID ${moderationSelectedSteamId || '(unknown)'}?`,
+      confirmLabel: action === 'ban' ? 'Ban player' : 'Kick player',
+      tone: 'danger',
+    })) return;
     const res = await apiFetch('/api/moderation/ticket_action', { method:'POST', body: JSON.stringify({ server_id: currentServerId, steam_id: moderationSelectedSteamId, action }) });
-    if (!res.ok || !res.data?.success){ alert(res.data?.error || 'Moderation action failed.'); return; }
+    if (!res.ok || !res.data?.success){ notify(res.data?.error || 'Moderation action failed.', 'error'); return; }
     await window.loadModerationPage();
   });
   const commentBtn = document.getElementById('mod-comment-btn');
   if (commentBtn) commentBtn.onclick = async () => {
     const text = document.getElementById('mod-comment-text')?.value || '';
     const res = await apiFetch('/api/moderation/ticket_action', { method:'POST', body: JSON.stringify({ server_id: currentServerId, steam_id: moderationSelectedSteamId, action: 'comment', text }) });
-    if (!res.ok || !res.data?.success){ alert(res.data?.error || 'Comment failed.'); return; }
+    if (!res.ok || !res.data?.success){ notify(res.data?.error || 'Comment failed.', 'error'); return; }
     await window.loadModerationPage();
   };
 }
@@ -3214,7 +3377,7 @@ document.addEventListener('click', (ev) => {
       ship_tolerance: parseInt(document.getElementById('mod-ship-tol')?.value || '0', 10),
     };
     const res = await apiFetch('/api/moderation/settings', { method:'POST', body: JSON.stringify(payload) });
-    if (!res.ok || !res.data?.success){ alert(res.data?.error || 'Failed to save moderation settings.'); return; }
+    if (!res.ok || !res.data?.success){ notify(res.data?.error || 'Failed to save moderation settings.', 'error'); return; }
     moderationFormDirty = false;
     await window.loadModerationPage();
     try{ pushResponse('Moderation settings saved.'); }catch{}
@@ -3231,11 +3394,16 @@ document.addEventListener('click', (ev) => {
   const btn = ev.target?.closest?.('#mod-install-btn');
   if (!btn) return;
   (async()=>{
-    if (!currentServerId){ alert('Select a server first.'); return; }
+    if (!currentServerId){ notify('Select a server first.', 'error'); return; }
+    if (!await confirmAction({
+      title: 'Install moderation module',
+      message: 'This installs BepInEx and the public-source moderation module into the selected server.',
+      confirmLabel: 'Install module',
+    })) return;
     moderationSetInstallLines(['Starting moderation mod install...']);
     moderationSetInstallStatus('Installing moderation mod...');
     const res = await apiFetch('/api/moderation/install', { method:'POST', body: JSON.stringify({ server_id: currentServerId }) });
-    if (!res.ok || !res.data?.success){ alert(res.data?.error || 'Failed to start moderation mod install.'); return; }
+    if (!res.ok || !res.data?.success){ notify(res.data?.error || 'Failed to start moderation mod install.', 'error'); return; }
     if (moderationInstallPoll){ clearInterval(moderationInstallPoll); }
     moderationInstallPoll = setInterval(moderationPollInstallJob, 1500);
     await moderationPollInstallJob();
