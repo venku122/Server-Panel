@@ -27,7 +27,37 @@ def _storage_foundation(_connection: sqlite3.Connection) -> None:
     """Version marker for the schema-migration foundation itself."""
 
 
-MIGRATIONS = (Migration(1, "sqlite_storage_foundation", _storage_foundation),)
+def _audit_timeline(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE audit_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            correlation_id TEXT NOT NULL,
+            actor TEXT NOT NULL,
+            action TEXT NOT NULL,
+            scope_type TEXT NOT NULL CHECK (scope_type IN ('global', 'server', 'system')),
+            server_id TEXT,
+            target_type TEXT,
+            target_id TEXT,
+            outcome TEXT NOT NULL CHECK (outcome IN ('success', 'failure', 'denied', 'unknown')),
+            summary TEXT NOT NULL,
+            request_json TEXT,
+            response_json TEXT,
+            job_id TEXT,
+            legacy_key TEXT UNIQUE,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute("CREATE INDEX audit_events_created_at_idx ON audit_events (created_at DESC, id DESC)")
+    connection.execute("CREATE INDEX audit_events_server_idx ON audit_events (server_id, id DESC)")
+    connection.execute("CREATE INDEX audit_events_correlation_idx ON audit_events (correlation_id)")
+
+
+MIGRATIONS = (
+    Migration(1, "sqlite_storage_foundation", _storage_foundation),
+    Migration(2, "audit_timeline", _audit_timeline),
+)
 
 
 def _ordered_migrations(migrations: Iterable[Migration]) -> tuple[Migration, ...]:
