@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 from .installer import ModerationInstaller
 from .models import (
@@ -59,7 +59,7 @@ class ModerationService:
 
     def install_now(self, request: InstallRequest) -> dict[str, Any]:
         normalized = request.sanitized()
-        return self.installer.install(normalized.server_id, normalized.dll_url)
+        return cast(dict[str, Any], self.installer.install(normalized.server_id, normalized.dll_url))
 
     def state(self, server_id: str) -> ServiceResult:
         snapshot = self.repository.snapshot(server_id)
