@@ -12,6 +12,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, cast
 
+from server_panel.contracts.jobs import JobResult
+
 from .audit import serialize_payload
 from .db import Repository, connect
 
@@ -677,7 +679,8 @@ class JobService:
                     repository.append_event(job_id, "warning", "Queued job cancelled.")
                 elif job.status == "running" and not job.cancel_requested:
                     connection.execute(
-                        "UPDATE jobs SET cancel_requested = 1, updated_at = ? WHERE id = ?", (now, job_id)
+                        "UPDATE jobs SET cancel_requested = 1, updated_at = ? WHERE id = ?",
+                        (now, job_id),
                     )
                     repository.append_event(
                         job_id,
@@ -931,6 +934,7 @@ class JobWorker:
             if lease_lost.is_set():
                 raise LeaseLost(str(lease_error[-1]) if lease_error else "The worker heartbeat lost the lease.")
             _strict_json_payload(result)
+            result = JobResult.model_validate(result).root
             terminal_status = "succeeded"
         except JobCancelled as error:
             terminal_status = "cancelled"
