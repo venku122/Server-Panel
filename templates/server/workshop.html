@@ -1,0 +1,99 @@
+{% extends "layouts/server.html" %}
+{% block head %}
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/workshop.css') }}">
+{% endblock %}
+{% block panel_content %}
+    <div class="page show" id="page-workshop">
+        <div class="card workshop-toolbar">
+            <div class="card-h">
+                <div>
+                    <div class="card-t">Local Workshop library</div>
+                    <div class="card-s">Search cached content by title or ID, inspect metadata, then add missions to this server's current rotation.</div>
+                </div>
+                <button class="btn" id="workshop-refresh" type="button">Queue refresh</button>
+            </div>
+            <form class="workshop-search" id="workshop-search-form">
+                <div class="field workshop-search-query">
+                    <label for="workshop-query">Title or ID</label>
+                    <input id="workshop-query"
+                           type="search"
+                           autocomplete="off"
+                           placeholder="Search local content">
+                </div>
+                <div class="field">
+                    <label for="workshop-filter">Filter</label>
+                    <select id="workshop-filter">
+                        <option value="all">All local content</option>
+                        <option value="installed">Installed</option>
+                        <option value="local">Local files</option>
+                        <option value="playlist">Current rotation</option>
+                    </select>
+                </div>
+                <button class="btn primary" type="submit">Search</button>
+            </form>
+            <p class="help" id="workshop-source-note">Only files already available to this panel are indexed.</p>
+        </div>
+        <div class="card">
+            <div class="card-h">
+                <div>
+                    <div class="card-t">Workshop items</div>
+                    <div class="card-s" id="workshop-count">Loading local library…</div>
+                </div>
+            </div>
+            <div class="workshop-grid" id="workshop-results" aria-live="polite"></div>
+            <div class="empty-state" id="workshop-empty" hidden>
+                <h2>No local matches</h2>
+                <p>Subscribe or download the item in Steam, queue a refresh, or resolve an item URL below.</p>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-h">
+                <div>
+                    <div class="card-t">Resolve URL or ID</div>
+                    <div class="card-s">Full item URLs, collection URLs, and numeric IDs remain supported fallback inputs.</div>
+                </div>
+            </div>
+            <form class="workshop-resolve" id="workshop-resolve-form">
+                <div class="field grow">
+                    <label for="workshop-reference">Steam Workshop URL or numeric ID</label>
+                    <input id="workshop-reference"
+                           inputmode="url"
+                           autocomplete="off"
+                           placeholder="https://steamcommunity.com/sharedfiles/filedetails/?id=…">
+                </div>
+                <button class="btn" type="submit">Resolve metadata</button>
+            </form>
+            <p class="help">Remote lookup is unavailable because public main has no Steam API credential integration. Collections expand only when local metadata names their cached children.</p>
+        </div>
+        <div class="card workshop-preview" id="workshop-preview" hidden>
+            <div class="card-h">
+                <div>
+                    <div class="scope-label">Review before action</div>
+                    <div class="card-t" id="workshop-preview-title">Workshop item</div>
+                    <div class="card-s" id="workshop-preview-meta"></div>
+                </div>
+                <span class="status-pill" id="workshop-preview-type">unknown</span>
+            </div>
+            <dl class="workshop-metadata" id="workshop-preview-details">
+            </dl>
+            <div class="notice" id="workshop-preview-note"></div>
+            <div class="workshop-add-row">
+                <div class="field grow">
+                    <label for="workshop-placement">Current rotation placement</label>
+                    <select id="workshop-placement">
+                        <option value="first_available">First available slot</option>
+                        <option value="slot1">Replace slot 1</option>
+                        <option value="slot2">Replace slot 2</option>
+                    </select>
+                    <div class="help">Public main supports one current two-slot mission rotation, not named playlists.</div>
+                </div>
+                <button class="btn primary" id="workshop-add" type="button">Add to current rotation</button>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+{% block panel_scripts %}
+    <script defer
+            src="{{ url_for('static', filename='js/workshop-library.js') }}"></script>
+{% endblock %}
