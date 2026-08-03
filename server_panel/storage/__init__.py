@@ -14,6 +14,7 @@ from .db import (
     resolve_database_path,
     transaction,
 )
+from .jobs import Job, JobContext, JobEvent, JobService, JobWorker
 from .migrations import Migration, run_migrations
 
 
@@ -37,6 +38,11 @@ def configure_storage(
 
 
 __all__ = [
+    "Job",
+    "JobContext",
+    "JobEvent",
+    "JobService",
+    "JobWorker",
     "Migration",
     "Repository",
     "configure_storage",
