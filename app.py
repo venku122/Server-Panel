@@ -7354,6 +7354,12 @@ def _moderation_verify_signed_request() -> tuple[bool, str]:
     return cluster_state.verify_signed_request(request.method, request.path, body_bytes, dict(request.headers))
 
 
+def _moderation_verify_cluster_payload(_server_id: str, _payload: dict) -> None:
+    verified, message = _moderation_verify_signed_request()
+    if not verified:
+        raise RuntimeError(message)
+
+
 MODERATION_REPOSITORY = _moderation_feature.ModerationRepository(
     get_server=get_server_by_id,
     status_for=_mod_status_for,
@@ -7374,7 +7380,7 @@ MODERATION_BLUEPRINT = _moderation_feature.create_routes(
     MODERATION_SERVICE,
     requires_login=requires_login,
     proxy=_moderation_proxy,
-    verify_cluster_payload=_cluster_verify_or_abort,
+    verify_cluster_payload=_moderation_verify_cluster_payload,
     verify_signed_request=_moderation_verify_signed_request,
     request_server_id=_get_request_server_id,
     default_dll_url=MOD_RELEASE_DLL_URL,
