@@ -13,12 +13,15 @@ import os
 import re
 import threading
 import time
+from collections.abc import Iterable
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, cast
 from urllib.parse import parse_qs, urlparse
+
+from server_panel.contracts.workshop import WorkshopItemView, WorkshopResolveRequest
 
 _IGNORED_JSON_NAMES = {
     "meta.json",
@@ -86,21 +89,24 @@ class WorkshopItem:
 
     def to_dict(self) -> dict[str, Any]:
         """Return the safe, browser-facing representation."""
-        return {
-            "id": self.item_id,
-            "title": self.title,
-            "author": self.author,
-            "content_type": self.content_type,
-            "source": self.source,
-            "installed": self.installed,
-            "local": self.local,
-            "updated_at": self.updated_at,
-            "metadata_available": self.metadata_available,
-            "mission_names": list(self.mission_names),
-            "child_ids": list(self.child_ids),
-            "playlist_memberships": list(self.playlist_memberships),
-            "can_add": bool(self.mission_names or self.child_ids),
-        }
+        return cast(
+            dict[str, Any],
+            WorkshopItemView(
+                id=self.item_id,
+                title=self.title,
+                author=self.author,
+                content_type=self.content_type,
+                source=self.source,
+                installed=self.installed,
+                local=self.local,
+                updated_at=self.updated_at,
+                metadata_available=self.metadata_available,
+                mission_names=list(self.mission_names),
+                child_ids=list(self.child_ids),
+                playlist_memberships=list(self.playlist_memberships),
+                can_add=bool(self.mission_names or self.child_ids),
+            ).model_dump(mode="json"),
+        )
 
 
 def parse_workshop_reference(value: str) -> WorkshopReference:
@@ -405,8 +411,9 @@ class WorkshopLibrary:
             output.append(item)
         return output
 
-    def resolve(self, value: str) -> dict[str, Any]:
+    def resolve(self, request: WorkshopResolveRequest | str) -> dict[str, Any]:
         """Resolve input against local files and expand locally known collections."""
+        value = request.reference if isinstance(request, WorkshopResolveRequest) else request
         reference = parse_workshop_reference(value)
         by_id = {item.item_id: item for item in self.scan()}
         item = by_id.get(reference.item_id)

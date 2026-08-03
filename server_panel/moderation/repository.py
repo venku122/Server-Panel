@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from .models import TicketAction
+from .models import ModerationSettingsUpdate, TicketAction
 
 ServerLookup = Callable[[str], dict[str, Any]]
 ServerView = Callable[[dict[str, Any]], dict[str, Any]]
@@ -40,8 +40,11 @@ class ModerationRepository:
     def snapshot(self, server_id: str) -> dict[str, Any]:
         return self._snapshot_for(self._get_server(server_id))
 
-    def save_settings(self, server_id: str, values: dict[str, Any]) -> tuple[bool, str | None]:
-        return self._write_settings(server_id, values)
+    def save_settings(self, update: ModerationSettingsUpdate) -> tuple[bool, str | None]:
+        return self._write_settings(
+            update.server_id,
+            update.model_dump(mode="json", exclude_none=True),
+        )
 
     def apply(self, action: TicketAction) -> tuple[bool, str]:
         if action.action == "monitor_once":
