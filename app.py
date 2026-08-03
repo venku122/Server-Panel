@@ -9880,9 +9880,7 @@ def _moderation_install_job(context, parameters: dict) -> dict:
     if local_server is None:
         raise RuntimeError("Server is not installed on this node.")
     context.checkpoint("Checking moderation installation prerequisites.", current=1, total=3)
-    result = MODERATION_SERVICE.install_now(
-        _moderation_feature.InstallRequest(server_id=server_id, dll_url=dll_url)
-    )
+    result = MODERATION_SERVICE.install_now(_moderation_feature.InstallRequest(server_id=server_id, dll_url=dll_url))
     for line in result.get("output") or []:
         context.event(str(line))
     if not result.get("success"):
