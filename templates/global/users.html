@@ -1,0 +1,78 @@
+{% extends "layouts/global.html" %}
+{% block panel_content %}
+    <div class="page show" id="page-users">
+        <div class="row">
+            <div class="card">
+                <div class="card-h">
+                    <div>
+                        <div class="card-t">Panel Users</div>
+                        <div class="card-s">Create moderator logins, review login attempts, and manage IP blocks.</div>
+                    </div>
+                </div>
+                <div id="users-admin-only" class="notice notice-warn inline-notice" hidden>Admin access required.</div>
+                <div class="form" id="users-panel" hidden>
+                    <div class="field">
+                        <div class="field-label">Create user</div>
+                        <div class="row">
+                            <input id="new-user-name"
+                                   class="grow"
+                                   aria-label="New username"
+                                   placeholder="username (3+ chars)" />
+                            <input id="new-user-pass"
+                                   class="grow"
+                                   type="password"
+                                   aria-label="New user password"
+                                   placeholder="password (6+ chars)" />
+                            <select id="new-user-role" class="grow" aria-label="New user role">
+                                <option value="mod">Moderator</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                            <button class="btn primary" id="create-user-btn" type="button">Create</button>
+                        </div>
+                        <div class="help">Tip: share credentials with trusted moderators only.</div>
+                    </div>
+                    <div class="hr"></div>
+                    <div class="field">
+                        <div class="field-label">Existing users</div>
+                        <div id="users-list" class="list"></div>
+                    </div>
+                    <div class="hr"></div>
+                    <div class="field">
+                        <div class="field-label">Recent login attempts (rolling)</div>
+                        <div id="login-attempts" class="list"></div>
+                    </div>
+                    <div class="hr"></div>
+                    <div class="field">
+                        <div class="field-label">Blocked IPs</div>
+                        <div id="blocked-ips" class="list"></div>
+                    </div>
+                    <div class="hr"></div>
+                    <div class="field">
+                        <div class="field-label">Audit logs (localhost only)</div>
+                        <div class="row">
+                            <button class="btn ghost" id="audit-view-btn" type="button">Review Audit Logs</button>
+                            <button class="btn danger" id="audit-clear-btn" type="button">Delete Audit Logs</button>
+                            <div class="help space-inline-start-3" id="audit-localhint"></div>
+                        </div>
+                        <pre id="audit-output" class="code space-before-3 code-scroll"></pre>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-h">
+                    <div>
+                        <div class="card-t">Fail2Ban rules</div>
+                        <div class="card-s">Automatic IP blocking for repeated failed logins.</div>
+                    </div>
+                </div>
+                <div class="pad">
+                    <ul class="bullets">
+                        <li>Every login attempt is logged (IP + username + success/fail).</li>
+                        <li>After <b>3 failed</b> attempts (within the last hour), the IP is blocked.</li>
+                        <li>Localhost (127.0.0.1) is never blocked.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

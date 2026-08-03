@@ -1,0 +1,68 @@
+{% macro brand() -%}
+    <a class="brand"
+       href="{{ url_for("servers_index") }}"
+       aria-label="Nuclear Option Server Panel — all servers">
+        <span class="brand-mark" aria-hidden="true">
+            <img id="brand-logo-img" alt="" hidden>
+            <svg viewBox="0 0 64 64" fill="none">
+                <path d="M31.7 10c-5.6 0-10.2 4.6-10.2 10.2v4.8c0 5.6 4.6 10.2 10.2 10.2s10.2-4.6 10.2-10.2v-4.8C41.9 14.6 37.3 10 31.7 10Z" stroke="currentColor" stroke-width="3" opacity=".9">
+                </path>
+                <path d="M20 35c-7 3-9 12-4 17m28-17c7 3 9 12 4 17M16 26c-6-2-10-8-8-14m40 14c6-2 10-8 8-14" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity=".55">
+                </path>
+            </svg>
+        </span>
+        <span class="brand-text">
+            <span class="brand-title">Nuclear Option</span>
+            <span class="brand-sub">Server Panel</span>
+        </span>
+    </a>
+{%- endmacro %}
+{% macro global_navigation(active_page) -%}
+    <nav class="nav" aria-label="Global navigation">
+        {{ nav_link('servers', 'Servers', url_for('servers_index'), active_page) }}
+        {{ nav_link('manage', 'Deployment', url_for('deployment_page'), active_page, admin_only=true) }}
+        {{ nav_link('ports', 'Ports', url_for('ports_page'), active_page, admin_only=true) }}
+        {{ nav_link('cluster', 'Cluster Setup', url_for('cluster_page'), active_page, admin_only=true) }}
+        {{ nav_link('users', 'Panel Users', url_for('users_page'), active_page, admin_only=true) }}
+        {{ nav_link('discord', 'Discord Bot', url_for('discord_page'), active_page, admin_only=true) }}
+        {{ nav_link('about', 'About', url_for('about_page'), active_page) }}
+    </nav>
+{%- endmacro %}
+{% macro server_navigation(active_page, current_server) -%}
+    <nav class="nav" aria-label="Server navigation">
+        {{ nav_link('dashboard', 'Overview', url_for('server_overview', server_id=current_server.id), active_page) }}
+        {{ nav_link('control', 'Operations', url_for('server_section', server_id=current_server.id, section='operations'), active_page) }}
+        {{ nav_link('bans', 'Players', url_for('server_section', server_id=current_server.id, section='players'), active_page) }}
+        {{ nav_link('moderation', 'Moderation', url_for('server_section', server_id=current_server.id, section='moderation'), active_page) }}
+        {{ nav_link('server', 'Settings', url_for('server_section', server_id=current_server.id, section='settings'), active_page, admin_only=true) }}
+        {{ nav_link('noblackbox', 'NoBlackBox', url_for('server_section', server_id=current_server.id, section='noblackbox'), active_page) }}
+        {{ nav_link('gallery', 'Gallery', url_for('server_section', server_id=current_server.id, section='gallery'), active_page) }}
+    </nav>
+{%- endmacro %}
+{% macro nav_link(key, label, href, active_page, admin_only=false) -%}
+    <a class="nav-item{% if active_page == key %} active{% endif %}"
+       data-page="{{ key }}"
+       href="{{ href }}"
+       {% if active_page == key %} aria-current="page"{% endif %}
+       {% if admin_only %} data-admin-only{% endif %}>
+        <span class="dot" aria-hidden="true"></span>
+        {{ label }}
+    </a>
+{%- endmacro %}
+{% macro server_switcher(servers, current_server, server_section) -%}
+    <div class="select">
+        <label for="server-switcher">Switch server</label>
+        <select id="server-switcher">
+            {% for server in servers %}
+                {% if server_section %}
+                    {% set target = url_for('server_section', server_id=server.id, section=server_section) %}
+                {% else %}
+                    {% set target = url_for('server_overview', server_id=server.id) %}
+                {% endif %}
+                <option value="{{ target }}"
+                        {% if server.id == current_server.id %} selected{% endif %}>{{ server.name }}</option>
+            {% endfor %}
+        </select>
+        <a class="scope-back-link" href="{{ url_for("servers_index") }}">← All servers</a>
+    </div>
+{%- endmacro %}

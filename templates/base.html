@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description"
+              content="Nuclear Option dedicated server administration panel">
+        <title>{% block title %}{{ page_title }} • Nuclear Option Server Panel{% endblock %}</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap"
+              rel="stylesheet">
+        <link rel="stylesheet"
+              href="{{ url_for('static', filename='css/tokens.css') }}">
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+        <link rel="stylesheet"
+              href="{{ url_for('static', filename='css/base.css') }}">
+        <link rel="stylesheet"
+              href="{{ url_for('static', filename='css/layout.css') }}">
+        <link rel="stylesheet"
+              href="{{ url_for('static', filename='css/components/navigation.css') }}">
+        <link rel="stylesheet"
+              href="{{ url_for('static', filename='css/components/cards.css') }}">
+        <link rel="stylesheet"
+              href="{{ url_for('static', filename='css/components/buttons.css') }}">
+        <link rel="stylesheet"
+              href="{{ url_for('static', filename='css/components/forms.css') }}">
+        <link rel="stylesheet"
+              href="{{ url_for('static', filename='css/components/status.css') }}">
+        <link rel="stylesheet"
+              href="{{ url_for('static', filename='css/pages.css') }}">
+        {% block head %}{% endblock %}
+    </head>
+    <body class="{% block body_class %}app{% endblock %}">
+        <a class="skip-link" href="#main-content">Skip to main content</a>
+        <div class="bg" aria-hidden="true"></div>
+        <div id="app-status"
+             role="status"
+             aria-live="polite"
+             aria-atomic="true"
+             hidden></div>
+        {% block body %}{% endblock %}
+        {% block scripts %}{% endblock %}
+    </body>
+</html>

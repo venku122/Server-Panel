@@ -1,0 +1,24 @@
+{% macro server_card(server) -%}
+    <a class="server-card"
+       href="{{ url_for('server_overview', server_id=server.id) }}">
+        <span class="server-card-heading">
+            <h2 class="server-card-title">{{ server.name }}</h2>
+            <span class="server-state{% if server.running and not server.stale %} running{% endif %}">{% if server.stale %}Unavailable (cached){% elif server.running %}Running{% else %}Stopped{% endif %}</span>
+        </span>
+        <dl class="server-card-meta">
+            <div>
+                <dt>Location</dt>
+                <dd>
+                    {{ server.location|default("local") |title }}
+                </dd>
+            </div>
+            <div>
+                <dt>Node</dt>
+                <dd>
+                    {{ server.node_label|default(server.node_name|default(server.node_id|default('This node'))) }}
+                </dd>
+            </div>
+        </dl>
+        <span class="server-card-action">Open server →</span>
+    </a>
+{%- endmacro %}

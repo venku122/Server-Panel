@@ -1,0 +1,7 @@
+{% macro server_breadcrumb(server) -%}
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a href="{{ url_for("servers_index") }}">Servers</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">{{ server.name }}</span>
+    </nav>
+{%- endmacro %}

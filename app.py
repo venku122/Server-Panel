@@ -1893,21 +1893,101 @@ SERVER_PAGE_REGISTRY = {
     )
 }
 
-# Temporary compatibility for downstream code while each feature registers its
-# canonical PageSpec. These maps are deliberately derived, not a second source
-# of navigation truth.
+SERVER_OVERVIEW_PAGE = {
+    "template": "server/overview.html",
+    "active_page": "dashboard",
+    "title": "Overview",
+    "subtitle": "Quick actions and live responses",
+    "show_response": True,
+}
+
 SERVER_SECTION_PAGES = {
-    spec.path.removeprefix("/"): spec.active_page
-    for spec in SERVER_PAGE_REGISTRY.values()
-    if spec.active_page is not None and spec.path.count("/") == 1 and spec.path
+    "operations": {
+        "template": "server/operations.html",
+        "active_page": "control",
+        "title": "Operations",
+        "subtitle": "Mission and server controls",
+        "show_response": True,
+    },
+    "players": {
+        "template": "server/players.html",
+        "active_page": "bans",
+        "title": "Players",
+        "subtitle": "Manage kicked and banned players",
+        "show_response": True,
+    },
+    "moderation": {
+        "template": "server/moderation.html",
+        "active_page": "moderation",
+        "title": "Moderation",
+        "subtitle": "Friendly-fire settings and notifications",
+        "show_response": True,
+    },
+    "settings": {
+        "template": "server/settings.html",
+        "active_page": "server",
+        "title": "Settings",
+        "subtitle": "Configuration and startup settings",
+        "show_response": True,
+    },
+    "noblackbox": {
+        "template": "server/noblackbox.html",
+        "active_page": "noblackbox",
+        "title": "NoBlackBox",
+        "subtitle": "Install and configure Tacview recording",
+        "show_response": False,
+    },
+    "gallery": {
+        "template": "server/gallery.html",
+        "active_page": "gallery",
+        "title": "Gallery",
+        "subtitle": "Browse NoBlackBox recordings",
+        "show_response": True,
+    },
 }
 GLOBAL_PANEL_PAGES = {
-    spec.path.removeprefix("/"): spec.active_page
-    for spec in GLOBAL_PAGE_REGISTRY.values()
-    if spec.active_page is not None and spec.key not in {"servers", "settings"}
-}
-GLOBAL_PANEL_ROLES = {
-    spec.path.removeprefix("/"): spec.role for spec in GLOBAL_PAGE_REGISTRY.values() if spec.active_page is not None
+    "deployment": {
+        "template": "global/deployment.html",
+        "active_page": "manage",
+        "title": "Deployment",
+        "subtitle": "Deploy and remove server instances",
+        "show_response": True,
+    },
+    "ports": {
+        "template": "global/ports.html",
+        "active_page": "ports",
+        "title": "Ports",
+        "subtitle": "Manage ports and server names",
+        "show_response": True,
+    },
+    "users": {
+        "template": "global/users.html",
+        "active_page": "users",
+        "title": "Panel Users",
+        "subtitle": "Accounts, failed logins, and IP blocks",
+        "show_response": True,
+    },
+    "cluster": {
+        "template": "global/cluster.html",
+        "active_page": "cluster",
+        "title": "Cluster Setup",
+        "subtitle": "Create or join a LAN cluster",
+        "show_response": True,
+    },
+    "integrations/discord": {
+        "template": "global/discord.html",
+        "active_page": "discord",
+        "title": "Discord Bot",
+        "subtitle": "Control the panel through Discord",
+        "show_response": False,
+    },
+    "about": {
+        "template": "global/about.html",
+        "active_page": "about",
+        "title": "About",
+        "subtitle": "How the panel communicates with servers",
+        "show_response": True,
+    },
 }
 
 
@@ -1941,19 +2021,26 @@ def _render_global_servers(error: Optional[str] = None, status: int = 200):
         status = 503
     return (
         render_template(
-            "servers.html",
+            "global/servers.html",
             servers=servers,
             server_view_warnings=warnings,
             page_error=error,
             current_user=session.get("username"),
             current_role=session.get("role"),
+            active_page="servers",
+            page_title="Servers",
+            page_subtitle="Select a server to enter its scoped controls.",
+            page_action_label="Deploy server",
+            page_action_href=url_for("deployment_page"),
+            show_response=False,
+            load_panel_script=False,
         ),
         status,
     )
 
 
 def _render_panel_shell(
-    active_page: str,
+    page,
     *,
     server_id: Optional[str] = None,
     server_page_key: Optional[str] = None,
@@ -1977,10 +2064,14 @@ def _render_panel_shell(
     ports = load_ports()
     allowed_ports = [port["port"] for port in ports]
     return render_template(
-        "index.html",
+        page["template"],
         ports=ports,
         allowed_ports=allowed_ports,
-        active_page=active_page,
+        active_page=page["active_page"],
+        page_title=page["title"],
+        page_subtitle=page["subtitle"],
+        show_response=page["show_response"],
+        load_panel_script=True,
         page_scope=page_scope,
         current_server=current_server,
         server_page_key=server_page_key,
@@ -1993,6 +2084,8 @@ def _render_panel_shell(
         server_page_registry=SERVER_PAGE_REGISTRY,
         servers=servers,
         server_view_warnings=server_view_warnings,
+        current_user=session.get("username"),
+        current_role=session.get("role"),
     )
 
 
@@ -2011,19 +2104,34 @@ def servers_index():
 @app.get("/servers/<server_id>")
 @requires_login()
 def server_overview(server_id: str):
-    return _render_panel_shell("dashboard", server_id=server_id, server_page_key="overview")
+    return _render_panel_shell(
+        SERVER_OVERVIEW_PAGE,
+        server_id=server_id,
+        server_page_key="overview",
+    )
 
 
 def _render_server_registry_page(server_id: str, page_key: str):
-    page = SERVER_PAGE_REGISTRY.get(page_key)
-    if page is None or page.active_page is None:
+    page_spec = SERVER_PAGE_REGISTRY.get(page_key)
+    if page_spec is None or page_spec.active_page is None:
         return abort(404)
-    if page.role == "admin" and session.get("role") != "admin":
+    if page_spec.role == "admin" and session.get("role") != "admin":
         return Response("Admin access required.", 403)
+    section_keys = {
+        "operations": "operations",
+        "players": "players",
+        "moderation": "moderation",
+        "recordings": "noblackbox",
+        "recordings-gallery": "gallery",
+        "settings": "settings",
+    }
+    page = SERVER_SECTION_PAGES.get(section_keys.get(page_key, ""))
+    if page is None:
+        return abort(404)
     return _render_panel_shell(
-        page.active_page,
+        page,
         server_id=server_id,
-        server_page_key=page.key,
+        server_page_key=page_spec.key,
     )
 
 
@@ -2085,12 +2193,22 @@ def server_section(server_id: str, section: str):
 
 
 def _render_global_panel_page(page_key: str):
-    page = GLOBAL_PAGE_REGISTRY.get(page_key)
-    if page is None or page.active_page is None:
+    page_spec = GLOBAL_PAGE_REGISTRY.get(page_key)
+    if page_spec is None or page_spec.active_page is None:
         return abort(404)
-    if page.role == "admin" and session.get("role") != "admin":
+    if page_spec.role == "admin" and session.get("role") != "admin":
         return Response("Admin access required.", 403)
-    return _render_panel_shell(page.active_page)
+    route_keys = {
+        "settings-ports": "ports",
+        "settings-cluster": "cluster",
+        "settings-users": "users",
+        "settings-discord": "integrations/discord",
+        "settings-about": "about",
+    }
+    page = GLOBAL_PANEL_PAGES.get(route_keys.get(page_key, page_key))
+    if page is None:
+        return abort(404)
+    return _render_panel_shell(page)
 
 
 @app.get("/deployment")

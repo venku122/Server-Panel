@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "components/navigation.html" import brand, server_navigation, server_switcher %}
+{% from "components/page_header.html" import server_page_header %}
+{% block title %}{{ current_server.name }} • Nuclear Option Server Panel{% endblock %}
+{% block body_class %}panel-page server-page{% if not show_response %} hide-right-col{% endif %}{% endblock %}
+{% block body %}
+    <div class="shell server-shell">
+        <aside class="sidebar">
+            {{ brand() }}
+            {{ server_navigation(active_page, current_server) }}
+            <div class="sidebar-foot">
+                {{ server_switcher(servers, current_server, server_section) }}
+                <div class="hint">Logged in as <span id="current-user" class="mono"></span> • <a class="link" href="{{ url_for('logout') }}">Logout</a></div>
+            </div>
+        </aside>
+        <main class="main" id="main-content">
+            {{ server_page_header(current_server, page_title) }}
+            <div id="page-status"
+                 class="notice page-status"
+                 role="status"
+                 aria-live="polite"
+                 hidden></div>
+            <section class="grid{% if not show_response %} grid--single{% endif %}">
+                <div class="col">
+                    {% block panel_content %}{% endblock %}
+                </div>
+                {% if show_response %}
+                    {% include "components/response_panel.html" %}
+                {% endif %}
+            </section>
+        </main>
+    </div>
+{% endblock %}
+{% block scripts %}
+    <script>window.NO_ALLOWED_PORTS = {{ allowed_ports|default([], true)|tojson }}; window.NO_PANEL_CONTEXT = {scope: "server", serverId: {{ current_server.id|tojson }}, activePage: {{ active_page|tojson }}, serversPath: {{ url_for('servers_index')|tojson }}};</script>
+    <script defer src="{{ url_for('static', filename='js/core/navigation.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='app.js') }}?v=20260803a"></script>
+{% endblock %}

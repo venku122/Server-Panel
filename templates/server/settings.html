@@ -1,0 +1,96 @@
+{% extends "layouts/server.html" %}
+{% block panel_content %}
+    <div class="page show" id="page-server">
+        <div class="row">
+            <div class="card">
+                <div class="card-h">
+                    <div>
+                        <div class="card-t">Startup settings</div>
+                        <div class="card-s">Edits <code>RunServer.bat</code> (FPS + Remote Commands Port). Changing either requires a server restart.</div>
+                    </div>
+                </div>
+                <div class="form">
+                    <div class="field">
+                        <label for="startup-fps">FPS limit (<code>-limitframerate</code>)</label>
+                        <input id="startup-fps" type="number" min="1" max="1000" placeholder="60">
+                    </div>
+                    <div class="field">
+                        <label for="startup-max-players">Max Players (<code>MaxPlayers</code>)</label>
+                        <input id="startup-max-players"
+                               type="number"
+                               min="1"
+                               max="256"
+                               placeholder="16">
+                    </div>
+                    <div class="field">
+                        <label for="startup-remote-port">Remote Commands Port (<code>-ServerRemoteCommands</code>)</label>
+                        <input id="startup-remote-port"
+                               type="number"
+                               min="1"
+                               max="65535"
+                               placeholder="7779">
+                    </div>
+                    <div class="btns">
+                        <button class="btn ghost" id="startup-load-btn" type="button">Load</button>
+                        <button class="btn primary" id="startup-save-btn" type="button">Save</button>
+                    </div>
+                    <div class="hr"></div>
+                    <div class="field">
+                        <label for="motd-text">MOTD (Message of the Day)</label>
+                        <textarea class="textarea"
+                                  id="motd-text"
+                                  rows="3"
+                                  placeholder="Optional message to broadcast when the server starts..."></textarea>
+                        <div class="hint">Uses the existing <b>Send Message</b> remote command. If set, it will send once when the server starts. Optionally repeats every X minutes while the server is running.</div>
+                    </div>
+                    <div class="field">
+                        <label for="motd-repeat">Repeat every (minutes)</label>
+                        <input id="motd-repeat" type="number" min="0" max="100000" placeholder="0">
+                        <div class="hint">Set to <b>0</b> (or leave blank) to only send once on start.</div>
+                    </div>
+                    <div class="btns">
+                        <button class="btn primary" id="motd-save-btn" type="button">Save MOTD</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-h">
+                    <div>
+                        <div class="card-t">Dedicated server config</div>
+                        <div class="card-s">Edits <code>DedicatedServerConfig.json</code>. Save writes directly to file (JSON must be valid).</div>
+                    </div>
+                </div>
+                <div class="form">
+                    <div class="field">
+                        <label for="dedicated-config-text">DedicatedServerConfig.json</label>
+                        <textarea class="textarea"
+                                  id="dedicated-config-text"
+                                  spellcheck="false"
+                                  placeholder='{"ServerName":"Nuclear Option Server"}'></textarea>
+                    </div>
+                    <div class="btns">
+                        <button class="btn ghost" id="dedicated-load-btn" type="button">Load</button>
+                        <button class="btn primary" id="dedicated-save-btn" type="button">Save</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card danger-zone">
+                <div class="card-h">
+                    <div>
+                        <div class="card-t">Delete {{ current_server.name if current_server else "server" }}</div>
+                        <div class="card-s">This action targets the server named in the URL and page header.</div>
+                    </div>
+                </div>
+                <div class="actions">
+                    <button class="btn danger" id="sm-delete">Delete {{ current_server.name if current_server else "server" }}</button>
+                    <label class="chk">
+                        <input type="checkbox" id="sm-delete-files" />
+                        Also delete server files on disk
+                    </label>
+                </div>
+                <div id="{% if page_scope == 'server' %}sm-status{% else %}sm-delete-status{% endif %}"
+                     class="status"></div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

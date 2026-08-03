@@ -1,0 +1,13 @@
+.actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.actions--end {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.is-selected {
+  border-color: var(--accent);
+}

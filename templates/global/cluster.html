@@ -1,0 +1,94 @@
+{% extends "layouts/global.html" %}
+{% block panel_content %}
+    <div class="page show" id="page-cluster">
+        <div class="row">
+            <div class="card">
+                <div class="card-h">
+                    <div>
+                        <div class="card-t">Cluster Setup</div>
+                        <div class="card-s">Create or join a LAN cluster. The node that creates the cluster is the authority.</div>
+                    </div>
+                </div>
+                <div class="form">
+                    <div class="field">
+                        <div class="field-label">Current status</div>
+                        <div id="cluster-status" class="notice space-before-1" hidden></div>
+                    </div>
+                    <div class="hr"></div>
+                    <div class="field">
+                        <div class="field-label">Create cluster</div>
+                        <div class="row">
+                            <input id="cluster-create-name"
+                                   class="grow"
+                                   aria-label="Cluster name"
+                                   placeholder="Cluster name" />
+                            <label class="row check-row check-row--compact">
+                                <input id="cluster-create-broadcast" type="checkbox" checked />
+                                <span class="muted">Broadcast on LAN</span>
+                            </label>
+                            <button class="btn primary" id="cluster-create-btn" type="button">Create</button>
+                        </div>
+                        <div class="help space-before-2" id="cluster-create-secret"></div>
+                    </div>
+                    <div class="hr"></div>
+                    <div class="field">
+                        <div class="field-label">Available clusters on LAN</div>
+                        <div class="row">
+                            <button class="btn ghost" id="cluster-refresh-btn" type="button">Refresh</button>
+                        </div>
+                        <div id="cluster-discovery-list" class="list space-before-3"></div>
+                        <div class="help">Members can request to join. The coordinator must approve within 5 minutes.</div>
+                    </div>
+                    <div class="hr"></div>
+                    <div class="field" id="cluster-join-requests-wrap" hidden>
+                        <div class="field-label">Pending join requests</div>
+                        <div id="cluster-join-requests" class="list space-before-3"></div>
+                        <div class="help">Approve within 5 minutes or the request expires.</div>
+                    </div>
+                    <div class="hr"></div>
+                    <div class="field">
+                        <div class="field-label">Join cluster (manual)</div>
+                        <div class="row">
+                            <input id="cluster-join-ip"
+                                   class="grow"
+                                   aria-label="Coordinator IP"
+                                   placeholder="Coordinator IP (e.g., 192.168.1.10)" />
+                            <input id="cluster-join-port"
+                                   class="grow"
+                                   aria-label="Coordinator port"
+                                   placeholder="Port (default 5000)"
+                                   value="5000" />
+                            <input id="cluster-join-secret"
+                                   class="grow"
+                                   aria-label="Join secret"
+                                   placeholder="Join secret" />
+                            <button class="btn primary" id="cluster-join-btn" type="button">Join</button>
+                        </div>
+                        <div class="help">Private clusters won’t appear in discovery. Use manual join.</div>
+                    </div>
+                    <div class="hr"></div>
+                    <div class="field">
+                        <div class="field-label">Cluster members</div>
+                        <div id="cluster-members" class="list"></div>
+                    </div>
+                    <div class="field">
+                        <div class="field-label">Cluster actions</div>
+                        <div class="row wrap">
+                            <button class="btn warn" id="cluster-leave-btn" type="button">Leave cluster (clean)</button>
+                            <button class="btn danger" id="cluster-disband-btn" type="button">Disband cluster (clean)</button>
+                            <div class="help">Leave is for members. Disband is for the coordinator. If the coordinator is unrecoverable, use Break from cluster.</div>
+                        </div>
+                    </div>
+                    <div class="hr"></div>
+                    <div class="field">
+                        <div class="field-label">Failsafe</div>
+                        <div class="row">
+                            <button class="btn danger" id="cluster-break-btn" type="button">Break from cluster</button>
+                            <div class="help">Use this if the cluster becomes unrecoverable. This node will leave locally without contacting the coordinator.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

@@ -1,0 +1,80 @@
+{% extends "layouts/server.html" %}
+{% block panel_content %}
+    <div class="page show" id="page-control">
+        <div class="row">
+            <div class="card">
+                <div class="card-h">
+                    <div>
+                        <div class="card-t">Send chat message</div>
+                        <div class="card-s">Displays in in-game chat</div>
+                    </div>
+                </div>
+                <form class="form" id="send-chat-message-form">
+                    <div class="field">
+                        <label for="send-chat-message">Message</label>
+                        <input id="send-chat-message"
+                               type="text"
+                               name="message"
+                               placeholder="Message to players…"
+                               required>
+                    </div>
+                    <button class="btn primary" type="submit">Send</button>
+                </form>
+            </div>
+            <div class="card">
+                <div class="card-h">
+                    <div>
+                        <div class="card-t">Set time remaining</div>
+                        <div class="card-s">Seconds remaining in the current mission</div>
+                    </div>
+                </div>
+                <form class="form" id="set-time-remaining-form">
+                    <div class="field">
+                        <label for="time-remaining">Seconds</label>
+                        <input id="time-remaining"
+                               type="number"
+                               name="time"
+                               placeholder="900"
+                               required>
+                    </div>
+                    <button class="btn primary" type="submit">Set</button>
+                </form>
+            </div>
+            <div class="card">
+                <div class="card-h">
+                    <div>
+                        <div class="card-t">Set next mission</div>
+                        <div class="card-s">Group, mission name, max time</div>
+                    </div>
+                </div>
+                <form class="form" id="set-next-mission-form">
+                    <div class="field">
+                        <label for="next-mission-group">Group</label>
+                        <input id="next-mission-group"
+                               type="text"
+                               name="group"
+                               placeholder="Builtin"
+                               required>
+                    </div>
+                    <div class="field">
+                        <label for="next-mission-name">Name</label>
+                        <input id="next-mission-name"
+                               type="text"
+                               name="name"
+                               placeholder="mission_name"
+                               required>
+                    </div>
+                    <div class="field">
+                        <label for="next-mission-max-time">Max time (seconds)</label>
+                        <input id="next-mission-max-time"
+                               type="number"
+                               name="max_time"
+                               placeholder="1800"
+                               required>
+                    </div>
+                    <button class="btn primary" type="submit">Set</button>
+                </form>
+            </div>
+        </div>
+    </div>
+{% endblock %}

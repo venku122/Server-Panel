@@ -1,0 +1,6 @@
+{% macro status_message(message, level='status') -%}
+    {% if message %}
+        <div class="notice{% if level == 'error' %} notice-warn{% endif %} page-error"
+             role="{% if level == 'error' %}alert{% else %}status{% endif %}">{{ message }}</div>
+    {% endif %}
+{%- endmacro %}

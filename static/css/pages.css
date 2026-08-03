@@ -1,0 +1,49 @@
+.table-col-wide {
+  width: 50%;
+}
+
+.table-col-medium {
+  width: 20%;
+}
+
+.table-col-name {
+  width: 42%;
+}
+
+.table-col-date {
+  width: 28%;
+}
+
+.table-col-size {
+  width: 12%;
+}
+
+.table-col-actions {
+  width: 18%;
+  text-align: end;
+}
+
+th.table-col-actions {
+  width: 10%;
+}
+
+.auth-shell {
+  position: relative;
+  display: grid;
+  min-block-size: 100vh;
+  padding: var(--space-8);
+  place-items: center;
+}
+
+.auth-card {
+  width: min(100%, 520px);
+}
+
+.auth-form,
+.auth-submit {
+  margin-block-start: var(--space-6);
+}
+
+.auth-submit {
+  width: 100%;
+}
