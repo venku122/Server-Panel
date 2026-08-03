@@ -1,0 +1,108 @@
+{% macro audit_filters(filters, outcomes, servers=[]) -%}
+    <form class="card audit-filters" method="get">
+        {% if servers %}
+            <div class="field">
+                <label for="activity-server">Server</label>
+                <select id="activity-server" name="server_id">
+                    <option value="">All servers and panel events</option>
+                    {% for server in servers %}
+                        <option value="{{ server.id }}"
+                                {% if filters.server_id == server.id %}selected{% endif %}>{{ server.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        {% endif %}
+        <div class="field">
+            <label for="activity-outcome">Outcome</label>
+            <select id="activity-outcome" name="outcome">
+                <option value="">All outcomes</option>
+                {% for outcome in outcomes %}
+                    <option value="{{ outcome }}"
+                            {% if filters.outcome == outcome %}selected{% endif %}>{{ outcome|title }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="field">
+            <label for="activity-actor">Actor</label>
+            <input id="activity-actor"
+                   name="actor"
+                   value="{{ filters.actor }}"
+                   placeholder="reviewadmin">
+        </div>
+        <div class="actions audit-filter-actions">
+            <button class="btn primary" type="submit">Filter activity</button>
+            <a class="btn ghost" href="{{ request.path }}">Clear</a>
+        </div>
+    </form>
+{%- endmacro %}
+{% macro audit_timeline(events) -%}
+    {% if events %}
+        <div class="audit-timeline">
+            {% for event in events %}
+                <article class="card audit-event">
+                    <div class="audit-event-header">
+                        <div>
+                            <div class="audit-event-meta">
+                                <time datetime="{{ event.created_at }}">{{ event.created_at }}</time>
+                                <span>•</span>
+                                <span>{{ event.actor }}</span>
+                            </div>
+                            <h2 class="audit-event-title">{{ event.action_label }}</h2>
+                        </div>
+                        <span class="audit-outcome audit-outcome--{{ event.outcome }}">{{ event.outcome }}</span>
+                    </div>
+                    <p class="audit-summary">{{ event.summary }}</p>
+                    <div class="audit-target">Target: <strong>{{ event.target_label }}</strong></div>
+                    <details class="diagnostics-disclosure audit-details">
+                        <summary>
+                            <span class="text-strong">Request/response details</span>
+                            <span class="diagnostics-summary-action">Show details</span>
+                        </summary>
+                        <div class="diagnostics-content">
+                            <dl class="audit-identifiers">
+                                <div>
+                                    <dt>Correlation ID</dt>
+                                    <dd class="mono">
+                                        {{ event.correlation_id }}
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt>Scope</dt>
+                                    <dd>{{ event.scope_type }}{% if event.server_id %} / {{ event.server_id }}{% endif %}</dd>
+                                </div>
+                                {% if event.job_id %}
+                                    <div>
+                                        <dt>Job</dt>
+                                        <dd class="mono">
+                                            {{ event.job_id }}
+                                        </dd>
+                                    </div>
+                                {% endif %}
+                            </dl>
+                            {% if event.request_pretty %}
+                                <div>
+                                    <div class="scope-label">Redacted request</div>
+                                    <pre class="response audit-json">{{ event.request_pretty }}</pre>
+                                </div>
+                            {% endif %}
+                            {% if event.response_pretty %}
+                                <div>
+                                    <div class="scope-label">Redacted response</div>
+                                    <pre class="response audit-json">{{ event.response_pretty }}</pre>
+                                </div>
+                            {% endif %}
+                            {% if not event.request_pretty and not event.response_pretty %}
+                                <p class="hint">No request or response payload was recorded for this event.</p>
+                            {% endif %}
+                        </div>
+                    </details>
+                </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="card empty-state">
+            <h2>No activity found</h2>
+            <p>Actions recorded through the panel will appear here.</p>
+        </div>
+    {% endif %}
+{%- endmacro %}
