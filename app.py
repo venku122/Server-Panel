@@ -15,6 +15,7 @@ PIP_TO_IMPORT = {
 
 REQUIRED_PACKAGES = [
     "flask>=3.0.0",
+    "pydantic>=2.7,<3",
     "psutil",
     "discord.py>=2.3.2",
     "Pillow>=10.0.0",
@@ -383,6 +384,19 @@ from flask import (
     abort,
     g,
     has_request_context,
+)
+from pydantic import ValidationError
+
+from server_panel.contracts import (
+    ClusterJobEnqueue,
+    DedicatedConfigUpdate,
+    JobView,
+    StartupSettingsUpdate,
+    WorkshopResolveRequest,
+    WorkshopRotationUpdate,
+    WorkshopSearch,
+    normalize_job_parameters,
+    validation_failure,
 )
 
 # Cluster (LAN)
@@ -2311,16 +2325,19 @@ def _render_panel_shell(
                 .isoformat(timespec="milliseconds")
                 .replace("+00:00", "Z")
             )
-        jobs = JOB_SERVICE.list(
-            server_id=job_filters["server_id"] or None,
-            status=job_filters["status"] or None,
-            job_type=job_filters["job_type"] or None,
-            query=job_filters["q"] or None,
-            since=job_since,
-            limit=200,
-        )
+        jobs = [
+            _job_payload(job)
+            for job in JOB_SERVICE.list(
+                server_id=job_filters["server_id"] or None,
+                status=job_filters["status"] or None,
+                job_type=job_filters["job_type"] or None,
+                query=job_filters["q"] or None,
+                since=job_since,
+                limit=200,
+            )
+        ]
     elif page["active_page"] == "dashboard" and server_id is not None:
-        recent_jobs = JOB_SERVICE.list(server_id=server_id, limit=5)
+        recent_jobs = [_job_payload(job) for job in JOB_SERVICE.list(server_id=server_id, limit=5)]
     config_versions = []
     if page["active_page"] == "configuration-history" and server_id:
         config_versions = _config_versions_for_server(server_id)
@@ -2593,6 +2610,15 @@ def about_page():
     return _redirect_preserving_query(url_for("settings_about_page"))
 
 
+def _contract_error_response(error: ValidationError):
+    return jsonify(validation_failure(error)), 400
+
+
+def _job_payload(job):
+    raw = job.to_dict() if hasattr(job, "to_dict") else job
+    return JobView.model_validate(raw).model_dump(mode="json", exclude_unset=True)
+
+
 def _enqueue_job(
     job_type: str,
     *,
@@ -2605,11 +2631,12 @@ def _enqueue_job(
 ):
     actor = str(created_by or session.get("username") or "system")
     correlation = str(correlation_id or getattr(g, "correlation_id", None) or uuid.uuid4())
+    normalized_parameters = normalize_job_parameters(job_type, dict(parameters or {}))
     job = JOB_SERVICE.create(
         job_type=job_type,
         scope_type=scope_type,
         server_id=server_id,
-        parameters=parameters or {},
+        parameters=normalized_parameters,
         created_by=actor,
         correlation_id=correlation,
         progress_total=progress_total,
@@ -2624,7 +2651,7 @@ def _enqueue_job(
         target_type="job",
         target_id=job.id,
         summary=f"Queued {job_type.replace('_', ' ')} job",
-        request_payload={"job_type": job_type, "parameters": parameters or {}},
+        request_payload={"job_type": job_type, "parameters": normalized_parameters},
         job_id=job.id,
     )
     if JOB_WORKER is not None:
@@ -2656,7 +2683,7 @@ def api_jobs_list():
     return jsonify(
         {
             "success": True,
-            "jobs": JOB_SERVICE.list(server_id=server_id, limit=200),
+            "jobs": [_job_payload(job) for job in JOB_SERVICE.list(server_id=server_id, limit=200)],
             "worker": JOB_WORKER.status() if JOB_WORKER is not None else {"alive": False},
         }
     )
@@ -2669,7 +2696,7 @@ def api_job_detail(job_id: str):
     job = JOB_SERVICE.get(job_id, include_events=True, include_lease=include_lease)
     if job is None:
         return jsonify({"success": False, "error": "Job not found"}), 404
-    return jsonify({"success": True, "job": job})
+    return jsonify({"success": True, "job": _job_payload(job)})
 
 
 @app.post("/api/jobs/<job_id>/cancel")
@@ -2689,7 +2716,7 @@ def api_job_cancel(job_id: str):
         summary="Requested job cancellation",
         job_id=job.id,
     )
-    return jsonify({"success": True, "job": job.to_dict()})
+    return jsonify({"success": True, "job": _job_payload(job)})
 
 
 @app.post("/api/jobs/<job_id>/retry")
@@ -2741,21 +2768,22 @@ def api_job_retry(job_id: str):
     )
     if JOB_WORKER is not None:
         JOB_WORKER.start()
-    return jsonify({"success": True, "job": job.to_dict()}), 202
+    return jsonify({"success": True, "job": _job_payload(job)}), 202
 
 
 @app.post("/api/cluster/jobs/enqueue")
 @requires_cluster_member_request
 def api_cluster_job_enqueue():
     data = request.get_json(silent=True) or {}
-    job_type = str(data.get("job_type") or "").strip()
-    if job_type not in {"server_update", "workshop_sync", "noblackbox_install", "moderation_install"}:
-        return jsonify({"success": False, "error": "Unsupported cluster job type"}), 400
-    sid = str(data.get("server_id") or "").strip()
+    try:
+        submission = ClusterJobEnqueue.model_validate(data)
+    except ValidationError as error:
+        return _contract_error_response(error)
+    job_type = submission.job_type
+    sid = submission.server_id
     if not sid or _find_server_by_id(sid) is None:
         return jsonify({"success": False, "error": "Local server not found"}), 404
-    raw_parameters = data.get("parameters")
-    parameters: dict = dict(raw_parameters) if isinstance(raw_parameters, dict) else {}
+    parameters = dict(submission.parameters)
     parameters["server_id"] = sid
     if job_type == "workshop_sync":
         parameters["local_only"] = True
@@ -2765,10 +2793,10 @@ def api_cluster_job_enqueue():
         server_id=sid,
         parameters=parameters,
         progress_total=totals[job_type],
-        created_by=str(data.get("created_by") or "cluster-coordinator")[:200],
-        correlation_id=str(data.get("correlation_id") or uuid.uuid4()),
+        created_by=submission.created_by,
+        correlation_id=str(submission.correlation_id or uuid.uuid4()),
     )
-    return jsonify({"success": True, "job": job.to_dict()}), 202
+    return jsonify({"success": True, "job": _job_payload(job)}), 202
 
 
 @app.post("/api/cluster/jobs/get")
@@ -2779,7 +2807,7 @@ def api_cluster_job_get():
     job = JOB_SERVICE.get(job_id, include_events=True)
     if job is None:
         return jsonify({"success": False, "error": "Job not found"}), 404
-    return jsonify({"success": True, "job": job})
+    return jsonify({"success": True, "job": _job_payload(job)})
 
 
 @app.post("/api/cluster/jobs/cancel")
@@ -2790,7 +2818,7 @@ def api_cluster_job_cancel():
     job = JOB_SERVICE.cancel(job_id)
     if job is None:
         return jsonify({"success": False, "error": "Job not found"}), 404
-    return jsonify({"success": True, "job": job.to_dict()})
+    return jsonify({"success": True, "job": _job_payload(job)})
 
 
 def _config_actor(explicit: Optional[str] = None) -> str:
@@ -4029,6 +4057,7 @@ def api_noblackbox_job():
     if not jobs:
         return jsonify({"success": True, "server_id": sid, "done": True, "ok": False, "lines": []})
     job = JOB_SERVICE.get(jobs[0]["id"], include_events=True) or jobs[0]
+    job = _job_payload(job)
     return jsonify(
         {
             "success": True,
@@ -4156,7 +4185,7 @@ def api_noblackbox_install():
         parameters={"server_id": sid},
         progress_total=3,
     )
-    return jsonify({"success": True, "started": True, "job": job.to_dict()}), 202
+    return jsonify({"success": True, "started": True, "job": _job_payload(job)}), 202
 
 
 @app.post("/api/noblackbox/uninstall")
@@ -4216,7 +4245,7 @@ def api_cluster_noblackbox_job():
     sid = str(data.get("server_id") or "").strip()
     jobs = [job for job in JOB_SERVICE.list(server_id=sid, limit=50) if job["job_type"] == "noblackbox_install"]
     job = JOB_SERVICE.get(jobs[0]["id"], include_events=True) if jobs else None
-    return jsonify({"success": True, "server_id": sid, "job": job})
+    return jsonify({"success": True, "server_id": sid, "job": _job_payload(job) if job else None})
 
 
 @app.post("/api/cluster/noblackbox/config")
@@ -4302,7 +4331,7 @@ def api_cluster_noblackbox_install():
         created_by="cluster-coordinator",
         correlation_id=str(data.get("correlation_id") or uuid.uuid4()),
     )
-    return jsonify({"success": True, "started": True, "job": job.to_dict()}), 202
+    return jsonify({"success": True, "started": True, "job": _job_payload(job)}), 202
 
 
 @app.post("/api/cluster/noblackbox/uninstall")
@@ -4746,12 +4775,17 @@ def api_get_dedicated_config():
 def save_dedicated_config():
     data = request.get_json(force=True, silent=True) or {}
     try:
-        sid = data.get("server_id") or _get_request_server_id()
+        update = DedicatedConfigUpdate.model_validate(data)
+    except ValidationError as error:
+        return _contract_error_response(error)
+    try:
+        sid = update.server_id or _get_request_server_id()
+        config_view = update.config_view()
         proxy = _proxy_server_op_if_remote(
             str(sid),
             "/api/cluster/servers/save_dedicated_config",
             {
-                "config": data.get("config"),
+                "config": config_view,
                 "created_by": _config_actor(),
                 "correlation_id": _config_correlation(),
             },
@@ -4761,7 +4795,7 @@ def save_dedicated_config():
             return jsonify(resp), code
         res = _dedicated_config_save_local(
             str(sid),
-            data.get("config"),
+            config_view,
             actor=_config_actor(),
             correlation_id=_config_correlation(),
         )
@@ -4814,13 +4848,18 @@ def get_startup_settings():
 def api_set_startup_settings():
     payload = request.get_json(force=True, silent=True) or {}
     try:
-        sid = payload.get("server_id") or _get_request_server_id()
+        update = StartupSettingsUpdate.model_validate(payload)
+    except ValidationError as error:
+        return _contract_error_response(error)
+    try:
+        sid = update.server_id or _get_request_server_id()
+        settings = update.settings.model_dump(mode="json", exclude_none=True)
         proxy = _proxy_server_op_if_remote(
             str(sid),
             "/api/cluster/servers/set_startup_settings",
             {
                 "server_id": str(sid),
-                "settings": payload.get("settings") or {},
+                "settings": settings,
                 "created_by": _config_actor(),
                 "correlation_id": _config_correlation(),
             },
@@ -4835,11 +4874,6 @@ def api_set_startup_settings():
         return jsonify({"success": False, "error": str(e)}), 404
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
-
-    settings = payload.get("settings") or {}
-
-    if not isinstance(settings, dict):
-        return jsonify({"success": False, "error": "settings must be an object"}), 400
 
     sid = str(sid)
     bp = _bat_path(sid)
@@ -4910,8 +4944,8 @@ def api_set_startup_settings():
                     else:
                         server_entry["remote_commands_port"] = new_port
 
-    actor = str(payload.get("created_by") or _config_actor())
-    correlation_id = str(payload.get("correlation_id") or _config_correlation())
+    actor = str(update.created_by or _config_actor())
+    correlation_id = str(update.correlation_id or _config_correlation())
     disk_servers = [
         encrypt_fields(entry, _server_secret_fields(), BASE_DIR) if isinstance(entry, dict) else entry
         for entry in servers
@@ -5058,7 +5092,7 @@ def local_update_server():
         parameters={"server_id": sid},
         progress_total=4,
     )
-    return jsonify({"success": True, "job": job.to_dict()}), 202
+    return jsonify({"success": True, "job": _job_payload(job)}), 202
 
 
 def _update_server_on_this_node(server: dict, context=None) -> dict:
@@ -6237,7 +6271,7 @@ def local_sync_workshop_missions():
         scope_type="server" if sid else "global",
         progress_total=2,
     )
-    return jsonify({"success": True, "job": job.to_dict()}), 202
+    return jsonify({"success": True, "job": _job_payload(job)}), 202
 
 
 
@@ -6266,7 +6300,7 @@ def api_sync_workshop_missions():
         scope_type="global",
         progress_total=2,
     )
-    return jsonify({"success": True, "job": job.to_dict()}), 202
+    return jsonify({"success": True, "job": _job_payload(job)}), 202
 
 
 def _sync_workshop_on_this_node(
@@ -6369,10 +6403,14 @@ def api_workshop_library(server_id: str):
                 ),
             }
         )
-    query = str(request.args.get("q") or "")
-    filter_name = str(request.args.get("filter") or "all")
+    try:
+        search = WorkshopSearch.model_validate(
+            {"q": request.args.get("q") or "", "filter": request.args.get("filter") or "all"}
+        )
+    except ValidationError as error:
+        return _contract_error_response(error)
     library = _workshop_library(server_id)
-    items = library.search(query, filter_name)
+    items = library.search(search.q, search.filter)
     return jsonify(
         {
             "success": True,
@@ -6413,7 +6451,10 @@ def api_workshop_resolve(server_id: str):
         )
     payload = request.get_json(force=True, silent=True) or {}
     try:
-        result = _workshop_library(server_id).resolve(str(payload.get("reference") or ""))
+        resolve_request = WorkshopResolveRequest.model_validate(payload)
+        result = _workshop_library(server_id).resolve(resolve_request)
+    except ValidationError as error:
+        return _contract_error_response(error)
     except ValueError as error:
         return jsonify({"success": False, "error": str(error)}), 400
     return jsonify({"success": True, **result})
@@ -6513,7 +6554,10 @@ def api_workshop_rotation_preview(server_id: str):
         return jsonify({"success": False, "error": "Remote-member Workshop mutation is unavailable."}), 409
     payload = request.get_json(force=True, silent=True) or {}
     try:
-        preview, _ = _workshop_preview_payload(server_id, payload)
+        selection = WorkshopRotationUpdate.model_validate(payload)
+        preview, _ = _workshop_preview_payload(server_id, selection.model_dump(mode="json"))
+    except ValidationError as error:
+        return _contract_error_response(error)
     except KeyError as error:
         return jsonify({"success": False, "error": str(error).strip("'")}), 404
     except ValueError as error:
@@ -6541,13 +6585,15 @@ def api_workshop_add_to_rotation(server_id: str):
             409,
         )
     payload = request.get_json(force=True, silent=True) or {}
-    item_id = str(payload.get("item_id") or "").strip()
-    placement = str(payload.get("placement") or "first_available").strip()
-    conflict_policy = str(payload.get("conflict_policy") or "error").strip().lower()
-    actor = str(session.get("username") or "unknown")
-    correlation_id = str(getattr(g, "correlation_id", uuid.uuid4()))
     try:
-        preview, plan = _workshop_preview_payload(server_id, payload)
+        selection = WorkshopRotationUpdate.model_validate(payload)
+        normalized_payload = selection.model_dump(mode="json")
+        item_id = selection.item_id
+        placement = selection.placement
+        conflict_policy = selection.conflict_policy
+        actor = str(session.get("username") or "unknown")
+        correlation_id = str(getattr(g, "correlation_id", uuid.uuid4()))
+        preview, plan = _workshop_preview_payload(server_id, normalized_payload)
         if not preview["can_apply"]:
             raise ValueError(str(preview["apply_error"]))
         replacements, mission_names = plan.replacements(conflict_policy)
@@ -6612,6 +6658,8 @@ def api_workshop_add_to_rotation(server_id: str):
         _SERVERS_VIEW_CACHE[server_id] = updated_server
         _workshop_storage.invalidate_workshop_cache()
         saved = {"config_version": version}
+    except ValidationError as error:
+        return _contract_error_response(error)
     except KeyError as error:
         return jsonify({"success": False, "error": str(error).strip("'")}), 404
     except ValueError as error:
@@ -7305,7 +7353,7 @@ def _moderation_enqueue_install(install_request):
         scope_type="server",
         progress_total=3,
     )
-    return job.to_dict()
+    return _job_payload(job)
 
 
 def _moderation_install_job_status(server_id: str) -> dict:
@@ -7609,10 +7657,14 @@ def api_cluster_set_startup_settings():
         return jsonify({"success": False, "error": msg}), 401
 
     data = request.get_json(force=True, silent=True) or {}
-    sid = data.get("server_id")
-    settings = data.get("settings") or {}
-    if not sid:
+    try:
+        update = StartupSettingsUpdate.model_validate(data)
+    except ValidationError as error:
+        return _contract_error_response(error)
+    if update.server_id is None:
         return jsonify({"success": False, "error": "server_id required"}), 400
+    sid = update.server_id
+    settings = update.settings.model_dump(mode="json", exclude_none=True)
 
     try:
         # Reuse same logic as normal endpoint by calling the internal helper functions it uses.
@@ -7704,12 +7756,14 @@ def api_cluster_save_dedicated_config():
     if not ok:
         return jsonify({"success": False, "error": msg}), 401
     data = request.get_json(force=True, silent=True) or {}
-    sid = data.get("server_id")
-    cfg = data.get("config")
-    if not sid:
+    try:
+        update = DedicatedConfigUpdate.model_validate(data)
+    except ValidationError as error:
+        return _contract_error_response(error)
+    if update.server_id is None:
         return jsonify({"success": False, "error": "server_id required"}), 400
     try:
-        return jsonify(_dedicated_config_save_local(sid, cfg))
+        return jsonify(_dedicated_config_save_local(update.server_id, update.config_view()))
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -8397,9 +8451,13 @@ def api_cluster_servers_set_startup_settings():
         return jsonify({"success": False, "error": msg}), 401
 
     data = request.get_json(silent=True) or {}
-    sid = str(data.get("server_id") or "").strip()
-    if not sid:
+    try:
+        update = StartupSettingsUpdate.model_validate(data)
+    except ValidationError as error:
+        return _contract_error_response(error)
+    if update.server_id is None:
         return jsonify({"success": False, "error": "Missing server_id"}), 400
+    sid = update.server_id
 
     try:
         _ = get_server_by_id(sid)
@@ -8450,9 +8508,13 @@ def api_cluster_servers_save_dedicated_config():
         return jsonify({"success": False, "error": msg}), 401
 
     data = request.get_json(silent=True) or {}
-    sid = str(data.get("server_id") or "").strip()
-    if not sid:
+    try:
+        update = DedicatedConfigUpdate.model_validate(data)
+    except ValidationError as error:
+        return _contract_error_response(error)
+    if update.server_id is None:
         return jsonify({"success": False, "error": "Missing server_id"}), 400
+    sid = update.server_id
 
     try:
         _ = get_server_by_id(sid)
@@ -8465,9 +8527,9 @@ def api_cluster_servers_save_dedicated_config():
     # wrapped with requires_login() and may redirect to /login for cluster traffic.
     res = _dedicated_config_save_local(
         sid,
-        data.get("config"),
-        actor=str(data.get("created_by") or "cluster-coordinator"),
-        correlation_id=str(data.get("correlation_id") or uuid.uuid4()),
+        update.config_view(),
+        actor=str(update.created_by or "cluster-coordinator"),
+        correlation_id=str(update.correlation_id or uuid.uuid4()),
     )
     if not res.get("success"):
         return jsonify(res), 400
@@ -9822,7 +9884,9 @@ def _moderation_install_job(context, parameters: dict) -> dict:
     if local_server is None:
         raise RuntimeError("Server is not installed on this node.")
     context.checkpoint("Checking moderation installation prerequisites.", current=1, total=3)
-    result = MODERATION_SERVICE.install_now(_moderation_feature.InstallRequest(server_id, dll_url))
+    result = MODERATION_SERVICE.install_now(
+        _moderation_feature.InstallRequest(server_id=server_id, dll_url=dll_url)
+    )
     for line in result.get("output") or []:
         context.event(str(line))
     if not result.get("success"):
