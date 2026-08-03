@@ -1,0 +1,10 @@
+{% extends "layouts/server.html" %}
+{% from "components/jobs.html" import job_list %}
+{% block panel_content %}
+    <section class="page show" id="page-jobs" data-page="jobs">
+        {{ job_list(jobs) }}
+    </section>
+{% endblock %}
+{% block panel_scripts %}
+    <script defer src="{{ url_for('static', filename='js/jobs.js') }}"></script>
+{% endblock %}
