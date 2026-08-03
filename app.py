@@ -381,6 +381,7 @@ import config
 import server_commands
 from discord_bot import DiscordBotManager
 from secret_store import encrypt_value, decrypt_value, encrypt_fields, decrypt_fields, is_encrypted_value
+from server_panel.storage import configure_storage
 
 
 # --- Path roots (stable regardless of current working directory) ---
@@ -901,6 +902,11 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=_bool_config("SESSION_COOKIE_SECURE", False),
+)
+PANEL_DATABASE_PATH = configure_storage(
+    app,
+    BASE_DIR,
+    os.environ.get("NO_PANEL_DATABASE_PATH") or getattr(config, "DATABASE_PATH", None),
 )
 
 # Used to invalidate browser sessions on panel restart.
