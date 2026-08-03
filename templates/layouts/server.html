@@ -5,7 +5,19 @@
 {% block body_class %}panel-page server-page{% endblock %}
 {% block body %}
     <div class="shell server-shell">
-        <aside class="sidebar" aria-label="Server sidebar">
+        <header class="mobile-appbar">
+            <button class="btn ghost sidebar-toggle"
+                    type="button"
+                    aria-controls="panel-sidebar"
+                    aria-expanded="false">Menu</button>
+            <span class="mobile-context">{{ current_server.name }}</span>
+        </header>
+        <button class="sidebar-backdrop"
+                type="button"
+                data-sidebar-close
+                aria-label="Close navigation"
+                hidden></button>
+        <aside class="sidebar" id="panel-sidebar" aria-label="Server sidebar" tabindex="-1">
             <div class="sidebar-head">
                 {{ brand() }}
                 <button class="sidebar-collapse"
@@ -15,6 +27,7 @@
                         aria-expanded="true">‹</button>
             </div>
             <div class="sidebar-scope">{{ server_switcher(servers, current_server, server_switch_path) }}</div>
+            <button class="btn ghost sidebar-close" type="button" data-sidebar-close>Close</button>
             {{ server_navigation(active_page, current_server) }}
             <div class="sidebar-foot">
                 <div class="session-row"><span class="avatar" aria-hidden="true">{{ (current_user or 'U')[:1]|upper }}</span><span class="session-copy"><strong>{{ current_user or 'User' }}</strong><small>{{ current_role or 'member' }}</small></span><a class="link" href="{{ url_for("logout") }}">Log out</a></div>
@@ -30,6 +43,7 @@
                  class="notice page-status"
                  role="status"
                  aria-live="polite"
+                 tabindex="-1"
                  hidden></div>
             <section class="content-surface">
                 {% block panel_content %}{% endblock %}

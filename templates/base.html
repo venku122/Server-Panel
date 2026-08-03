@@ -28,6 +28,8 @@
         <link rel="stylesheet"
               href="{{ url_for('static', filename='css/components/status.css') }}">
         <link rel="stylesheet"
+              href="{{ url_for('static', filename='css/components/dialog.css') }}">
+        <link rel="stylesheet"
               href="{{ url_for('static', filename='css/pages.css') }}">
         <link rel="stylesheet"
               href="{{ url_for('static', filename='css/product.css') }}">
@@ -40,9 +42,15 @@
              role="status"
              aria-live="polite"
              aria-atomic="true"
+             tabindex="-1"
              hidden></div>
         {% block body %}{% endblock %}
         <script defer src="{{ url_for('static', filename='js/core/shell.js') }}"></script>
+        {% include "components/dialog.html" %}
+        <script defer src="{{ url_for('static', filename='js/core/status.js') }}"></script>
+        <script defer src="{{ url_for('static', filename='js/core/dialog.js') }}"></script>
+        <script defer
+                src="{{ url_for('static', filename='js/core/diagnostics.js') }}"></script>
         {% block scripts %}{% endblock %}
     </body>
 </html>
