@@ -3696,7 +3696,8 @@ def api_delete_server(server_id: str):
     if proxy is not None:
         resp, code = proxy
         if isinstance(resp, dict) and resp.get("success"):
-            removed = resp.get("removed") if isinstance(resp.get("removed"), dict) else {}
+            removed_payload = resp.get("removed")
+            removed = removed_payload if isinstance(removed_payload, dict) else {}
             resp = {
                 "success": True,
                 "removed": {"id": removed.get("id") or server_id, "name": removed.get("name")},
