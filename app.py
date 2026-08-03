@@ -7289,7 +7289,101 @@ def _moderation_notification_loop():
             pass
         time.sleep(10)
 
-@app.get('/api/moderation/status')
+
+_moderation_feature = importlib.import_module("server_panel.moderation")
+
+
+def _moderation_enqueue_install(install_request):
+    job = _enqueue_job(
+        "moderation_install",
+        server_id=install_request.server_id,
+        parameters={"server_id": install_request.server_id, "dll_url": install_request.dll_url},
+        scope_type="server",
+        progress_total=3,
+    )
+    return job.to_dict()
+
+
+def _moderation_install_job_status(server_id: str) -> dict:
+    jobs = [
+        job
+        for job in JOB_SERVICE.list(server_id=server_id, limit=50)
+        if job.get("job_type") == "moderation_install"
+    ]
+    if not jobs:
+        return {"success": True, "server_id": server_id, "done": False, "ok": False, "error": None, "lines": []}
+    job = JOB_SERVICE.get(str(jobs[0].get("id") or ""), include_events=True) or jobs[0]
+    status = str(job.get("status") or "")
+    lines = [str(event.get("message") or "") for event in job.get("events") or [] if event.get("message")]
+    return {
+        "success": True,
+        "server_id": server_id,
+        "done": status in {"succeeded", "failed", "cancelled", "interrupted"},
+        "ok": status == "succeeded",
+        "error": job.get("error_summary"),
+        "lines": lines,
+        "job": job,
+    }
+
+
+def _moderation_audit(action: str, server_id: str, summary: str, payload: dict, job_id: str | None) -> None:
+    AUDIT_SERVICE.record(
+        actor=str(session.get("username") or "system"),
+        action=action,
+        correlation_id=str(getattr(g, "correlation_id", uuid.uuid4())),
+        scope_type="server",
+        server_id=server_id,
+        target_type="moderation",
+        target_id=server_id,
+        summary=summary,
+        request_payload=payload,
+        job_id=job_id,
+    )
+
+
+def _moderation_proxy(server_id: str, path: str, payload: dict, timeout: int):
+    return _proxy_server_op_if_remote(server_id, path, payload, timeout=timeout)
+
+
+def _moderation_verify_signed_request() -> tuple[bool, str]:
+    body_bytes = request.get_data() or b""
+    return cluster_state.verify_signed_request(request.method, request.path, body_bytes, dict(request.headers))
+
+
+MODERATION_REPOSITORY = _moderation_feature.ModerationRepository(
+    get_server=get_server_by_id,
+    status_for=_mod_status_for,
+    snapshot_for=_mod_settings_snapshot,
+    write_settings=_mod_write_settings,
+    apply_ticket_action=_mod_apply_ticket_action_local,
+    set_monitor_once=_mod_set_monitor_once,
+)
+MODERATION_INSTALLER = _moderation_feature.ModerationInstaller(get_server_by_id, _install_moderation_mod)
+MODERATION_SERVICE = _moderation_feature.ModerationService(
+    MODERATION_REPOSITORY,
+    MODERATION_INSTALLER,
+    enqueue_install=_moderation_enqueue_install,
+    install_job=_moderation_install_job_status,
+    audit=_moderation_audit,
+)
+MODERATION_BLUEPRINT = _moderation_feature.create_routes(
+    MODERATION_SERVICE,
+    requires_login=requires_login,
+    proxy=_moderation_proxy,
+    verify_cluster_payload=_cluster_verify_or_abort,
+    verify_signed_request=_moderation_verify_signed_request,
+    request_server_id=_get_request_server_id,
+    default_dll_url=MOD_RELEASE_DLL_URL,
+)
+app.register_blueprint(MODERATION_BLUEPRINT)
+MODERATION_POLLER = _moderation_feature.ModerationPoller(_moderation_notification_loop)
+
+
+def _moderation_legacy_route(function):
+    """Keep old callables import-compatible while live routes belong to the blueprint."""
+    return function
+
+@_moderation_legacy_route
 @requires_login()
 def api_moderation_status_get():
     sid = _get_request_server_id()
@@ -7303,7 +7397,7 @@ def api_moderation_status_get():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
-@app.get('/api/moderation/job')
+@_moderation_legacy_route
 @requires_login()
 def api_moderation_job_get():
     sid = _get_request_server_id()
@@ -7323,7 +7417,7 @@ def api_moderation_job_get():
         }
     )
 
-@app.post('/api/moderation/install')
+@_moderation_legacy_route
 @requires_login('admin')
 def api_moderation_install():
     data = request.get_json(silent=True) or {}
@@ -7339,7 +7433,7 @@ def api_moderation_install():
     )
     return jsonify({"success": True, "started": True, "job": job.to_dict()}), 202
 
-@app.get('/api/moderation/state')
+@_moderation_legacy_route
 @requires_login()
 def api_moderation_state_get():
     sid = str(request.args.get('server_id') or '').strip()
@@ -7354,7 +7448,7 @@ def api_moderation_state_get():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.post('/api/moderation/settings')
+@_moderation_legacy_route
 @requires_login(role='admin')
 def api_moderation_settings_set():
     data = request.get_json(force=True, silent=True) or {}
@@ -7373,7 +7467,7 @@ def api_moderation_settings_set():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.post('/api/moderation/ticket_action')
+@_moderation_legacy_route
 @requires_login()
 def api_moderation_ticket_action():
     data = request.get_json(force=True, silent=True) or {}
@@ -7400,7 +7494,7 @@ def api_moderation_ticket_action():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.post('/api/cluster/servers/moderation/status')
+@_moderation_legacy_route
 def api_cluster_moderation_status():
     try:
         payload = request.get_json(silent=True) or {}
@@ -7411,7 +7505,7 @@ def api_cluster_moderation_status():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
-@app.post('/api/cluster/servers/moderation/job')
+@_moderation_legacy_route
 def api_cluster_moderation_job():
     try:
         payload = request.get_json(silent=True) or {}
@@ -7421,7 +7515,7 @@ def api_cluster_moderation_job():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
-@app.post('/api/cluster/servers/moderation/install')
+@_moderation_legacy_route
 def api_cluster_moderation_install():
     try:
         payload = request.get_json(silent=True) or {}
@@ -7441,7 +7535,7 @@ def api_cluster_moderation_install():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
-@app.post('/api/cluster/servers/moderation/get_state')
+@_moderation_legacy_route
 def api_cluster_moderation_get_state():
     body_bytes = request.get_data() or b''
     ok_sig, msg = cluster_state.verify_signed_request(request.method, request.path, body_bytes, dict(request.headers))
@@ -7456,7 +7550,7 @@ def api_cluster_moderation_get_state():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.post('/api/cluster/servers/moderation/set_settings')
+@_moderation_legacy_route
 def api_cluster_moderation_set_settings():
     body_bytes = request.get_data() or b''
     ok_sig, msg = cluster_state.verify_signed_request(request.method, request.path, body_bytes, dict(request.headers))
@@ -7474,7 +7568,7 @@ def api_cluster_moderation_set_settings():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.post('/api/cluster/servers/moderation/ticket_action')
+@_moderation_legacy_route
 def api_cluster_moderation_ticket_action():
     body_bytes = request.get_data() or b''
     ok_sig, msg = cluster_state.verify_signed_request(request.method, request.path, body_bytes, dict(request.headers))
@@ -9928,15 +10022,15 @@ def _moderation_install_job(context, parameters: dict) -> dict:
     local_server = _find_server_by_id(server_id)
     if local_server is None:
         raise RuntimeError("Server is not installed on this node.")
-    context.checkpoint("Checking the moderation plugin target directory.", current=1, total=3)
-    result = _install_moderation_mod(local_server, dll_url=dll_url)
+    context.checkpoint("Checking moderation installation prerequisites.", current=1, total=3)
+    result = MODERATION_SERVICE.install_now(_moderation_feature.InstallRequest(server_id, dll_url))
     for line in result.get("output") or []:
         context.event(str(line))
     if not result.get("success"):
-        raise RuntimeError(str(result.get("error") or "Moderation plugin install failed."))
-    context.checkpoint("Verifying the installed moderation plugin.", current=3, total=3)
-    installed_plugin = _mod_plugin_path_for(local_server)
-    if installed_plugin is None or not installed_plugin.exists():
+        raise RuntimeError(str(result.get("error") or "Moderation module install failed."))
+    context.checkpoint("Verifying moderation plugin and generated state paths.", current=3, total=3)
+    status = MODERATION_SERVICE.status(server_id).payload
+    if not status.get("installed"):
         raise RuntimeError("Moderation install returned success but the plugin DLL was not found.")
     return result
 
@@ -9958,8 +10052,7 @@ JOB_WORKER.start()
 
 
 if __name__ == "__main__":
-    _mod_thread = threading.Thread(target=_moderation_notification_loop, daemon=True)
-    _mod_thread.start()
+    MODERATION_POLLER.start()
 
     # Background MOTD broadcaster (daemon)
     try:
