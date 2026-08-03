@@ -371,7 +371,19 @@ def _fw_cleanup_stale_panel_rules() -> tuple[int, int, list[str]]:
 
 import psutil
 import socket
-from flask import Flask, jsonify, request, Response, render_template, session, redirect, url_for, abort, g, has_request_context
+from flask import (
+    Flask,
+    jsonify,
+    request,
+    Response,
+    render_template,
+    session,
+    redirect,
+    url_for,
+    abort,
+    g,
+    has_request_context,
+)
 
 # Cluster (LAN)
 from cluster import ClusterDiscovery, ClusterState, DISCOVERY_PORT, best_effort_local_ip, http_post_json
