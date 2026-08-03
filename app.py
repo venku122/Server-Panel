@@ -7345,7 +7345,10 @@ def _moderation_proxy(server_id: str, path: str, payload: dict, timeout: int):
 
 def _moderation_verify_signed_request() -> tuple[bool, str]:
     body_bytes = request.get_data() or b""
-    return cluster_state.verify_signed_request(request.method, request.path, body_bytes, dict(request.headers))
+    verified, message = cluster_state.verify_signed_request(
+        request.method, request.path, body_bytes, dict(request.headers)
+    )
+    return bool(verified), str(message)
 
 
 def _moderation_verify_cluster_payload(_server_id: str, _payload: dict) -> None:
@@ -10048,7 +10051,7 @@ def _moderation_install_job(context, parameters: dict) -> dict:
     status = MODERATION_SERVICE.status(server_id).payload
     if not status.get("installed"):
         raise RuntimeError("Moderation install returned success but the plugin DLL was not found.")
-    return result
+    return dict(result)
 
 
 JOB_HANDLERS.update(
