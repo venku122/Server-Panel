@@ -1,0 +1,6 @@
+{% extends "layouts/server.html" %}
+{% from "components/timeline.html" import audit_filters, audit_timeline %}
+{% block panel_content %}
+    {{ audit_filters(activity_filters, activity_outcomes) }}
+    {{ audit_timeline(activity_events) }}
+{% endblock %}
