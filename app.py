@@ -385,9 +385,9 @@ from flask import (
     g,
     has_request_context,
 )
-from pydantic import ValidationError
+from pydantic import ValidationError  # noqa: E402 - dependency bootstrap precedes application imports
 
-from server_panel.contracts import (
+from server_panel.contracts import (  # noqa: E402 - dependency bootstrap precedes application imports
     ClusterJobEnqueue,
     DedicatedConfigUpdate,
     JobView,
