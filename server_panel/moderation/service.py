@@ -6,7 +6,12 @@ from collections.abc import Callable
 from typing import Any
 
 from .installer import ModerationInstaller
-from .models import InstallRequest, ServiceResult, TicketAction
+from .models import (
+    InstallRequest,
+    ModerationSettingsUpdate,
+    ServiceResult,
+    TicketAction,
+)
 from .repository import ModerationRepository
 
 EnqueueInstall = Callable[[InstallRequest], dict[str, Any]]
@@ -60,12 +65,25 @@ class ModerationService:
         snapshot = self.repository.snapshot(server_id)
         return ServiceResult({"success": True, "server_id": server_id, **snapshot})
 
-    def save_settings(self, server_id: str, values: dict[str, Any]) -> ServiceResult:
-        saved, error = self.repository.save_settings(server_id, values)
+    def save_settings(self, update: ModerationSettingsUpdate) -> ServiceResult:
+        values = update.model_dump(mode="json", exclude_none=True)
+        saved, error = self.repository.save_settings(update)
         if not saved:
-            return ServiceResult({"success": False, "error": error or "Failed to save moderation settings."}, 400)
-        self._audit("moderation.settings.saved", server_id, "Saved moderation settings", values, None)
-        return ServiceResult({"success": True, **self.repository.snapshot(server_id)})
+            return ServiceResult(
+                {
+                    "success": False,
+                    "error": error or "Failed to save moderation settings.",
+                },
+                400,
+            )
+        self._audit(
+            "moderation.settings.saved",
+            update.server_id,
+            "Saved moderation settings",
+            values,
+            None,
+        )
+        return ServiceResult({"success": True, **self.repository.snapshot(update.server_id)})
 
     def ticket_action(self, action: TicketAction) -> ServiceResult:
         applied, message = self.repository.apply(action)
@@ -78,4 +96,10 @@ class ModerationService:
             {"steam_id": action.steam_id, "text": action.text},
             None,
         )
-        return ServiceResult({"success": True, "message": message, **self.repository.snapshot(action.server_id)})
+        return ServiceResult(
+            {
+                "success": True,
+                "message": message,
+                **self.repository.snapshot(action.server_id),
+            }
+        )
