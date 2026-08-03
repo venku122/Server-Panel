@@ -1,0 +1,24 @@
+{% from "components/breadcrumbs.html" import server_breadcrumb %}
+{% from "components/button.html" import link_button %}
+{% macro global_page_header(title, subtitle, action_label='', action_href='') -%}
+    <header class="topbar">
+        <div class="title">
+            <div class="scope-kicker">Global</div>
+            <h1 id="page-title">{{ title }}</h1>
+            <p id="page-subtitle">{{ subtitle }}</p>
+        </div>
+        {% if action_label and action_href %}{{ link_button(action_label, action_href) }}{% endif %}
+    </header>
+{%- endmacro %}
+{% macro server_page_header(server, title) -%}
+    <header class="topbar">
+        <div class="title">
+            {{ server_breadcrumb(server) }}
+            <h1>{{ server.name }}</h1>
+            <p>
+                <span id="page-title">{{ title }}</span>
+                · <span class="scope-meta">{% if server.running %}Running{% else %}Stopped{% endif %} · {{ server.location|default("local") |title }}{% if server.node_id %} · {{ server.node_id }}{% endif %}</span>
+            </p>
+        </div>
+    </header>
+{%- endmacro %}

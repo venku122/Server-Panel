@@ -1,0 +1,15 @@
+{% extends "layouts/global.html" %}
+{% from "components/server_card.html" import server_card %}
+{% from "components/status_message.html" import status_message %}
+{% from "components/empty_state.html" import empty_state %}
+{% block panel_content %}
+    {{ status_message(page_error, 'error') }}
+    {% for warning in server_view_warnings %}{{ status_message(warning, 'warning') }}{% endfor %}
+    {% if servers %}
+        <section class="servers-grid" aria-label="Managed servers">
+            {% for server in servers %}{{ server_card(server) }}{% endfor %}
+        </section>
+    {% else %}
+        {{ empty_state('No servers configured', 'Deploy your first server to create a dedicated server-scoped workspace.', 'Deploy server', url_for('deployment_page')) }}
+    {% endif %}
+{% endblock %}

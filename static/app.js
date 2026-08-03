@@ -2,8 +2,6 @@
 // Keeps same endpoint names as the original panel.
 // Adds: Ports tab + Server Settings (startup settings + DedicatedServerConfig editor).
 
-const pageTitle = document.getElementById("page-title");
-const pageSubtitle = document.getElementById("page-subtitle");
 const responseArea = document.getElementById("response-area");
 const meta = document.getElementById("cmd-meta");
 const pill = document.getElementById("pill");
@@ -183,21 +181,8 @@ Object.keys(pages).forEach(k => {
   if (!pages[k].el) delete pages[k];
 });
 
-function setActivePage(key){
+function initializePage(key){
   if (!pages[key]) return;
-  // Hide the right "Server response" column on pages that don't need it.
-  // - NoBlackBox: has its own progress console.
-  // - Discord Bot: the response panel looks like a "background" card and is confusing.
-  document.body.classList.toggle("hide-right-col", key === "noblackbox" || key === "discord");
-
-  // highlight sidebar
-  document.querySelectorAll(".nav-item").forEach(b =>
-    b.classList.toggle("active", b.dataset.page === key)
-  );
-
-  // swap page
-  document.querySelectorAll(".page").forEach(p => p.classList.remove("show"));
-  if (pages[key]?.el) pages[key].el.classList.add("show");
 
   // Bans page: show player pills to avoid typing SteamIDs
   if (key === "gallery"){
@@ -210,27 +195,6 @@ function setActivePage(key){
     wireBansPlayerUI();
     fetchPlayersForBans();
   }
-
-  // Always reset the main content scroller so pages don't appear "stuck" at the bottom.
-  // The app uses an internal scroll container (.col / .col-right), not window scrolling.
-  try {
-    const leftCol = document.querySelector('.col');
-    const rightCol = document.querySelector('.col-right');
-    // In some browsers, switching pages + dynamic layout can restore the previous scroll position.
-    // Do a couple of passes (sync + next frame) to force a reliable reset.
-    const reset = () => {
-      if (leftCol) leftCol.scrollTop = 0;
-      if (rightCol) rightCol.scrollTop = 0;
-    };
-    reset();
-    requestAnimationFrame(reset);
-    setTimeout(reset, 0);
-    setTimeout(reset, 60);
-  } catch (_) {}
-
-  // page header
-  if (pageTitle) pageTitle.textContent = pages[key]?.title || "";
-  if (pageSubtitle) pageSubtitle.textContent = pages[key]?.sub || "";
 
   // page-specific loaders
   if (key === "users") loadPanelUsers();
@@ -279,12 +243,12 @@ async function loadPanelUsers(){
 
   const res = await apiFetch("/api/panel-users");
   if (!res.ok){
-    if (adminOnly) adminOnly.style.display = "block";
-    if (panel) panel.style.display = "none";
+    if (adminOnly) adminOnly.hidden = false;
+    if (panel) panel.hidden = true;
     return;
   }
-  if (adminOnly) adminOnly.style.display = "none";
-  if (panel) panel.style.display = "block";
+  if (adminOnly) adminOnly.hidden = true;
+  if (panel) panel.hidden = false;
 
   const { users, attempts, blocked, is_local } = res.data;
 
@@ -294,12 +258,12 @@ async function loadPanelUsers(){
     const role = escapeHtml(u.role);
     const created = escapeHtml(u.created_at || "");
     return `
-      <div class="row" style="align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid rgba(255,255,255,.06);">
+      <div class="row list-row">
         <div>
-          <div style="font-weight:700;">${uname} <span class="muted small">(${role})</span></div>
+          <div class="text-strong">${uname} <span class="muted small">(${role})</span></div>
           <div class="muted small">Created: ${created}${u.must_change_password ? " • must change password" : ""}</div>
         </div>
-        <div class="row" style="gap:8px;">
+        <div class="row actions">
           <button class="btn ghost" data-reset-user="${escapeAttr(u.username)}">Reset Password</button>
           <button class="btn danger" data-del-user="${escapeAttr(u.username)}">Delete</button>
         </div>
@@ -311,7 +275,7 @@ async function loadPanelUsers(){
   // attempts list
   const attemptsHtml = (attempts || []).slice().reverse().map(a => {
     const ok = a.success ? "SUCCESS" : "FAIL";
-    return `<div class="muted small" style="padding:6px 0; border-bottom:1px solid rgba(255,255,255,.06);">
+    return `<div class="muted small list-copy">
       <b>${escapeHtml(ok)}</b> • ${escapeHtml(a.time)} • ${escapeHtml(a.ip)} • ${escapeHtml(a.username)}
     </div>`;
   }).join("");
@@ -319,7 +283,7 @@ async function loadPanelUsers(){
 
   // blocked list
   const blockedHtml = (blocked || []).slice().reverse().map(b => {
-    return `<div class="row" style="align-items:center; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,.06);">
+    return `<div class="row list-row list-row--compact">
       <div class="muted small"><b>${escapeHtml(b.ip)}</b> • ${escapeHtml(b.blocked_at)} • ${escapeHtml(b.reason||"")}</div>
       <button class="btn ghost" data-unblock-ip="${escapeAttr(b.ip)}">Unblock</button>
     </div>`;
@@ -406,10 +370,6 @@ async function loadPanelUsers(){
   }
 }
 
-
-document.querySelectorAll(".nav-item").forEach(btn => {
-  btn.addEventListener("click", () => setActivePage(btn.dataset.page));
-});
 
 function ts(){
   const d = new Date();
@@ -654,11 +614,11 @@ function renderGalleryFiles(files){
     const mtime = escapeHtml(f.mtime || "");
     const size = typeof f.size === "number" ? (Math.round((f.size/1024/1024)*10)/10 + " MB") : "";
     return `<tr data-name="${name}">
-      <td style="width: 42%;">${name}</td>
-      <td style="width: 28%;">${mtime}</td>
-      <td style="width: 12%;">${escapeHtml(size)}</td>
-      <td style="width: 18%; text-align:right;">
-        <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
+      <td class="table-col-name">${name}</td>
+      <td class="table-col-date">${mtime}</td>
+      <td class="table-col-size">${escapeHtml(size)}</td>
+      <td class="table-col-actions">
+        <div class="actions actions--end">
           <button class="btn ghost btn-sm gallery-open" data-name="${name}">View in program</button>
           <button class="btn ghost btn-sm gallery-path" data-name="${name}">Go to file path</button>
         </div>
@@ -1058,9 +1018,9 @@ function renderPortsTable(ports){
     tr.dataset.serverId = String(p.id || "");
     tr.innerHTML = `
       <td>
-        <div style="display:flex; flex-direction:column; gap:4px;">
+        <div class="stack stack--tight">
           <div>${escapeHtml(p.name || "Unnamed")}</div>
-          <div class="muted" style="font-size:12px;">${escapeHtml(loc)}${p.node_id ? ` • ${escapeHtml(p.node_id)}` : ""}</div>
+          <div class="muted text-small">${escapeHtml(loc)}${p.node_id ? ` • ${escapeHtml(p.node_id)}` : ""}</div>
         </div>
       </td>
       <td><input class="input" value="${p.game_port ?? ""}" inputmode="numeric" placeholder="(blank = default)"></td>
@@ -1155,7 +1115,7 @@ async function initPortsUI(){
 
 // -----------------------------
 // Server Settings (NEW)
-// Requires these elements in index.html (ids):
+// Requires these elements in the server settings template (ids):
 // - #startup-fps
 // - #startup-remote-port
 // - #startup-load-btn
@@ -1173,8 +1133,14 @@ async function apiGet(url){
 // ---------------- Branding ----------------
 function applyBrandingVars(branding){
   if(!branding) return;
-  if(branding.accent) document.documentElement.style.setProperty("--accent", branding.accent);
-  if(branding.accent2) document.documentElement.style.setProperty("--accent2", branding.accent2);
+  if(branding.accent){
+    document.documentElement.style.setProperty("--color-accent", branding.accent);
+    document.documentElement.style.setProperty("--accent", branding.accent);
+  }
+  if(branding.accent2){
+    document.documentElement.style.setProperty("--color-accent-secondary", branding.accent2);
+    document.documentElement.style.setProperty("--accent2", branding.accent2);
+  }
 }
 
 function setBrandLogo(logoUrl){
@@ -1183,12 +1149,12 @@ function setBrandLogo(logoUrl){
   if(!img) return;
   if(logoUrl){
     img.src = logoUrl + "?v=" + Date.now();
-    img.style.display = "";
-    if(svg) svg.style.display = "none";
+    img.hidden = false;
+    if(svg) svg.toggleAttribute("hidden", true);
   }else{
     img.removeAttribute("src");
-    img.style.display = "none";
-    if(svg) svg.style.display = "";
+    img.hidden = true;
+    if(svg) svg.toggleAttribute("hidden", false);
   }
 }
 
@@ -1535,7 +1501,7 @@ function showSettingsNotice(msg){
     return;
   }
   el.textContent = msg || "";
-  el.style.display = msg ? "block" : "none";
+  el.hidden = !msg;
 }
 
 async function loadMissionSlotsIntoUI(){
@@ -1615,6 +1581,20 @@ async function saveMissionSlotsFromUI(){
   await loadDedicatedConfigIntoUI();
 }
 
+async function initServerAccessUI(){
+  const hasPasswordControls = Boolean(document.getElementById("server-password"));
+  const hasMissionControls = Boolean(document.getElementById("mission1-group"));
+  if(!hasPasswordControls && !hasMissionControls) return;
+
+  document.getElementById("password-save-btn")?.addEventListener("click", savePasswordFromUI);
+  document.getElementById("mission-slots-save-btn")?.addEventListener("click", saveMissionSlotsFromUI);
+  document.getElementById("mission1-group")?.addEventListener("change", async () => { await onMissionGroupChanged(1); });
+  document.getElementById("mission2-group")?.addEventListener("change", async () => { await onMissionGroupChanged(2); });
+
+  await loadPasswordIntoUI();
+  await loadMissionSlotsIntoUI();
+}
+
 async function initServerSettingsUI(){
   // Only run if the page exists in this build
   if(!document.getElementById("page-server")) return;
@@ -1627,15 +1607,7 @@ async function initServerSettingsUI(){
   document.getElementById("dedicated-load-btn")?.addEventListener("click", loadDedicatedConfigIntoUI);
   document.getElementById("dedicated-save-btn")?.addEventListener("click", saveDedicatedConfigFromUI);
 
-  document.getElementById("password-save-btn")?.addEventListener("click", savePasswordFromUI);
-  document.getElementById("mission-slots-save-btn")?.addEventListener("click", saveMissionSlotsFromUI);
-
-  document.getElementById("mission1-group")?.addEventListener("change", async () => { await onMissionGroupChanged(1); });
-  document.getElementById("mission2-group")?.addEventListener("change", async () => { await onMissionGroupChanged(2); });
-
   // Initial load for selected server
-  await loadPasswordIntoUI();
-  await loadMissionSlotsIntoUI();
   await loadMotdIntoUI();
 
   // Auto-load once when the app starts, but only if a server is selected.
@@ -1701,9 +1673,10 @@ function renderAllServerPills(){
   // Server Management list
   renderServerPillsInto(serverPills);
 
-  // NoBlackBox server dropdown (if page exists)
-  try{ window.__nobbSyncServerSelect && window.__nobbSyncServerSelect(); }catch{}
-  try{ window.loadModerationPage && window.loadModerationPage(); }catch{}
+  // NoBlackBox owns the only page-local server dropdown that follows this cache.
+  if (document.getElementById("page-noblackbox")) {
+    try{ window.__nobbSyncServerSelect && window.__nobbSyncServerSelect(); }catch{}
+  }
 }
 
 async function loadServers(){
@@ -2148,7 +2121,7 @@ function wireClusterUI(){
       if(!isCoord) return;
       const wrap = document.getElementById("cluster-join-requests-wrap");
       const el = document.getElementById("cluster-join-requests");
-      if(wrap) wrap.style.display = "block";
+      if(wrap) wrap.hidden = false;
       if(!el) return;
 
       const r = await apiFetch("/api/cluster/join/requests");
@@ -2231,7 +2204,7 @@ async function loadClusterPage(doProbe = true){
     if(r.ok && r.data?.success){
       const c = r.data.cluster || {};
       if(status){
-        status.style.display = "block";
+        status.hidden = false;
         if(!c.enabled){
           status.className = "notice";
           status.innerHTML = "Cluster: <b>disabled</b>";
@@ -2358,7 +2331,7 @@ async function loadClusterPage(doProbe = true){
     const el = document.getElementById("cluster-join-requests");
     const st = await apiFetch("/api/cluster/state");
     const isCoord = !!(st.ok && st.data?.success && st.data?.cluster?.is_coordinator);
-    if(wrap) wrap.style.display = isCoord ? "block" : "none";
+    if(wrap) wrap.hidden = !isCoord;
     if(isCoord && el){
       const r = await apiFetch("/api/cluster/join/requests");
       if(!r.ok || !r.data?.success){
@@ -2628,12 +2601,7 @@ function wireDiscordUI(){
 // Boot
 // -----------------------------
 document.addEventListener("DOMContentLoaded", async () => {
-  setActivePage(panelContext.activePage || "dashboard");
-
-  const serverSwitcher = /** @type {HTMLSelectElement|null} */ (document.getElementById("server-switcher"));
-  serverSwitcher?.addEventListener("change", () => {
-    if (serverSwitcher.value) window.location.assign(serverSwitcher.value);
-  });
+  initializePage(panelContext.activePage || "dashboard");
 
   // Load current user/role first so we can gate UI + API behavior
   let role = "moderator";
@@ -2651,12 +2619,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Moderator restrictions (UI only; backend enforces too)
   if (role !== "admin") {
-    // Hide admin-only pills
-    document.querySelectorAll('.nav-item[data-page="ports"], .nav-item[data-page="manage"], .nav-item[data-page="server"], .nav-item[data-page="users"], .nav-item[data-page="discord"]').forEach(btn => {
-      btn.style.display = "none";
-    });
-    document.querySelectorAll('.nav-item[data-page="cluster"]').forEach(btn => {
-      btn.style.display = "none";
+    document.querySelectorAll("[data-admin-only]").forEach((element) => {
+      element.toggleAttribute("hidden", true);
     });
 
     // Hide admin-only dashboard controls
@@ -2681,6 +2645,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (role === "admin") {
     // init ports first so dropdown is consistent
     await initPortsUI();
+    await initServerAccessUI();
     await initServerSettingsUI();
     wireSyncWorkshopUI();
     wireClusterUI();
@@ -2971,19 +2936,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function bindOnce(){
-  // nav click delegation (ensures newly-added nav items always work)
-  if(!window.__nav_delegate_wired){
-    window.__nav_delegate_wired = true;
-    document.addEventListener("click", (ev) => {
-      const btn = ev.target && ev.target.closest ? ev.target.closest(".nav-item") : null;
-      if(btn && btn.dataset && btn.dataset.page){
-        ev.preventDefault();
-        setActivePage(btn.dataset.page);
-      }
-    });
-  }
-
-
     if (window.__nobbBound) return;
     window.__nobbBound = true;
 
@@ -3169,10 +3121,10 @@ function renderModerationLists(){
   const closedWrap = document.getElementById('mod-closed-tickets');
   const renderOne = (t) => {
     const sid = moderationTicketSteamId(t);
-    const active = sid === moderationSelectedSteamId ? ' style="border-color:var(--accent);"' : '';
+    const active = sid === moderationSelectedSteamId ? " is-selected" : "";
     const counts = `A:${Number(t?.AircraftCount ?? 0)} V:${Number(t?.VehicleCount ?? 0)} S:${Number(t?.ShipCount ?? 0)}`;
     const claimed = moderationTicketClaimedBy(t) || 'none';
-    return `<button class="pill" ${active} data-mod-ticket="${escapeAttr(sid)}"><b>${escapeHtml(moderationTicketName(t))}</b> • ${escapeHtml(sid)} • ${escapeHtml(counts)} • claimed by ${escapeHtml(claimed)}</button>`;
+    return `<button class="pill${active}" data-mod-ticket="${escapeAttr(sid)}"><b>${escapeHtml(moderationTicketName(t))}</b> • ${escapeHtml(sid)} • ${escapeHtml(counts)} • claimed by ${escapeHtml(claimed)}</button>`;
   };
   renderList(openWrap, (moderationState.tickets||[]).length ? moderationState.tickets.map(renderOne).join(' ') : '<div class="muted small">No open tickets.</div>');
   renderList(closedWrap, (moderationState.closed_tickets||[]).length ? moderationState.closed_tickets.map(renderOne).join(' ') : '<div class="muted small">No closed tickets.</div>');

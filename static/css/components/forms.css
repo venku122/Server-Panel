@@ -1,0 +1,38 @@
+.field-actions,
+.check-row {
+  display: flex;
+  align-items: center;
+}
+
+.field-actions {
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.check-row {
+  gap: var(--space-3);
+}
+
+.check-row--compact {
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.color-control {
+  block-size: 42px;
+  padding: var(--space-1) var(--space-3);
+}
+
+.field-error {
+  margin-block-start: var(--space-1);
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+}
+
+.field-label {
+  display: block;
+  margin-block-end: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}

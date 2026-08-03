@@ -1,0 +1,47 @@
+:root {
+  --color-bg: #0b0d13;
+  --color-bg-elevated: #0f1117;
+  --color-surface: #121624;
+  --color-surface-recessed: #0c0e14;
+  --color-border: #1b2030;
+  --color-border-strong: #2a3350;
+  --color-text: #e7e9ee;
+  --color-text-muted: #9aa3b2;
+  --color-accent: #6c63ff;
+  --color-accent-secondary: #b86bff;
+  --color-success: #2aa776;
+  --color-warning: #d6a23a;
+  --color-danger: #d45363;
+  --space-1: 6px;
+  --space-2: 8px;
+  --space-3: 10px;
+  --space-4: 12px;
+  --space-6: 16px;
+  --space-8: 24px;
+  --font-size-sm: 12px;
+  --font-size-md: 14px;
+  --font-size-lg: 24px;
+  --radius-sm: 12px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --control-height: 44px;
+  --sidebar-width: 240px;
+  --content-max-width: 1600px;
+  --focus-ring: 0 0 0 4px rgb(from var(--color-accent) r g b / 0.2);
+
+  /* Temporary compatibility aliases for legacy page rules and branding. */
+  --bg0: var(--color-bg);
+  --bg1: var(--color-bg-elevated);
+  --panel: var(--color-surface);
+  --panel2: var(--color-surface-recessed);
+  --border: var(--color-border);
+  --border2: var(--color-border-strong);
+  --text: var(--color-text);
+  --muted: var(--color-text-muted);
+  --accent: var(--color-accent);
+  --accent2: var(--color-accent-secondary);
+  --good: var(--color-success);
+  --warn: var(--color-warning);
+  --bad: var(--color-danger);
+  --radius: var(--radius-lg);
+}

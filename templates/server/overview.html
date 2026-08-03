@@ -1,0 +1,110 @@
+{% extends "layouts/server.html" %}
+{% block panel_content %}
+    <div class="page show" id="page-dashboard">
+        <div class="row">
+            <div class="card">
+                <div class="card-h">
+                    <div>
+                        <div class="card-t">Quick actions</div>
+                        <div class="card-s">Common one-click commands</div>
+                    </div>
+                </div>
+                <div class="btns">
+                    <button class="btn danger" id="update-server-btn">Update Server</button>
+                    <button class="btn" id="start-server-btn">Start Server</button>
+                    <button class="btn ghost" id="stop-server-btn">Stop Server</button>
+                    <button class="btn ghost" id="restart-server-btn">Restart Server</button>
+                    <button class="btn ghost" data-command="get-mission-time">Get Mission Time</button>
+                    <button class="btn ghost" data-command="set-time-remaining" data-time="5">Next Mission</button>
+                    <button class="btn ghost" data-command="get-mission">Get Mission</button>
+                    <button class="btn ghost" data-command="get-player-list">Get Player List</button>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-h">
+                    <div>
+                        <div class="card-t">Server access</div>
+                        <div class="card-s">Set password and mission rotation for the selected server.</div>
+                    </div>
+                </div>
+                <!-- Inline notice for changes that require a restart -->
+                <div id="server-settings-notice" class="notice inline-notice" hidden></div>
+                <div class="form">
+                    <div class="field">
+                        <label for="server-password">Server Password</label>
+                        <input id="server-password"
+                               type="text"
+                               placeholder="Leave blank for no password">
+                        <div id="password-status" class="help"></div>
+                    </div>
+                    <div class="btns">
+                        <button class="btn primary" id="password-save-btn" type="button">Save Password</button>
+                    </div>
+                    <div class="hr"></div>
+                    <div class="field">
+                        <div class="field-label">Mission Slot 1</div>
+                        <div class="row">
+                            <select id="mission1-group" class="grow" aria-label="Mission Slot 1 source">
+                                <option value="BuiltIn">Built-in</option>
+                                <option value="User">User missions (from panel missions folder)</option>
+                            </select>
+                            <select id="mission1-name" class="grow" aria-label="Mission Slot 1 mission">
+                                <option value="">None</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <div class="field-label">Mission Slot 2</div>
+                        <div class="row">
+                            <select id="mission2-group" class="grow" aria-label="Mission Slot 2 source">
+                                <option value="BuiltIn">Built-in</option>
+                                <option value="User">User missions (from panel missions folder)</option>
+                            </select>
+                            <select id="mission2-name" class="grow" aria-label="Mission Slot 2 mission">
+                                <option value="">None</option>
+                            </select>
+                        </div>
+                        <div class="help" id="mission-help"></div>
+                    </div>
+                    <div class="btns">
+                        <button class="btn primary" id="mission-slots-save-btn" type="button">Save Missions</button>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-h">
+                    <div>
+                        <div class="card-t">Sync Workshop Maps</div>
+                        <div class="card-s">Copies your subscribed Workshop missions from Steam into this panel's missions folder.</div>
+                    </div>
+                </div>
+                <div class="form">
+                    <div class="btns">
+                        <button class="btn primary" id="sync-workshop-btn" type="button">Sync Workshop Maps</button>
+                    </div>
+                    <div class="hint space-before-3" id="sync-workshop-status">
+                        Tip: Subscribe to missions in Steam first, then click Sync.
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-h">
+                    <div>
+                        <div class="card-t">Reload config</div>
+                        <div class="card-s">Path optional (empty uses server default)</div>
+                    </div>
+                </div>
+                <form class="form" id="reload-config-form">
+                    <div class="field">
+                        <label for="reload-config-path">Config path (optional)</label>
+                        <input id="reload-config-path"
+                               type="text"
+                               name="path"
+                               placeholder="/path/to/server/config.json">
+                    </div>
+                    <button class="btn primary" type="submit">Reload</button>
+                </form>
+            </div>
+        </div>
+    </div>
+{% endblock %}

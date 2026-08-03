@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block body_class %}app auth-page{% endblock %}
+{% block body %}
+    <main class="auth-shell" id="main-content">
+        <div class="card auth-card">
+            {% block auth_content %}{% endblock %}
+        </div>
+    </main>
+{% endblock %}

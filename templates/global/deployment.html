@@ -1,0 +1,54 @@
+{% extends "layouts/global.html" %}
+{% block panel_content %}
+    <div class="page show" id="page-manage">
+        <div class="row">
+            <div class="card">
+                <div class="card-h">
+                    <div>
+                        <div class="card-t">Create Server Instances</div>
+                        <div class="card-s">Deploy a server, then enter its URL-scoped controls from the server list.</div>
+                    </div>
+                </div>
+                <div class="grid2">
+                    <div class="field">
+                        <label for="sm-name">Server Name</label>
+                        <input id="sm-name" placeholder="e.g. The Underground #1" />
+                    </div>
+                    <div class="field">
+                        <label for="sm-remote-port">Remote Commands Port</label>
+                        <input id="sm-remote-port" type="number" placeholder="7779" />
+                    </div>
+                    <div class="field">
+                        <label for="sm-game-port">Game Port (optional)</label>
+                        <input id="sm-game-port" type="number" placeholder="(leave blank)" />
+                    </div>
+                    <div class="field">
+                        <label for="sm-query-port">Query Port (optional)</label>
+                        <input id="sm-query-port" type="number" placeholder="(leave blank)" />
+                    </div>
+                    <div class="field">
+                        <label for="sm-node">Install Node (cluster)</label>
+                        <select id="sm-node"></select>
+                        <div class="muted small space-before-1" id="sm-node-note">If cluster is enabled and you're the coordinator, you can pick which node will host the server install.</div>
+                    </div>
+                    <div class="field grid-span-full">
+                        <label for="sm-install-dir">Install Directory (optional)</label>
+                        <input id="sm-install-dir" placeholder="Default: ./servers/<name>" />
+                    </div>
+                </div>
+                <div class="actions">
+                    <button class="btn" id="sm-create">Create Server</button>
+                    <button class="btn ghost" id="sm-refresh">Refresh List</button>
+                </div>
+                <div class="sep"></div>
+                <div class="pill-area">
+                    <div class="muted">Your servers:</div>
+                    <div id="server-pills" class="pills"></div>
+                    <div class="muted small space-before-2">Choose a server to enter its dedicated controls. Global pages do not retain a hidden operation target.</div>
+                </div>
+                <div id="{% if page_scope == 'global' %}sm-status{% else %}sm-create-status{% endif %}"
+                     class="status"></div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
