@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Nuclear Option • Server Control Panel</title>
+  <title>{% if current_server %}{{ current_server.name }} • {% endif %}Nuclear Option Server Panel</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -14,7 +14,7 @@
 
   <div class="shell">
     <aside class="sidebar">
-      <div class="brand">
+      <a class="brand" href="{{ url_for('servers_index') }}" aria-label="Nuclear Option Server Panel — all servers">
         <div class="brand-mark" aria-hidden="true">
           <img id="brand-logo-img" alt="Logo" style="display:none;" />
           <svg viewBox="0 0 64 64" fill="none">
@@ -26,58 +26,61 @@
           <div class="brand-title">Nuclear Option</div>
           <div class="brand-sub">Server Panel</div>
         </div>
-      </div>
+      </a>
 
-      <nav class="nav">
-        <button class="nav-item active" data-page="dashboard">
-          <span class="dot"></span> Dashboard
-        </button>
-        <button class="nav-item" data-page="control">
-          <span class="dot"></span> Commands
-        </button>
-        <button class="nav-item" data-page="bans">
-          <span class="dot"></span> Bans & Kicks
-        </button>
-        <button class="nav-item" data-page="ports">
-          <span class="dot"></span> Ports
-        </button>
-        <button class="nav-item" data-page="moderation">
-          <span class="dot"></span> Moderation
-        </button>
-        <button class="nav-item" data-page="manage">
-          <span class="dot"></span> Server Deployment
-        </button>
-        <button class="nav-item" data-page="server">
-          <span class="dot"></span> Server Settings
-        </button>
-        <button class="nav-item" data-page="users">
-          <span class="dot"></span> Panel Users
-        </button>
-        <button class="nav-item" data-page="cluster">
-          <span class="dot"></span> Cluster Setup
-        </button>
-        <button class="nav-item" data-page="noblackbox">
-          <span class="dot"></span> NoBlackBox
-        </button>
-        <button class="nav-item" data-page="discord">
-          <span class="dot"></span> Discord Bot
-        </button>
-        <button class="nav-item" data-page="gallery" type="button" onclick="setActivePage(\'gallery\')">
-            <span class="dot"></span>
-            Gallery
-          </button>
-
-          <button class="nav-item" data-page="about">
-          <span class="dot"></span> About
-        </button>
+      <nav class="nav" aria-label="{% if page_scope == 'server' %}Server{% else %}Global{% endif %} navigation">
+        {% if page_scope == "server" %}
+          <a class="nav-item{% if active_page == 'dashboard' %} active{% endif %}" data-page="dashboard" href="{{ url_for('server_overview', server_id=current_server.id) }}">
+            <span class="dot"></span> Overview
+          </a>
+          <a class="nav-item{% if active_page == 'control' %} active{% endif %}" data-page="control" href="{{ url_for('server_section', server_id=current_server.id, section='operations') }}">
+            <span class="dot"></span> Operations
+          </a>
+          <a class="nav-item{% if active_page == 'bans' %} active{% endif %}" data-page="bans" href="{{ url_for('server_section', server_id=current_server.id, section='players') }}">
+            <span class="dot"></span> Players
+          </a>
+          <a class="nav-item{% if active_page == 'moderation' %} active{% endif %}" data-page="moderation" href="{{ url_for('server_section', server_id=current_server.id, section='moderation') }}">
+            <span class="dot"></span> Moderation
+          </a>
+          <a class="nav-item{% if active_page == 'server' %} active{% endif %}" data-page="server" href="{{ url_for('server_section', server_id=current_server.id, section='settings') }}">
+            <span class="dot"></span> Settings
+          </a>
+          <a class="nav-item{% if active_page == 'noblackbox' %} active{% endif %}" data-page="noblackbox" href="{{ url_for('server_section', server_id=current_server.id, section='noblackbox') }}">
+            <span class="dot"></span> NoBlackBox
+          </a>
+          <a class="nav-item{% if active_page == 'gallery' %} active{% endif %}" data-page="gallery" href="{{ url_for('server_section', server_id=current_server.id, section='gallery') }}">
+            <span class="dot"></span> Gallery
+          </a>
+        {% else %}
+          <a class="nav-item" href="{{ url_for('servers_index') }}"><span class="dot"></span> Servers</a>
+          <a class="nav-item{% if active_page == 'manage' %} active{% endif %}" data-page="manage" href="/deployment"><span class="dot"></span> Deployment</a>
+          <a class="nav-item{% if active_page == 'ports' %} active{% endif %}" data-page="ports" href="/ports"><span class="dot"></span> Ports</a>
+          <a class="nav-item{% if active_page == 'cluster' %} active{% endif %}" data-page="cluster" href="/cluster"><span class="dot"></span> Cluster Setup</a>
+          <a class="nav-item{% if active_page == 'users' %} active{% endif %}" data-page="users" href="/users"><span class="dot"></span> Panel Users</a>
+          <a class="nav-item{% if active_page == 'discord' %} active{% endif %}" data-page="discord" href="/integrations/discord"><span class="dot"></span> Discord Bot</a>
+          <a class="nav-item{% if active_page == 'about' %} active{% endif %}" data-page="about" href="/about"><span class="dot"></span> About</a>
+        {% endif %}
       </nav>
 
       <div class="sidebar-foot">
-        <div class="select">
-          <label>Servers</label>
-          <div id="server-selector" class="pills pills-side"></div>
-          <div id="server-selector-hint" class="muted small" style="margin-top:6px;"></div>
-        </div>
+        {% if page_scope == "server" %}
+          <div class="select">
+            <label for="server-switcher">Switch server</label>
+            <select id="server-switcher">
+              {% for server in servers %}
+                {% if server_section %}
+                  <option value="{{ url_for('server_section', server_id=server.id, section=server_section) }}"{% if server.id == current_server.id %} selected{% endif %}>{{ server.name }}</option>
+                {% else %}
+                  <option value="{{ url_for('server_overview', server_id=server.id) }}"{% if server.id == current_server.id %} selected{% endif %}>{{ server.name }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+            <a class="scope-back-link" href="{{ url_for('servers_index') }}">← All servers</a>
+          </div>
+        {% else %}
+          <div class="scope-label">Panel-wide settings</div>
+          <a class="scope-back-link" href="{{ url_for('servers_index') }}">View all servers</a>
+        {% endif %}
         <div class="hint">
           Logged in as <span id="current-user" class="mono"></span> • <a class="link" href="/logout">Logout</a>
         </div>
@@ -87,13 +90,18 @@
     <main class="main">
       <header class="topbar">
         <div class="title">
-          <h1 id="page-title">Dashboard</h1>
-          <p id="page-subtitle">Quick actions + live responses</p>
-        </div>
-        <div class="status">
-          <span class="pill" id="pill">Ready</span>
+          {% if page_scope == "server" %}
+            <nav class="breadcrumb" aria-label="Breadcrumb"><a href="{{ url_for('servers_index') }}">Servers</a><span aria-hidden="true">/</span><span>{{ current_server.name }}</span></nav>
+            <h1>{{ current_server.name }}</h1>
+            <p><span id="page-title">{{ active_page|replace('dashboard', 'Overview')|title }}</span> · <span class="scope-meta">{% if current_server.running %}Running{% else %}Stopped{% endif %} · {{ current_server.location|default('local')|title }}{% if current_server.node_id %} · {{ current_server.node_id }}{% endif %}</span></p>
+          {% else %}
+            <div class="scope-kicker">Global</div>
+            <h1 id="page-title">{{ active_page|title }}</h1>
+            <p id="page-subtitle">Panel-wide settings</p>
+          {% endif %}
         </div>
       </header>
+      <div id="page-status" class="notice page-status" role="status" aria-live="polite" hidden></div>
 
       <section class="grid">
         <!-- Left: page content -->
@@ -415,8 +423,8 @@
               <div class="card">
                 <div class="card-h">
                   <div>
-                    <div class="card-t">Create / Manage Server Instances</div>
-                    <div class="card-s">Create multiple Nuclear Option server installs, and switch which one all tabs edit.</div>
+                    <div class="card-t">Create Server Instances</div>
+                    <div class="card-s">Deploy a server, then enter its URL-scoped controls from the server list.</div>
                   </div>
                 </div>
 
@@ -459,20 +467,10 @@
                 <div class="pill-area">
                   <div class="muted">Your servers:</div>
                   <div id="server-pills" class="pills"></div>
-                  <div class="muted small" style="margin-top:8px;">Click a server pill to select it. All other tabs will edit the selected server.</div>
+                  <div class="muted small" style="margin-top:8px;">Choose a server to enter its dedicated controls. Global pages do not retain a hidden operation target.</div>
                 </div>
 
-                <div class="sep"></div>
-
-                <div class="actions">
-                  <button class="btn danger" id="sm-delete">Delete Selected Server</button>
-                  <label class="chk">
-                    <input type="checkbox" id="sm-delete-files" />
-                    Also delete server files on disk
-                  </label>
-                </div>
-
-                <div id="sm-status" class="status"></div>
+                <div id="{% if page_scope == 'global' %}sm-status{% else %}sm-create-status{% endif %}" class="status"></div>
               </div>
             </div>
           </div>
@@ -545,6 +543,23 @@
                     <button class="btn primary" id="dedicated-save-btn" type="button">Save</button>
                   </div>
                 </div>
+              </div>
+
+              <div class="card danger-zone">
+                <div class="card-h">
+                  <div>
+                    <div class="card-t">Delete {{ current_server.name if current_server else "server" }}</div>
+                    <div class="card-s">This action targets the server named in the URL and page header.</div>
+                  </div>
+                </div>
+                <div class="actions">
+                  <button class="btn danger" id="sm-delete">Delete {{ current_server.name if current_server else "server" }}</button>
+                  <label class="chk">
+                    <input type="checkbox" id="sm-delete-files" />
+                    Also delete server files on disk
+                  </label>
+                </div>
+                <div id="{% if page_scope == 'server' %}sm-status{% else %}sm-delete-status{% endif %}" class="status"></div>
               </div>
             </div>
           </div>
@@ -1102,6 +1117,12 @@
 
   <script>
     window.NO_ALLOWED_PORTS = {{ allowed_ports|tojson }};
+    window.NO_PANEL_CONTEXT = {
+      scope: {{ page_scope|tojson }},
+      serverId: {{ (current_server.id if current_server else none)|tojson }},
+      activePage: {{ active_page|tojson }},
+      serversPath: {{ url_for('servers_index')|tojson }}
+    };
   </script>
   <script src="{{ url_for('static', filename='app.js') }}?v=20260308b"></script>
 </body>

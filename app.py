@@ -1715,12 +1715,129 @@ def _wait_for_file(path: Path, timeout_sec: int = 30) -> bool:
 # =============================
 # Routes
 # =============================
+SERVER_SECTION_PAGES = {
+    "operations": "control",
+    "players": "bans",
+    "moderation": "moderation",
+    "settings": "server",
+    "noblackbox": "noblackbox",
+    "gallery": "gallery",
+}
+
+GLOBAL_PANEL_PAGES = {
+    "deployment": "manage",
+    "ports": "ports",
+    "users": "users",
+    "cluster": "cluster",
+    "integrations/discord": "discord",
+    "about": "about",
+}
+
+
+def _panel_servers_for_routes() -> list[dict]:
+    servers = _build_servers_view() or []
+    _cache_servers_view(servers)
+    return servers
+
+
+def _render_global_servers(error: Optional[str] = None, status: int = 200):
+    try:
+        servers = _panel_servers_for_routes()
+    except Exception:
+        servers = []
+        error = error or "The server list could not be loaded. Retry this page."
+        status = 503
+    return (
+        render_template(
+            "servers.html",
+            servers=servers,
+            page_error=error,
+            current_user=session.get("username"),
+            current_role=session.get("role"),
+        ),
+        status,
+    )
+
+
+def _render_panel_shell(
+    active_page: str,
+    *,
+    server_id: Optional[str] = None,
+    server_section: Optional[str] = None,
+):
+    servers = _panel_servers_for_routes()
+    current_server = None
+    page_scope = "global"
+    if server_id is not None:
+        page_scope = "server"
+        current_server = next(
+            (server for server in servers if str(server.get("id") or "") == str(server_id)),
+            None,
+        )
+        if current_server is None:
+            return _render_global_servers(
+                f'Server "{server_id}" was not found. Choose an available server below.',
+                404,
+            )
+
+    ports = load_ports()
+    allowed_ports = [port["port"] for port in ports]
+    return render_template(
+        "index.html",
+        ports=ports,
+        allowed_ports=allowed_ports,
+        active_page=active_page,
+        page_scope=page_scope,
+        current_server=current_server,
+        server_section=server_section,
+        servers=servers,
+    )
+
+
 @app.get("/")
 @requires_login()
 def index():
-    ports = load_ports()
-    allowed_ports = [p["port"] for p in ports]
-    return render_template("index.html", ports=ports, allowed_ports=allowed_ports)
+    return redirect(url_for("servers_index"))
+
+
+@app.get("/servers")
+@requires_login()
+def servers_index():
+    return _render_global_servers()
+
+
+@app.get("/servers/<server_id>")
+@requires_login()
+def server_overview(server_id: str):
+    return _render_panel_shell("dashboard", server_id=server_id)
+
+
+@app.get("/servers/<server_id>/<section>")
+@requires_login()
+def server_section(server_id: str, section: str):
+    active_page = SERVER_SECTION_PAGES.get(section)
+    if active_page is None:
+        return abort(404)
+    return _render_panel_shell(
+        active_page,
+        server_id=server_id,
+        server_section=section,
+    )
+
+
+@app.get("/deployment")
+@app.get("/ports")
+@app.get("/users")
+@app.get("/cluster")
+@app.get("/integrations/discord")
+@app.get("/about")
+@requires_login()
+def global_panel_page():
+    route_key = request.path.lstrip("/")
+    active_page = GLOBAL_PANEL_PAGES.get(route_key)
+    if active_page is None:
+        abort(404)
+    return _render_panel_shell(active_page)
 
 
 # ----- Ports API (Ports tab: Game/Query editor) -----
