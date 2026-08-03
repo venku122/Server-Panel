@@ -969,6 +969,7 @@ JOB_REPLAY_POLICIES = {
 }
 _config_version_storage = importlib.import_module("server_panel.storage.config_versions")
 CONFIG_VERSION_SERVICE = _config_version_storage.ConfigVersionService(PANEL_DATABASE_PATH)
+_workshop_storage = importlib.import_module("server_panel.workshop")
 
 DEFAULT_BOOTSTRAP_USERNAME = getattr(config, "USERNAME", "admin")
 DEFAULT_BOOTSTRAP_PASSWORD = getattr(config, "PASSWORD", "changeme")
@@ -2008,6 +2009,14 @@ SERVER_SECTION_PAGES = {
         "title": "Gallery",
         "subtitle": "Browse NoBlackBox recordings",
         "show_response": False,
+    },
+    "workshop": {
+        "template": "server/workshop.html",
+        "active_page": "workshop",
+        "title": "Workshop library",
+        "subtitle": "Search local content and manage the current mission rotation",
+        "show_response": False,
+        "admin_only": True,
     },
     "activity": {
         "template": "server/activity.html",
@@ -6289,6 +6298,194 @@ def _sync_workshop_on_this_node(
         except Exception as error:
             output.append(f"Failed to update MissionDirectory for {sid}: {error}")
     return {"success": True, **result, "output": output}
+
+
+def _workshop_rotation_memberships(server_id: str) -> dict[str, list[str]]:
+    """Expose the public-main two-slot rotation as the current playlist."""
+    server = _find_server_in_unified_view(server_id) or {}
+    names = [
+        str(server.get("mission1_name") or server.get("mission_name") or "").strip(),
+        str(server.get("mission2_name") or "").strip(),
+    ]
+    local_server = _find_server_by_id(server_id)
+    if local_server is not None:
+        try:
+            path = _config_path(server_id)
+            config_data = _read_json_file(path) if path.exists() else {}
+            slot1, slot2 = _infer_slots_from_config(config_data)
+            names = [str(slot1.get("name") or "").strip(), str(slot2.get("name") or "").strip()]
+        except Exception:
+            pass
+    return {"Current rotation": [name for name in names if name]}
+
+
+def _workshop_library(server_id: str):
+    roots = [
+        library / "steamapps" / "workshop" / "content" / "2168680"
+        for library in _get_steam_library_paths()
+    ]
+    return _workshop_storage.WorkshopLibrary(
+        roots,
+        MISSIONS_DIR,
+        _workshop_rotation_memberships(server_id),
+    )
+
+
+@app.get("/api/servers/<server_id>/workshop")
+@requires_login("admin")
+def api_workshop_library(server_id: str):
+    if _find_server_in_unified_view(server_id) is None:
+        return jsonify({"success": False, "error": "Server not found."}), 404
+    query = str(request.args.get("q") or "")
+    filter_name = str(request.args.get("filter") or "all")
+    items = _workshop_library(server_id).search(query, filter_name)
+    return jsonify(
+        {
+            "success": True,
+            "items": [item.to_dict() for item in items],
+            "capabilities": {
+                "local_index": True,
+                "local_collection_expansion": True,
+                "remote_search": False,
+                "remote_download": False,
+                "named_playlists": False,
+                "rotation_slots": 2,
+            },
+            "source_note": (
+                "Results come from this panel host's Steam cache and missions folder. "
+                "Public main has no Steam Web API or named-playlist store."
+            ),
+        }
+    )
+
+
+@app.post("/api/servers/<server_id>/workshop/resolve")
+@requires_login("admin")
+def api_workshop_resolve(server_id: str):
+    if _find_server_in_unified_view(server_id) is None:
+        return jsonify({"success": False, "error": "Server not found."}), 404
+    payload = request.get_json(force=True, silent=True) or {}
+    try:
+        result = _workshop_library(server_id).resolve(str(payload.get("reference") or ""))
+    except ValueError as error:
+        return jsonify({"success": False, "error": str(error)}), 400
+    return jsonify({"success": True, **result})
+
+
+def _workshop_slots_for_server(server_id: str) -> tuple[dict, dict, dict]:
+    path = _config_path(server_id)
+    config_data = _read_json_file(path) if path.exists() else {}
+    if not isinstance(config_data, dict):
+        config_data = {}
+    slot1, slot2 = _infer_slots_from_config(config_data)
+    return config_data, slot1, slot2
+
+
+def _place_workshop_missions(
+    mission_names: list[str],
+    slot1: dict,
+    slot2: dict,
+    placement: str,
+) -> tuple[dict, dict, list[str]]:
+    if placement not in {"first_available", "slot1", "slot2"}:
+        raise ValueError("placement must be first_available, slot1, or slot2")
+    candidates = [name for name in dict.fromkeys(mission_names) if name]
+    if not candidates:
+        raise ValueError("The selected item contains no locally available missions.")
+    updated1 = dict(slot1)
+    updated2 = dict(slot2)
+    added: list[str] = []
+    if placement == "slot1":
+        updated1 = {"group": "User", "name": candidates[0], "max_time": 7200.0}
+        added.append(candidates.pop(0))
+    elif placement == "slot2":
+        updated2 = {"group": "User", "name": candidates[0], "max_time": 7200.0}
+        added.append(candidates.pop(0))
+    else:
+        if not str(updated1.get("name") or "").strip() and candidates:
+            name = candidates.pop(0)
+            updated1 = {"group": "User", "name": name, "max_time": 7200.0}
+            added.append(name)
+        if not str(updated2.get("name") or "").strip() and candidates:
+            name = candidates.pop(0)
+            updated2 = {"group": "User", "name": name, "max_time": 7200.0}
+            added.append(name)
+        if not added:
+            raise ValueError("The current two-slot rotation is full. Choose a slot to replace.")
+    return updated1, updated2, added
+
+
+@app.post("/api/servers/<server_id>/workshop/rotation")
+@requires_login("admin")
+def api_workshop_add_to_rotation(server_id: str):
+    server = _find_server_in_unified_view(server_id)
+    if server is None:
+        return jsonify({"success": False, "error": "Server not found."}), 404
+    if str(server.get("location") or "").lower() == "remote":
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": (
+                        "This local library cannot copy files onto a remote member. Queue Workshop sync "
+                        "for the cluster, then select the synced mission in that server's mission controls."
+                    ),
+                }
+            ),
+            409,
+        )
+    payload = request.get_json(force=True, silent=True) or {}
+    item_id = str(payload.get("item_id") or "").strip()
+    placement = str(payload.get("placement") or "first_available").strip()
+    try:
+        library = _workshop_library(server_id)
+        mission_names = library.copy_item_to_missions(item_id)
+        config_data, slot1, slot2 = _workshop_slots_for_server(server_id)
+        slot1, slot2, added = _place_workshop_missions(mission_names, slot1, slot2, placement)
+        updates = {
+            "mission1_group": slot1.get("group") or "BuiltIn",
+            "mission1_name": slot1.get("name") or "",
+            "mission1_max_time": slot1.get("max_time"),
+            "mission2_group": slot2.get("group") or "BuiltIn",
+            "mission2_name": slot2.get("name") or "",
+            "mission2_max_time": slot2.get("max_time"),
+        }
+        _update_server_fields(server_id, updates)
+        config_data = _apply_mission_slots_to_config(config_data, slot1, slot2)
+        saved = _dedicated_config_save_local(
+            server_id,
+            config_data,
+            change_summary="Added local Workshop mission to the current rotation",
+        )
+        AUDIT_SERVICE.record(
+            actor=str(session.get("username") or "unknown"),
+            action="workshop.rotation.updated",
+            correlation_id=str(getattr(g, "correlation_id", uuid.uuid4())),
+            scope_type="server",
+            server_id=server_id,
+            target_type="workshop_item",
+            target_id=item_id,
+            summary="Added local Workshop content to the current mission rotation",
+            request_payload={"placement": placement, "mission_names": added},
+        )
+    except KeyError as error:
+        return jsonify({"success": False, "error": str(error).strip("'")}), 404
+    except ValueError as error:
+        return jsonify({"success": False, "error": str(error)}), 409
+    except (OSError, json.JSONDecodeError) as error:
+        return jsonify({"success": False, "error": f"Could not update the local library: {error}"}), 500
+    return jsonify(
+        {
+            "success": True,
+            "added": added,
+            "copied": mission_names,
+            "remaining": [name for name in mission_names if name not in added],
+            "slot1": slot1,
+            "slot2": slot2,
+            "config_version": saved.get("config_version"),
+            "restart_required": True,
+        }
+    )
 
 
 

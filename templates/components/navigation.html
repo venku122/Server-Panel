@@ -43,7 +43,7 @@
         {{ nav_link('dashboard', 'Overview', root, active_page, 'overview') }}
         {{ nav_link('control', 'Operations', root ~ '/operations', active_page, 'operations') }}
         {{ nav_link('bans', 'Players', root ~ '/players', active_page, 'players', active_keys=('moderation',)) }}
-        {{ nav_link('workshop', 'Workshop', root ~ '/workshop', active_page) }}
+        {{ nav_link('workshop', 'Workshop', root ~ '/workshop', active_page, admin_only=true) }}
         {{ nav_link('activity', 'Activity', root ~ '/activity', active_page, admin_only=true) }}
         {{ nav_link('jobs', 'Jobs', root ~ '/jobs', active_page, admin_only=true) }}
         {{ nav_link('server', 'Settings', root ~ '/settings', active_page, 'settings', admin_only=true, active_keys=('configuration-history',)) }}
