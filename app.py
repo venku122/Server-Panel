@@ -1974,6 +1974,7 @@ SERVER_SECTION_PAGES = {
         "title": "Activity",
         "subtitle": "Structured actions and outcomes for this server",
         "show_response": False,
+        "admin_only": True,
     },
 }
 GLOBAL_PANEL_PAGES = {
@@ -1990,6 +1991,7 @@ GLOBAL_PANEL_PAGES = {
         "title": "Activity",
         "subtitle": "Structured panel and server actions",
         "show_response": False,
+        "admin_only": True,
     },
     "ports": {
         "template": "global/ports.html",
@@ -2101,6 +2103,8 @@ def _render_panel_shell(
     server_id: Optional[str] = None,
     server_page_key: Optional[str] = None,
 ):
+    if page.get("admin_only") and session.get("role") != "admin":
+        return Response("Admin access required.", 403)
     servers = _panel_servers_for_routes()
     server_view_warnings = list(getattr(g, "server_view_warnings", []))
     current_server = None
