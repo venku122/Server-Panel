@@ -1,0 +1,66 @@
+{% macro job_list(jobs) -%}
+    <div class="job-list" data-job-list>
+        {% if jobs %}
+            {% for job in jobs %}
+                <article class="card job-card" data-job-id="{{ job.id }}">
+                    <div class="card-h job-summary">
+                        <div>
+                            <div class="card-t">{{ job.job_type|replace('_', ' ') |title }}</div>
+                            <div class="card-s">{{ job.server_id or 'Panel' }} · {{ job.created_by }} · attempt {{ job.attempt }}</div>
+                        </div>
+                        <span class="status-pill" data-job-status="{{ job.status }}">{{ job.status }}</span>
+                    </div>
+                    <div class="job-progress" aria-label="Job progress">
+                        <progress value="{{ job.progress_current }}"
+                                  max="{{ job.progress_total if job.progress_total else 1 }}"></progress>
+                        <span>{{ job.progress_current }} / {{ job.progress_total }}</span>
+                    </div>
+                    <p class="small muted" data-job-step>Queued {{ job.created_at }}</p>
+                    <div class="btns">
+                        {% if job.status in ('queued', 'running') %}
+                            <button class="btn danger" type="button" data-job-cancel>Cancel</button>
+                        {% elif job.status in ('failed', 'cancelled', 'interrupted') %}
+                            <button class="btn" type="button" data-job-retry>Retry</button>
+                        {% endif %}
+                        <a class="btn ghost" href="/api/jobs/{{ job.id }}">JSON</a>
+                    </div>
+                    <details class="job-diagnostics">
+                        <summary>Diagnostics and event log</summary>
+                        <dl class="job-meta">
+                            <dt>Job ID</dt>
+                            <dd>
+                                {{ job.id }}
+                            </dd>
+                            <dt>Correlation ID</dt>
+                            <dd>
+                                {{ job.correlation_id }}
+                            </dd>
+                            <dt>Created</dt>
+                            <dd>
+                                {{ job.created_at }}
+                            </dd>
+                            <dt>Started</dt>
+                            <dd>
+                                {{ job.started_at or '—' }}
+                            </dd>
+                            <dt>Finished</dt>
+                            <dd>
+                                {{ job.finished_at or '—' }}
+                            </dd>
+                        </dl>
+                        <pre data-job-events>Loading event log…</pre>
+                        <h3>Parameters</h3>
+                        <pre data-job-parameters>{{ job.parameters|tojson(indent=2) }}</pre>
+                        <h3>Result</h3>
+                        <pre data-job-result>{{ job.result|tojson(indent=2) if job.result is not none else 'Not available.' }}</pre>
+                    </details>
+                </article>
+            {% endfor %}
+        {% else %}
+            <div class="card empty-state">
+                <h2>No jobs yet</h2>
+                <p>Server updates, Workshop syncs, and NoBlackBox installs will appear here.</p>
+            </div>
+        {% endif %}
+    </div>
+{%- endmacro %}

@@ -90,4 +90,5 @@
         <script>window.NO_ALLOWED_PORTS = {{ allowed_ports|default([], true)|tojson }}; window.NO_PANEL_CONTEXT = {scope: "global", serverId: null, activePage: {{ active_page|tojson }}, serversPath: {{ url_for('servers_index')|tojson }}};</script>
         <script defer src="{{ url_for('static', filename='app.js') }}?v=20260811ux"></script>
     {% endif %}
+    {% block panel_scripts %}{% endblock %}
 {% endblock %}
