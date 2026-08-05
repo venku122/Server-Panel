@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
+import logging
 import re
 import sqlite3
+import threading
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -22,6 +25,9 @@ _SENSITIVE_KEY = re.compile(
 _MAX_DEPTH = 6
 _MAX_ENTRIES = 50
 _MAX_STRING_LENGTH = 4000
+_MAX_PAGE_SIZE = 200
+_PRIVATE_KEY_BEGIN = re.compile(r"-----BEGIN ([A-Z0-9 ]*PRIVATE KEY)-----", re.IGNORECASE)
+LOGGER = logging.getLogger(__name__)
 _LEGACY_ACTIONS = {
     "audit_logs_cleared": "panel.audit.cleared",
     "first_run_credentials_set": "panel.credentials.initialized",
@@ -35,21 +41,33 @@ _LEGACY_ACTIONS = {
 }
 
 
+def _redact_private_keys(value: str) -> str:
+    cursor = 0
+    output: list[str] = []
+    while match := _PRIVATE_KEY_BEGIN.search(value, cursor):
+        output.append(value[cursor : match.start()])
+        output.append("[REDACTED PRIVATE KEY]")
+        end_marker = f"-----END {match.group(1).upper()}-----"
+        end_index = value.upper().find(end_marker, match.end())
+        if end_index < 0:
+            cursor = len(value)
+            break
+        cursor = end_index + len(end_marker)
+    output.append(value[cursor:])
+    return "".join(output)
+
+
 def _redact_string(value: str) -> str:
-    truncated = value[:_MAX_STRING_LENGTH]
-    if len(value) > _MAX_STRING_LENGTH:
-        truncated += "… [truncated]"
-    truncated = re.sub(r"(?i)(bearer\s+)[a-z0-9._~+/=-]+", r"\1[REDACTED]", truncated)
-    truncated = re.sub(
-        r"(?i)([?&](?:password|secret|token|api_key)=)[^&#\s]+",
+    redacted = _redact_private_keys(value)
+    redacted = re.sub(r"(?i)(bearer\s+)[a-z0-9._~+/=-]+", r"\1[REDACTED]", redacted)
+    redacted = re.sub(
+        r"(?i)([?&](?:password|passwd|secret|token|access_token|api_key|key|signature|sig)=)[^&#\s]+",
         r"\1[REDACTED]",
-        truncated,
+        redacted,
     )
-    return re.sub(
-        r"(?is)(-----BEGIN [^-]*PRIVATE KEY-----).*?(-----END [^-]*PRIVATE KEY-----)",
-        r"\1\n[REDACTED]\n\2",
-        truncated,
-    )
+    if len(redacted) > _MAX_STRING_LENGTH:
+        return redacted[:_MAX_STRING_LENGTH] + "… [truncated]"
+    return redacted
 
 
 def redact_payload(value: Any, depth: int = 0, seen: set[int] | None = None) -> Any:
@@ -65,23 +83,26 @@ def redact_payload(value: Any, depth: int = 0, seen: set[int] | None = None) -> 
     if identity in seen:
         return "[CIRCULAR]"
     seen.add(identity)
-    if isinstance(value, (list, tuple)):
-        items = [redact_payload(item, depth + 1, seen) for item in value[:_MAX_ENTRIES]]
-        if len(value) > _MAX_ENTRIES:
-            items.append(f"[{len(value) - _MAX_ENTRIES} more items]")
-        return items
-    if isinstance(value, dict):
-        output: dict[str, Any] = {}
-        entries = list(value.items())
-        for key, item in entries[:_MAX_ENTRIES]:
-            normalized_key = str(key)
-            output[normalized_key] = (
-                "[REDACTED]" if _SENSITIVE_KEY.search(normalized_key) else redact_payload(item, depth + 1, seen)
-            )
-        if len(entries) > _MAX_ENTRIES:
-            output["__truncated__"] = f"{len(entries) - _MAX_ENTRIES} more keys"
-        return output
-    return _redact_string(str(value))
+    try:
+        if isinstance(value, (list, tuple)):
+            items = [redact_payload(item, depth + 1, seen) for item in value[:_MAX_ENTRIES]]
+            if len(value) > _MAX_ENTRIES:
+                items.append(f"[{len(value) - _MAX_ENTRIES} more items]")
+            return items
+        if isinstance(value, dict):
+            output: dict[str, Any] = {}
+            entries = list(value.items())
+            for key, item in entries[:_MAX_ENTRIES]:
+                normalized_key = str(key)
+                output[normalized_key] = (
+                    "[REDACTED]" if _SENSITIVE_KEY.search(normalized_key) else redact_payload(item, depth + 1, seen)
+                )
+            if len(entries) > _MAX_ENTRIES:
+                output["__truncated__"] = f"{len(entries) - _MAX_ENTRIES} more keys"
+            return output
+        return _redact_string(str(value))
+    finally:
+        seen.remove(identity)
 
 
 def serialize_payload(value: Any | None) -> str | None:
@@ -159,6 +180,46 @@ class AuditEvent:
         }
 
 
+@dataclass(frozen=True)
+class AuditPage:
+    events: tuple[AuditEvent, ...]
+    next_cursor: str | None
+    previous_cursor: str | None
+    limit: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "events": [event.to_dict() for event in self.events],
+            "next_cursor": self.next_cursor,
+            "previous_cursor": self.previous_cursor,
+            "limit": self.limit,
+        }
+
+
+def _encode_cursor(event: AuditEvent, direction: str) -> str:
+    payload = json.dumps(
+        {"created_at": event.created_at, "id": event.id, "direction": direction},
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
+
+
+def _decode_cursor(cursor: str | None) -> tuple[str, int, str] | None:
+    if not cursor:
+        return None
+    try:
+        padding = "=" * (-len(cursor) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(cursor + padding).decode("utf-8"))
+        created_at = str(payload["created_at"])
+        event_id = int(payload["id"])
+        direction = str(payload["direction"])
+    except (ValueError, TypeError, KeyError, json.JSONDecodeError) as error:
+        raise ValueError("Invalid audit pagination cursor.") from error
+    if not created_at or event_id < 1 or direction not in {"before", "after"}:
+        raise ValueError("Invalid audit pagination cursor.")
+    return created_at, event_id, direction
+
+
 class AuditRepository(Repository):
     def _row_to_event(self, row: sqlite3.Row) -> AuditEvent:
         return AuditEvent(
@@ -232,8 +293,10 @@ class AuditRepository(Repository):
         server_id: str | None = None,
         outcome: str | None = None,
         actor: str | None = None,
-        limit: int = 200,
-    ) -> list[AuditEvent]:
+        action: str | None = None,
+        cursor: str | None = None,
+        limit: int = 50,
+    ) -> AuditPage:
         clauses: list[str] = []
         parameters: list[Any] = []
         if server_id:
@@ -245,13 +308,40 @@ class AuditRepository(Repository):
         if actor:
             clauses.append("actor = ?")
             parameters.append(actor)
+        if action:
+            clauses.append("action = ?")
+            parameters.append(_normalize_action(action))
+        decoded_cursor = _decode_cursor(cursor)
+        direction = "before"
+        if decoded_cursor is not None:
+            created_at, event_id, direction = decoded_cursor
+            operator = "<" if direction == "before" else ">"
+            clauses.append(f"(created_at {operator} ? OR (created_at = ? AND id {operator} ?))")
+            parameters.extend((created_at, created_at, event_id))
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
-        parameters.append(max(1, min(int(limit), 500)))
+        page_size = max(1, min(int(limit), _MAX_PAGE_SIZE))
+        parameters.append(page_size + 1)
+        order = "ASC" if direction == "after" else "DESC"
         rows = self.connection.execute(
-            f"SELECT * FROM audit_events{where} ORDER BY created_at DESC, id DESC LIMIT ?",  # noqa: S608
+            f"SELECT * FROM audit_events{where} ORDER BY created_at {order}, id {order} LIMIT ?",  # noqa: S608
             parameters,
         ).fetchall()
-        return [self._row_to_event(row) for row in rows]
+        has_more_in_direction = len(rows) > page_size
+        selected_rows = rows[:page_size]
+        if direction == "after":
+            selected_rows.reverse()
+        events = tuple(self._row_to_event(row) for row in selected_rows)
+        if not events:
+            return AuditPage((), None, None, page_size)
+
+        has_newer = has_more_in_direction if direction == "after" else decoded_cursor is not None
+        has_older = has_more_in_direction if direction == "before" else decoded_cursor is not None
+        return AuditPage(
+            events,
+            _encode_cursor(events[-1], "before") if has_older else None,
+            _encode_cursor(events[0], "after") if has_newer else None,
+            page_size,
+        )
 
     def clear(self) -> None:
         self.connection.execute("DELETE FROM audit_events")
@@ -261,6 +351,10 @@ class AuditService:
     def __init__(self, connection_factory: ConnectionFactory, legacy_path: Path) -> None:
         self.connection_factory = connection_factory
         self.legacy_path = legacy_path
+        self._mirror_lock = threading.Lock()
+        self._mirror_failures = 0
+        self._mirror_last_error: str | None = None
+        self._mirror_last_failed_at: str | None = None
 
     def record(
         self,
@@ -296,7 +390,7 @@ class AuditService:
                 target_type=str(target_type) if target_type else None,
                 target_id=str(target_id) if target_id else None,
                 outcome=_normalize_outcome(outcome),
-                summary=str(summary or normalized_action.replace(".", " ").capitalize()),
+                summary=_redact_string(str(summary or normalized_action.replace(".", " ").capitalize())),
                 request_json=serialize_payload(request_payload),
                 response_json=serialize_payload(response_payload),
                 job_id=str(job_id) if job_id else None,
@@ -348,20 +442,70 @@ class AuditService:
         server_id: str | None = None,
         outcome: str | None = None,
         actor: str | None = None,
-        limit: int = 200,
+        action: str | None = None,
+        cursor: str | None = None,
+        limit: int = 50,
     ) -> list[dict[str, Any]]:
+        return self.list_events_page(
+            server_id=server_id,
+            outcome=outcome,
+            actor=actor,
+            action=action,
+            cursor=cursor,
+            limit=limit,
+        )["events"]
+
+    def list_events_page(
+        self,
+        *,
+        server_id: str | None = None,
+        outcome: str | None = None,
+        actor: str | None = None,
+        action: str | None = None,
+        cursor: str | None = None,
+        limit: int = 50,
+    ) -> dict[str, Any]:
         repository = AuditRepository(self.connection_factory())
-        return [
-            event.to_dict()
-            for event in repository.list_events(server_id=server_id, outcome=outcome, actor=actor, limit=limit)
-        ]
+        return repository.list_events(
+            server_id=server_id,
+            outcome=outcome,
+            actor=actor,
+            action=action,
+            cursor=cursor,
+            limit=limit,
+        ).to_dict()
+
+    def mirror_status(self) -> dict[str, Any]:
+        with self._mirror_lock:
+            return {
+                "authoritative_store": "sqlite",
+                "compatibility_mirror": "jsonl",
+                "degraded": self._mirror_failures > 0,
+                "failure_count": self._mirror_failures,
+                "last_error": self._mirror_last_error,
+                "last_failed_at": self._mirror_last_failed_at,
+            }
+
+    def _mark_mirror_failure(self, operation: str, error: OSError) -> None:
+        with self._mirror_lock:
+            self._mirror_failures += 1
+            self._mirror_last_error = _redact_string(str(error))
+            self._mirror_last_failed_at = _utc_now()
+        LOGGER.warning(
+            "Audit JSONL compatibility mirror %s failed; SQLite remains authoritative: %s",
+            operation,
+            error,
+        )
 
     def clear(self) -> None:
         repository = AuditRepository(self.connection_factory())
         with repository.transaction():
             repository.clear()
-        self.legacy_path.parent.mkdir(parents=True, exist_ok=True)
-        self.legacy_path.write_text("", encoding="utf-8")
+        try:
+            self.legacy_path.parent.mkdir(parents=True, exist_ok=True)
+            self.legacy_path.write_text("", encoding="utf-8")
+        except OSError as error:
+            self._mark_mirror_failure("reset", error)
 
     def import_legacy(self) -> int:
         if not self.legacy_path.is_file():
@@ -422,5 +566,5 @@ class AuditService:
             self.legacy_path.parent.mkdir(parents=True, exist_ok=True)
             with self.legacy_path.open("a", encoding="utf-8") as handle:
                 handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-        except OSError:
-            pass
+        except OSError as error:
+            self._mark_mirror_failure("append", error)
