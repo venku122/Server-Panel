@@ -231,6 +231,10 @@ function diagnosticRequestBody(body){
   try { return JSON.parse(body); } catch { return body; }
 }
 
+/**
+ * @param {string} url
+ * @param {RequestInit & {background?: boolean, diagnostics?: boolean}} [opts]
+ */
 async function apiFetch(url, opts={}){
   const { background = false, diagnostics = true, ...fetchOpts } = opts;
   const effectiveUrl = withServerId(url);
