@@ -51,6 +51,9 @@ def _audit_timeline(connection: sqlite3.Connection) -> None:
     )
     connection.execute("CREATE INDEX audit_events_created_at_idx ON audit_events (created_at DESC, id DESC)")
     connection.execute("CREATE INDEX audit_events_server_idx ON audit_events (server_id, id DESC)")
+    connection.execute("CREATE INDEX audit_events_actor_idx ON audit_events (actor, created_at DESC, id DESC)")
+    connection.execute("CREATE INDEX audit_events_outcome_idx ON audit_events (outcome, created_at DESC, id DESC)")
+    connection.execute("CREATE INDEX audit_events_action_idx ON audit_events (action, created_at DESC, id DESC)")
     connection.execute("CREATE INDEX audit_events_correlation_idx ON audit_events (correlation_id)")
 
 
