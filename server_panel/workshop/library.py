@@ -7,9 +7,13 @@ metadata remains missing.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import re
-import shutil
+import threading
+import time
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,6 +27,35 @@ _IGNORED_JSON_NAMES = {
     "catalog_workshop.json",
 }
 _ID_PATTERN = re.compile(r"^[0-9]{1,20}$")
+MAX_ITEM_DIRECTORIES = 2_000
+MAX_FILES_PER_ITEM = 128
+MAX_RECURSIVE_DEPTH = 4
+MAX_METADATA_BYTES = 1_000_000
+MAX_MISSION_BYTES = 10_000_000
+MAX_SCAN_SECONDS = 5.0
+CACHE_TTL_SECONDS = 30.0
+MISSION_SIGNATURE_KEYS = frozenset(
+    {
+        "mission",
+        "Mission",
+        "MissionName",
+        "MissionObjects",
+        "objectives",
+        "Objectives",
+        "teams",
+        "Teams",
+        "units",
+        "Units",
+    }
+)
+
+_INDEX_CACHE: dict[tuple[str, ...], tuple[float, str, list["WorkshopItem"]]] = {}
+_CACHE_LOCK = threading.Lock()
+
+
+def invalidate_workshop_cache() -> None:
+    with _CACHE_LOCK:
+        _INDEX_CACHE.clear()
 
 
 @dataclass(frozen=True)
@@ -87,8 +120,10 @@ def parse_workshop_reference(value: str) -> WorkshopReference:
     return WorkshopReference(item_id=ids[0], source="steam_url")
 
 
-def _read_object(path: Path) -> dict[str, Any]:
+def _read_object(path: Path, *, max_bytes: int = MAX_METADATA_BYTES) -> dict[str, Any]:
     try:
+        if path.stat().st_size > max_bytes:
+            return {}
         payload = json.loads(path.read_text(encoding="utf-8-sig", errors="replace"))
     except (OSError, UnicodeError, json.JSONDecodeError):
         return {}
@@ -134,17 +169,123 @@ def _child_ids(objects: Iterable[dict[str, Any]]) -> list[str]:
     return list(dict.fromkeys(found))
 
 
-def _mission_jsons(item_dir: Path) -> list[Path]:
+def _is_mission_json(path: Path) -> bool:
+    payload = _read_object(path, max_bytes=MAX_MISSION_BYTES)
+    return bool(payload and MISSION_SIGNATURE_KEYS.intersection(payload))
+
+
+def _mission_jsons(item_dir: Path, *, deadline: float | None = None) -> list[Path]:
     candidates: list[Path] = []
+    inspected = 0
     try:
-        for path in item_dir.rglob("*.json"):
-            name = path.name.lower()
-            if not path.is_file() or name in _IGNORED_JSON_NAMES or name.startswith("catalog_"):
-                continue
-            candidates.append(path)
+        for root, directories, filenames in os.walk(item_dir):
+            relative_root = Path(root).relative_to(item_dir)
+            if len(relative_root.parts) >= MAX_RECURSIVE_DEPTH:
+                directories[:] = []
+            directories[:] = sorted(directories)[:MAX_FILES_PER_ITEM]
+            for filename in sorted(filenames):
+                if deadline is not None and time.monotonic() >= deadline:
+                    return sorted(candidates)
+                inspected += 1
+                if inspected > MAX_FILES_PER_ITEM:
+                    return sorted(candidates)
+                path = Path(root) / filename
+                name = filename.lower()
+                if not name.endswith(".json") or name in _IGNORED_JSON_NAMES or name.startswith("catalog_"):
+                    continue
+                if path.is_file() and path.stat().st_size <= MAX_MISSION_BYTES and _is_mission_json(path):
+                    candidates.append(path)
+            if inspected >= MAX_FILES_PER_ITEM:
+                break
     except OSError:
         return []
     return sorted(candidates)
+
+
+@dataclass(frozen=True)
+class WorkshopCandidate:
+    item_id: str
+    mission_name: str
+    source: Path
+    metadata: Path | None
+    destination: Path
+    source_hash: str
+    destination_hash: str | None
+
+    @property
+    def conflict(self) -> str:
+        if self.destination_hash is None:
+            return "new"
+        return "identical" if self.source_hash == self.destination_hash else "different"
+
+
+@dataclass
+class WorkshopMutationPlan:
+    item_id: str
+    candidates: list[WorkshopCandidate]
+    missing_child_ids: list[str]
+    partial_acknowledged: bool
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "item_id": self.item_id,
+            "mission_names": [candidate.mission_name for candidate in self.candidates],
+            "missing_child_ids": list(self.missing_child_ids),
+            "partial_acknowledgement_required": bool(self.missing_child_ids and not self.partial_acknowledged),
+            "conflicts": [
+                {
+                    "mission_name": candidate.mission_name,
+                    "state": candidate.conflict,
+                    "replacement_required": candidate.conflict == "different",
+                }
+                for candidate in self.candidates
+            ],
+        }
+
+    def replacements(self, conflict_policy: str) -> tuple[dict[Path, bytes], list[str]]:
+        policy = str(conflict_policy or "error").strip().lower()
+        if policy not in {"error", "replace", "skip", "rename"}:
+            raise ValueError("conflict_policy must be error, replace, skip, or rename")
+        if self.missing_child_ids and not self.partial_acknowledged:
+            raise ValueError(
+                "Collection is incomplete. Acknowledge the missing child IDs before applying locally available items."
+            )
+        replacements: dict[Path, bytes] = {}
+        installed: list[str] = []
+        for candidate in self.candidates:
+            destination = candidate.destination
+            mission_name = candidate.mission_name
+            if candidate.conflict == "identical":
+                installed.append(mission_name)
+                continue
+            if candidate.conflict == "different":
+                if policy == "error":
+                    raise ValueError(
+                        f"Mission {mission_name} already exists with different content; choose replace, skip, or rename."
+                    )
+                if policy == "skip":
+                    continue
+                if policy == "rename":
+                    mission_name = _safe_mission_name(f"{mission_name}-workshop-{candidate.item_id}")
+                    destination = destination.parent.parent / mission_name / f"{mission_name}.json"
+                    suffix = 2
+                    while destination.exists() or destination in replacements:
+                        mission_name = _safe_mission_name(
+                            f"{candidate.mission_name}-workshop-{candidate.item_id}-{suffix}"
+                        )
+                        destination = destination.parent.parent / mission_name / f"{mission_name}.json"
+                        suffix += 1
+                elif policy == "replace":
+                    backup = destination.with_name(f".{destination.name}.workshop-backup-{candidate.item_id}")
+                    replacements[backup] = destination.read_bytes()
+            content = candidate.source.read_bytes()
+            if destination in replacements and replacements[destination] != content:
+                raise ValueError(f"Multiple cached items provide different content for mission {mission_name}.")
+            replacements[destination] = content
+            if candidate.metadata is not None and candidate.metadata.is_file():
+                replacements[destination.parent / "meta.json"] = candidate.metadata.read_bytes()
+            installed.append(mission_name)
+        return replacements, installed
 
 
 def _modified_iso(path: Path) -> str | None:
@@ -173,25 +314,47 @@ class WorkshopLibrary:
         self.playlist_memberships = {
             str(name): {str(mission) for mission in missions} for name, missions in (playlist_memberships or {}).items()
         }
+        self._last_refresh_at: str | None = None
 
-    def scan(self) -> list[WorkshopItem]:
+    @property
+    def last_refresh_at(self) -> str | None:
+        return self._last_refresh_at
+
+    def scan(self, *, force: bool = False) -> list[WorkshopItem]:
         """Return cached items and panel missions, de-duplicated by identity."""
+        key = tuple(str(path.resolve()) for path in [*self.workshop_roots, self.missions_root])
+        now = time.monotonic()
+        if not force:
+            with _CACHE_LOCK:
+                cached = _INDEX_CACHE.get(key)
+            if cached is not None and now - cached[0] < CACHE_TTL_SECONDS:
+                self._last_refresh_at = cached[1]
+                return self._with_memberships(deepcopy(cached[2]))
+
+        started = time.monotonic()
+        deadline = started + MAX_SCAN_SECONDS
         items: dict[str, WorkshopItem] = {}
         for root in self.workshop_roots:
+            if time.monotonic() >= deadline:
+                break
             try:
-                directories = sorted(path for path in root.iterdir() if path.is_dir())
+                directories = sorted(path for path in root.iterdir() if path.is_dir())[:MAX_ITEM_DIRECTORIES]
             except OSError:
                 continue
             for item_dir in directories:
+                if time.monotonic() >= deadline:
+                    break
                 if not _ID_PATTERN.fullmatch(item_dir.name):
                     continue
-                items[item_dir.name] = self._cached_item(item_dir)
+                items[item_dir.name] = self._cached_item(item_dir, deadline=deadline)
 
         try:
             mission_paths = sorted(self.missions_root.iterdir())
         except OSError:
             mission_paths = []
-        for path in mission_paths:
+        for path in mission_paths[:MAX_ITEM_DIRECTORIES]:
+            if time.monotonic() >= deadline:
+                break
             mission_name = path.stem if path.is_file() else path.name
             if not mission_name or not self._panel_mission_exists(path, mission_name):
                 continue
@@ -214,9 +377,16 @@ class WorkshopLibrary:
                 mission_names=[mission_name],
                 path=path,
             )
-            item.playlist_memberships = self._memberships(item.mission_names)
             items[item_id] = item
-        return sorted(items.values(), key=lambda item: (item.title.casefold(), item.item_id))
+        output = sorted(items.values(), key=lambda item: (item.title.casefold(), item.item_id))
+        refreshed_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        with _CACHE_LOCK:
+            _INDEX_CACHE[key] = (started, refreshed_at, deepcopy(output))
+        self._last_refresh_at = refreshed_at
+        return self._with_memberships(output)
+
+    def refresh(self) -> list[WorkshopItem]:
+        return self.scan(force=True)
 
     def search(self, query: str = "", filter_name: str = "all") -> list[WorkshopItem]:
         """Search by title or ID and filter the local index."""
@@ -266,22 +436,26 @@ class WorkshopLibrary:
             ),
         }
 
-    def copy_item_to_missions(self, item_id: str) -> list[str]:
-        """Copy a cached item (or local collection) into panel missions."""
+    def preview_item(self, item_id: str, *, partial_acknowledged: bool = False) -> WorkshopMutationPlan:
+        """Describe every prospective copy without changing the filesystem."""
         by_id = {item.item_id: item for item in self.scan()}
         item = by_id.get(str(item_id))
         if item is None:
             raise KeyError("Workshop item is not present in the local cache.")
+        missing_child_ids: list[str] = []
         selected = [item]
         if item.content_type == "collection":
             selected = [by_id[child] for child in item.child_ids if child in by_id]
+            missing_child_ids = [child for child in item.child_ids if child not in by_id]
             if not selected:
                 raise ValueError("No locally cached collection items can be added.")
-        copied: list[str] = []
-        self.missions_root.mkdir(parents=True, exist_ok=True)
+        candidates: list[WorkshopCandidate] = []
         for selected_item in selected:
             if selected_item.source == "panel_missions":
-                copied.extend(selected_item.mission_names)
+                for name in selected_item.mission_names:
+                    source = self._panel_mission_json(selected_item.path, name)
+                    if source is not None:
+                        candidates.append(self._candidate(selected_item.item_id, name, source, None))
                 continue
             if selected_item.path is None:
                 continue
@@ -290,18 +464,45 @@ class WorkshopLibrary:
                 name = _safe_mission_name(mission_json.stem)
                 if not name:
                     continue
-                destination = self.missions_root / name
-                destination.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(mission_json, destination / f"{name}.json")
-                if metadata.is_file():
-                    shutil.copy2(metadata, destination / "meta.json")
-                copied.append(name)
-        return list(dict.fromkeys(copied))
+                candidates.append(
+                    self._candidate(selected_item.item_id, name, mission_json, metadata if metadata.is_file() else None)
+                )
+        if not candidates:
+            raise ValueError("The selected item contains no locally available missions.")
+        return WorkshopMutationPlan(
+            item_id=item.item_id,
+            candidates=candidates,
+            missing_child_ids=missing_child_ids,
+            partial_acknowledged=partial_acknowledged,
+        )
 
-    def _cached_item(self, item_dir: Path) -> WorkshopItem:
+    def _candidate(self, item_id: str, name: str, source: Path, metadata: Path | None) -> WorkshopCandidate:
+        destination = self.missions_root / name / f"{name}.json"
+        return WorkshopCandidate(
+            item_id=item_id,
+            mission_name=name,
+            source=source,
+            metadata=metadata,
+            destination=destination,
+            source_hash=hashlib.sha256(source.read_bytes()).hexdigest(),
+            destination_hash=(hashlib.sha256(destination.read_bytes()).hexdigest() if destination.is_file() else None),
+        )
+
+    @staticmethod
+    def _panel_mission_json(path: Path | None, name: str) -> Path | None:
+        if path is None:
+            return None
+        if path.is_file():
+            return path
+        preferred = path / f"{name}.json"
+        if preferred.is_file():
+            return preferred
+        return next((candidate for candidate in sorted(path.glob("*.json")) if candidate.name != "meta.json"), None)
+
+    def _cached_item(self, item_dir: Path, *, deadline: float | None = None) -> WorkshopItem:
         metadata_paths = [item_dir / "meta.json", item_dir / "workshop.json"]
         objects = [_read_object(path) for path in metadata_paths if path.is_file()]
-        missions = [_safe_mission_name(path.stem) for path in _mission_jsons(item_dir)]
+        missions = [_safe_mission_name(path.stem) for path in _mission_jsons(item_dir, deadline=deadline)]
         missions = [name for name in missions if name]
         children = _child_ids(objects)
         has_catalog = any(item_dir.glob("catalog_*.json"))
@@ -323,7 +524,6 @@ class WorkshopLibrary:
             child_ids=children,
             path=item_dir,
         )
-        item.playlist_memberships = self._memberships(item.mission_names)
         return item
 
     @staticmethod
@@ -339,3 +539,8 @@ class WorkshopLibrary:
         return sorted(
             playlist for playlist, members in self.playlist_memberships.items() if names.intersection(members)
         )
+
+    def _with_memberships(self, items: list[WorkshopItem]) -> list[WorkshopItem]:
+        for item in items:
+            item.playlist_memberships = self._memberships(item.mission_names)
+        return items

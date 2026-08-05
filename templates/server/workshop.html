@@ -88,7 +88,20 @@
                     </select>
                     <div class="help">Public main supports one current two-slot mission rotation, not named playlists.</div>
                 </div>
-                <button class="btn primary" id="workshop-add" type="button">Add to current rotation</button>
+                <div class="field grow">
+                    <label for="workshop-conflict-policy">Existing-file conflict</label>
+                    <select id="workshop-conflict-policy">
+                        <option value="error">Stop and require a decision</option>
+                        <option value="replace">Replace and retain a backup</option>
+                        <option value="skip">Keep the existing mission</option>
+                        <option value="rename">Install under a new name</option>
+                    </select>
+                    <label class="help" id="workshop-partial-row" hidden>
+                        <input id="workshop-partial-ack" type="checkbox">
+                        I acknowledge that locally missing collection items will not be installed.
+                    </label>
+                </div>
+                <button class="btn primary" id="workshop-add" type="button">Preview rotation change</button>
             </div>
         </div>
     </div>
