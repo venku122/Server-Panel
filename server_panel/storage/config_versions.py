@@ -3,6 +3,7 @@ from __future__ import annotations
 import difflib
 import hashlib
 import json
+import os
 import sqlite3
 import uuid
 from dataclasses import dataclass
@@ -13,6 +14,64 @@ from typing import Any, cast
 from .db import Repository, connect
 
 RESOURCE_TYPES = frozenset({"dedicated_server_config", "startup_settings", "noblackbox_config"})
+
+
+class PartialMutationFailure(RuntimeError):
+    def __init__(self, cause: BaseException, rollback_failures: list[str]) -> None:
+        self.cause = cause
+        self.rollback_failures = rollback_failures
+        super().__init__(
+            f"Configuration metadata failed ({cause}); rollback was incomplete: " + "; ".join(rollback_failures)
+        )
+
+
+def atomic_replace_bytes(path: Path, content: bytes) -> None:
+    """Stage a complete file beside its destination and atomically replace it."""
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staged = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        with staged.open("xb") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(staged, destination)
+    finally:
+        staged.unlink(missing_ok=True)
+
+
+def apply_compensating_file_mutation(
+    replacements: dict[Path, bytes],
+    persist_metadata,
+    *,
+    replace_file=atomic_replace_bytes,
+    rollback_file=atomic_replace_bytes,
+):
+    """Apply staged files, then compensate every changed path if metadata fails."""
+    snapshots = {
+        Path(path): (Path(path).exists(), Path(path).read_bytes() if Path(path).exists() else b"")
+        for path in replacements
+    }
+    applied: list[Path] = []
+    try:
+        for path, content in replacements.items():
+            replace_file(Path(path), content)
+            applied.append(Path(path))
+        return persist_metadata()
+    except Exception as cause:
+        rollback_failures: list[str] = []
+        for path in reversed(applied):
+            existed, previous = snapshots[path]
+            try:
+                if existed:
+                    rollback_file(path, previous)
+                else:
+                    path.unlink(missing_ok=True)
+            except Exception as rollback_error:  # noqa: BLE001 - rollback must report every failure
+                rollback_failures.append(f"{path}: {rollback_error}")
+        if rollback_failures:
+            raise PartialMutationFailure(cause, rollback_failures) from cause
+        raise
 
 
 def _utc_now() -> str:
@@ -276,6 +335,61 @@ class ConfigVersionService:
                     restart_required=restart_required,
                 )
                 return version, True
+        finally:
+            connection.close()
+
+    def save_change(
+        self,
+        *,
+        resource_type: str,
+        resource_id: str,
+        server_id: str,
+        previous_content: Any,
+        content: Any,
+        created_by: str,
+        change_summary: str,
+        restart_required: bool = False,
+    ) -> tuple[ConfigVersion | None, bool, ConfigVersion | None]:
+        """Persist a first baseline and changed state in one numbered transaction."""
+        self._validate_resource(resource_type)
+        _previous, previous_json, previous_hash = canonical_content(previous_content)
+        _normalized, content_json, content_hash = canonical_content(content)
+        if previous_hash == content_hash:
+            return None, False, None
+        connection = self._connection()
+        try:
+            repository = ConfigVersionRepository(connection)
+            with repository.transaction():
+                latest = repository.latest(resource_type, resource_id)
+                baseline: ConfigVersion | None = None
+                next_number = 1 if latest is None else latest.version_number + 1
+                if latest is None:
+                    baseline = repository.insert(
+                        resource_type=resource_type,
+                        resource_id=resource_id,
+                        server_id=server_id,
+                        version_number=next_number,
+                        content_json=previous_json,
+                        content_hash=previous_hash,
+                        created_by=created_by,
+                        change_summary="Baseline captured before first managed mutation",
+                        restored_from_version_id=None,
+                        restart_required=False,
+                    )
+                    next_number += 1
+                version = repository.insert(
+                    resource_type=resource_type,
+                    resource_id=resource_id,
+                    server_id=server_id,
+                    version_number=next_number,
+                    content_json=content_json,
+                    content_hash=content_hash,
+                    created_by=created_by,
+                    change_summary=change_summary,
+                    restored_from_version_id=None,
+                    restart_required=restart_required,
+                )
+                return version, True, baseline
         finally:
             connection.close()
 
