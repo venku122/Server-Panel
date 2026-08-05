@@ -29,11 +29,27 @@
                    value="{{ filters.actor }}"
                    placeholder="reviewadmin">
         </div>
+        <div class="field">
+            <label for="activity-action">Action</label>
+            <input id="activity-action"
+                   name="action"
+                   value="{{ filters.action }}"
+                   placeholder="panel.user.created">
+        </div>
         <div class="actions audit-filter-actions">
             <button class="btn primary" type="submit">Filter activity</button>
             <a class="btn ghost" href="{{ request.path }}">Clear</a>
         </div>
     </form>
+{%- endmacro %}
+{% macro audit_health(mirror) -%}
+    {% if mirror.degraded %}
+        <div class="card audit-health" role="status">
+            SQLite audit history is intact, but the JSONL compatibility mirror is degraded.
+            {{ mirror.failure_count }} mirror operation(s) failed{% if mirror.last_failed_at %}, most recently at {{ mirror.last_failed_at }}{% endif %}.
+            Review panel process logs for the storage error.
+        </div>
+    {% endif %}
 {%- endmacro %}
 {% macro audit_timeline(events) -%}
     {% if events %}
@@ -104,5 +120,19 @@
             <h2>No activity found</h2>
             <p>Actions recorded through the panel will appear here.</p>
         </div>
+    {% endif %}
+{%- endmacro %}
+{% macro audit_pagination(pagination) -%}
+    {% if pagination.previous_url or pagination.next_url %}
+        <nav class="actions audit-pagination" aria-label="Activity pages">
+            {% if pagination.previous_url %}
+                <a class="btn ghost" href="{{ pagination.previous_url }}">Newer activity</a>
+            {% else %}
+                <span></span>
+            {% endif %}
+            {% if pagination.next_url %}
+                <a class="btn ghost" href="{{ pagination.next_url }}">Older activity</a>
+            {% endif %}
+        </nav>
     {% endif %}
 {%- endmacro %}
