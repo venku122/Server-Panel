@@ -2157,7 +2157,7 @@ def _render_panel_shell(
         "action": str(request.args.get("action") or "").strip(),
     }
     activity_events = []
-    activity_pagination = {"next_url": None, "previous_url": None, "limit": 50}
+    activity_pagination: dict[str, object] = {"next_url": None, "previous_url": None, "limit": 50}
     if page["active_page"] == "activity":
         try:
             activity_page = AUDIT_SERVICE.list_events_page(
@@ -2178,7 +2178,7 @@ def _render_panel_shell(
             parameters = dict(request.view_args or {})
             parameters.update({key: value for key, value in activity_filters.items() if value})
             parameters["cursor"] = cursor
-            return url_for(str(request.endpoint), **parameters)
+            return str(url_for(str(request.endpoint), **parameters))
 
         activity_pagination = {
             "next_url": activity_url(activity_page["next_cursor"]),
