@@ -21,6 +21,16 @@ def _response(result: ServiceResult):
     return jsonify(result.payload), result.status
 
 
+def _error_response(error: Exception):
+    if isinstance(error, KeyError):
+        return jsonify({"success": False, "error": str(error).strip("'")}), 404
+    if isinstance(error, PermissionError):
+        return jsonify({"success": False, "error": str(error)}), 403
+    if isinstance(error, ValueError):
+        return jsonify({"success": False, "error": str(error)}), 400
+    return jsonify({"success": False, "error": str(error)}), 500
+
+
 def create_routes(
     service: ModerationService,
     *,
@@ -32,6 +42,9 @@ def create_routes(
     default_dll_url: str,
 ) -> Blueprint:
     """Build the route-compatible moderation blueprint."""
+    # Retained in the adapter signature for compatibility with earlier forks.
+    # Every cluster route below authenticates the signed HTTP request directly.
+    del verify_cluster_payload
     blueprint = Blueprint("moderation", __name__, template_folder="templates", static_folder="static")
 
     @blueprint.get("/api/moderation/status")
@@ -44,7 +57,7 @@ def create_routes(
         try:
             return _response(service.status(server_id))
         except Exception as error:
-            return jsonify({"success": False, "error": str(error)}), 400
+            return _error_response(error)
 
     @blueprint.get("/api/moderation/job")
     @requires_login()
@@ -53,7 +66,10 @@ def create_routes(
         proxied = proxy(server_id, "/api/cluster/servers/moderation/job", {}, 15)
         if proxied:
             return jsonify(proxied[0]), proxied[1]
-        return _response(service.install_job(server_id))
+        try:
+            return _response(service.install_job(server_id))
+        except Exception as error:
+            return _error_response(error)
 
     @blueprint.post("/api/moderation/install")
     @requires_login("admin")
@@ -72,7 +88,7 @@ def create_routes(
         try:
             return _response(service.start_install(InstallRequest(server_id, dll_url)))
         except Exception as error:
-            return jsonify({"success": False, "error": str(error)}), 400
+            return _error_response(error)
 
     @blueprint.get("/api/moderation/state")
     @requires_login()
@@ -84,7 +100,7 @@ def create_routes(
         try:
             return _response(service.state(server_id))
         except Exception as error:
-            return jsonify({"success": False, "error": str(error)}), 500
+            return _error_response(error)
 
     @blueprint.post("/api/moderation/settings")
     @requires_login(role="admin")
@@ -97,14 +113,14 @@ def create_routes(
         try:
             return _response(service.save_settings(server_id, data))
         except Exception as error:
-            return jsonify({"success": False, "error": str(error)}), 500
+            return _error_response(error)
 
     @blueprint.post("/api/moderation/ticket_action")
     @requires_login()
     def ticket_action():
         data = request.get_json(force=True, silent=True) or {}
         server_id = str(data.get("server_id") or "").strip()
-        actor = str(data.get("actor") or session.get("username") or "panel").strip() or "panel"
+        actor = str(session.get("username") or "panel").strip() or "panel"
         data["actor"] = actor
         proxied = proxy(server_id, "/api/cluster/servers/moderation/ticket_action", data, 30)
         if proxied:
@@ -119,38 +135,44 @@ def create_routes(
             )
             return _response(service.ticket_action(action))
         except Exception as error:
-            return jsonify({"success": False, "error": str(error)}), 500
+            return _error_response(error)
 
     @blueprint.post("/api/cluster/servers/moderation/status")
     def cluster_status():
+        verified, message = verify_signed_request()
+        if not verified:
+            return jsonify({"success": False, "error": message}), 401
         try:
             data = request.get_json(silent=True) or {}
             server_id = str(data.get("server_id") or "").strip()
-            verify_cluster_payload(server_id, data)
             return _response(service.status(server_id))
         except Exception as error:
-            return jsonify({"success": False, "error": str(error)}), 400
+            return _error_response(error)
 
     @blueprint.post("/api/cluster/servers/moderation/job")
     def cluster_job():
+        verified, message = verify_signed_request()
+        if not verified:
+            return jsonify({"success": False, "error": message}), 401
         try:
             data = request.get_json(silent=True) or {}
             server_id = str(data.get("server_id") or "").strip()
-            verify_cluster_payload(server_id, data)
             return _response(service.install_job(server_id))
         except Exception as error:
-            return jsonify({"success": False, "error": str(error)}), 400
+            return _error_response(error)
 
     @blueprint.post("/api/cluster/servers/moderation/install")
     def cluster_install():
+        verified, message = verify_signed_request()
+        if not verified:
+            return jsonify({"success": False, "error": message}), 401
         try:
             data = request.get_json(silent=True) or {}
             server_id = str(data.get("server_id") or "").strip()
             dll_url = str(data.get("dll_url") or default_dll_url).strip() or default_dll_url
-            verify_cluster_payload(server_id, data)
             return _response(service.start_install(InstallRequest(server_id, dll_url)))
         except Exception as error:
-            return jsonify({"success": False, "error": str(error)}), 400
+            return _error_response(error)
 
     @blueprint.post("/api/cluster/servers/moderation/get_state")
     def cluster_state():
@@ -161,7 +183,7 @@ def create_routes(
         try:
             return _response(service.state(str(data.get("server_id") or "").strip()))
         except Exception as error:
-            return jsonify({"success": False, "error": str(error)}), 500
+            return _error_response(error)
 
     @blueprint.post("/api/cluster/servers/moderation/set_settings")
     def cluster_settings():
@@ -172,7 +194,7 @@ def create_routes(
         try:
             return _response(service.save_settings(str(data.get("server_id") or "").strip(), data))
         except Exception as error:
-            return jsonify({"success": False, "error": str(error)}), 500
+            return _error_response(error)
 
     @blueprint.post("/api/cluster/servers/moderation/ticket_action")
     def cluster_ticket_action():
@@ -190,6 +212,6 @@ def create_routes(
             )
             return _response(service.ticket_action(action))
         except Exception as error:
-            return jsonify({"success": False, "error": str(error)}), 500
+            return _error_response(error)
 
     return blueprint
