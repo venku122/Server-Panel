@@ -2720,7 +2720,9 @@ def api_jobs_list():
             "success": True,
             "jobs": [
                 _job_payload(job)
-                for job in JOB_SERVICE.list(server_id=server_id, limit=_panel_limits.JOB_LIST_DEFAULT)
+                for job in JOB_SERVICE.list(
+                    server_id=server_id, limit=_panel_limits.JOB_LIST_DEFAULT
+                )
             ],
             "worker": JOB_WORKER.status() if JOB_WORKER is not None else {"alive": False},
         }
@@ -3376,13 +3378,15 @@ def api_set_ports():
         gp = _parse_port(item.get("game_port"))
         qp = _parse_port(item.get("query_port"))
         if gp == "__invalid__" or qp == "__invalid__":
-            return jsonify({
-                "success": False,
-                "error": (
-                    f"Invalid port value for server {sid}. Ports must be blank or "
-                    f"{_panel_limits.PORT_MIN}-{_panel_limits.PORT_MAX}."
-                ),
-            }), 400
+            return jsonify(
+                {
+                    "success": False,
+                    "error": (
+                        f"Invalid port value for server {sid}. Ports must be blank or "
+                        f"{_panel_limits.PORT_MIN}-{_panel_limits.PORT_MAX}."
+                    ),
+                }
+            ), 400
 
         target = unified_by_id.get(sid)
         if not target:
