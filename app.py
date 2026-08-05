@@ -578,7 +578,7 @@ def _member_base_url(member: dict) -> str | None:
     except Exception:
         return None
 
-def _cluster_signed_post_to_member(member: dict, path: str, payload: dict, timeout: int = 20) -> dict:
+def _cluster_signed_post_to_member(member: dict, path: str, payload: dict, timeout: float = 20) -> dict:
     """POST JSON to a cluster member with HMAC headers."""
     base = _member_base_url(member)
     if not base:
