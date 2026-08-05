@@ -6449,9 +6449,7 @@ def _place_workshop_missions(
         updated2 = {"group": "User", "name": candidates[0], "max_time": 7200.0}
         added.append(candidates.pop(0))
     else:
-        available = int(not str(updated1.get("name") or "").strip()) + int(
-            not str(updated2.get("name") or "").strip()
-        )
+        available = int(not str(updated1.get("name") or "").strip()) + int(not str(updated2.get("name") or "").strip())
         if available == 0:
             raise ValueError("The current two-slot rotation is full. Choose a slot to replace.")
         if len(candidates) > available:
