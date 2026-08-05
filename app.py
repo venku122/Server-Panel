@@ -8886,7 +8886,8 @@ def _moderation_install_job(context, parameters: dict) -> dict:
     if not result.get("success"):
         raise RuntimeError(str(result.get("error") or "Moderation plugin install failed."))
     context.checkpoint("Verifying the installed moderation plugin.", current=3, total=3)
-    if not _mod_plugin_path_for(local_server) or not _mod_plugin_path_for(local_server).exists():
+    installed_plugin = _mod_plugin_path_for(local_server)
+    if installed_plugin is None or not installed_plugin.exists():
         raise RuntimeError("Moderation install returned success but the plugin DLL was not found.")
     return result
 
