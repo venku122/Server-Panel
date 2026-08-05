@@ -9,6 +9,13 @@
   grid-column: 1 / -1;
 }
 
+.audit-health {
+  margin-block-end: var(--space-4);
+  color: #ffd38a;
+  background: rgb(214 162 58 / 0.12);
+  border-color: rgb(214 162 58 / 0.4);
+}
+
 .audit-timeline {
   display: grid;
   gap: var(--space-4);
@@ -96,6 +103,11 @@
 .audit-json {
   min-block-size: 0;
   max-block-size: 320px;
+}
+
+.audit-pagination {
+  justify-content: space-between;
+  margin-block-start: var(--space-4);
 }
 
 @media (max-width: 760px) {
