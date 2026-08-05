@@ -48,6 +48,15 @@ def apply_compensating_file_mutation(
     rollback_file=atomic_replace_bytes,
 ):
     """Apply staged files, then compensate every changed path if metadata fails."""
+    created_parents: dict[Path, list[Path]] = {}
+    for raw_path in replacements:
+        path = Path(raw_path)
+        missing: list[Path] = []
+        parent = path.parent
+        while not parent.exists():
+            missing.append(parent)
+            parent = parent.parent
+        created_parents[path] = missing
     snapshots = {
         Path(path): (Path(path).exists(), Path(path).read_bytes() if Path(path).exists() else b"")
         for path in replacements
@@ -67,6 +76,11 @@ def apply_compensating_file_mutation(
                     rollback_file(path, previous)
                 else:
                     path.unlink(missing_ok=True)
+                    for parent in created_parents[path]:
+                        try:
+                            parent.rmdir()
+                        except OSError:
+                            break
             except Exception as rollback_error:  # noqa: BLE001 - rollback must report every failure
                 rollback_failures.append(f"{path}: {rollback_error}")
         if rollback_failures:
