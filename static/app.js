@@ -1459,9 +1459,9 @@ async function loadStartupSettingsIntoUI(){
 }
 
 async function saveStartupSettingsFromUI(){
-  const fpsEl = document.getElementById("startup-fps");
-  const mpEl  = document.getElementById("startup-max-players");
-  const portEl = document.getElementById("startup-remote-port");
+  const fpsEl = /** @type {HTMLInputElement | null} */ (document.getElementById("startup-fps"));
+  const mpEl  = /** @type {HTMLInputElement | null} */ (document.getElementById("startup-max-players"));
+  const portEl = /** @type {HTMLInputElement | null} */ (document.getElementById("startup-remote-port"));
   if(!fpsEl || !mpEl || !portEl) return;
 
   const fps = safeInt(fpsEl.value);
