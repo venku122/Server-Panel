@@ -111,9 +111,10 @@
       sourceNote.textContent = payload.source_note;
       if (!payload.capabilities.rotation_mutation) {
         addButton.disabled = true;
-        document.getElementById("workshop-refresh").disabled = true;
+        const refreshButton = /** @type {HTMLButtonElement} */ (document.getElementById("workshop-refresh"));
+        refreshButton.disabled = true;
         document.querySelectorAll("#workshop-resolve-form input, #workshop-resolve-form button").forEach((control) => {
-          control.disabled = true;
+          if (control instanceof HTMLInputElement || control instanceof HTMLButtonElement) control.disabled = true;
         });
       }
     } catch (error) {
