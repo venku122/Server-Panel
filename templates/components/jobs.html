@@ -15,14 +15,24 @@
                                   max="{{ job.progress_total if job.progress_total else 1 }}"></progress>
                         <span>{{ job.progress_current }} / {{ job.progress_total }}</span>
                     </div>
-                    <p class="small muted" data-job-step>Queued {{ job.created_at }}</p>
+                    <p class="small muted" data-job-step>{{ job.last_completed_step or ('Queued ' ~ job.created_at) }}</p>
                     <div class="btns">
-                        {% if job.status in ('queued', 'running') %}
-                            <button class="btn danger" type="button" data-job-cancel>Cancel</button>
+                        {% if job.status in ('queued', 'running', 'cancel_requested') %}
+                            <button class="btn danger"
+                                    type="button"
+                                    data-job-cancel
+                                    {% if job.status == 'cancel_requested' %}disabled{% endif %}>
+                                {% if job.status == 'cancel_requested' %}Cancellation pending at safe checkpoint{% else %}Request cancellation{% endif %}
+                            </button>
                         {% elif job.status in ('failed', 'cancelled', 'interrupted') %}
-                            <button class="btn" type="button" data-job-retry>Retry</button>
+                            <button class="btn"
+                                    type="button"
+                                    data-job-retry
+                                    data-force-required="{{ 'false' if job.replay_safe else 'true' }}">
+                                {{ 'Retry' if job.replay_safe else 'Force retry…' }}
+                            </button>
                         {% endif %}
-                        <a class="btn ghost" href="/api/jobs/{{ job.id }}">JSON</a>
+                        <a class="btn ghost" href="{{ url_for('api_job_detail', job_id=job.id) }}">JSON</a>
                     </div>
                     <details class="job-diagnostics">
                         <summary>Diagnostics and event log</summary>
@@ -47,6 +57,10 @@
                             <dd>
                                 {{ job.finished_at or '—' }}
                             </dd>
+                            <dt>Replay policy</dt>
+                            <dd>{{ 'Normal retry allowed' if job.replay_safe else 'Forced retry only; side effects may already have occurred' }}</dd>
+                            <dt>Last completed step</dt>
+                            <dd>{{ job.last_completed_step or 'No completed step recorded.' }}</dd>
                         </dl>
                         <pre data-job-events>Loading event log…</pre>
                         <h3>Parameters</h3>
