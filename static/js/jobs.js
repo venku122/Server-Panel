@@ -28,8 +28,9 @@
     let response;
     let payload;
     let status;
-    if (typeof apiFetch === "function") {
-      const result = await apiFetch(url, requestOptions);
+    const panelApiFetch = (/** @type {any} */ (window)).apiFetch;
+    if (typeof panelApiFetch === "function") {
+      const result = await panelApiFetch(url, requestOptions);
       response = result.ok;
       payload = result.data || {};
       status = result.status;
@@ -97,7 +98,7 @@
       let body = {};
       if (retryButton.dataset.forceRequired === "true") {
         const expected = `FORCE RETRY ${card.dataset.jobId}`;
-        const acknowledgement = await window.NO_PANEL_DIALOG?.prompt({
+        const acknowledgement = await (/** @type {any} */ (window)).NO_PANEL_DIALOG?.prompt({
           title: "Force a non-replay-safe job?",
           message: `Last completed step: ${card.querySelector("[data-job-step]")?.textContent || "unknown"}. Side effects may already have occurred.`,
           label: `Type ${expected} to continue`,
@@ -106,7 +107,7 @@
           confirmLabel: "Continue",
         });
         if (acknowledgement == null) return;
-        const reason = await window.NO_PANEL_DIALOG?.prompt({
+        const reason = await (/** @type {any} */ (window)).NO_PANEL_DIALOG?.prompt({
           title: "Record a reason",
           message: "The actor, reason, source job, and last completed step will be stored with the forced retry.",
           label: "Reason",
