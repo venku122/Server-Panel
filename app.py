@@ -958,6 +958,14 @@ _job_storage = importlib.import_module("server_panel.storage.jobs")
 JOB_SERVICE = _job_storage.JobService(PANEL_DATABASE_PATH)
 JOB_HANDLERS: dict[str, object] = {}
 JOB_WORKER = None
+JOB_REPLAY_POLICIES = {
+    # These operations invoke installers, process control, or filesystem mutation. Public main
+    # does not provide a transaction boundary that proves replay is harmless.
+    "server_update": False,
+    "noblackbox_install": False,
+    "moderation_install": False,
+    "workshop_sync": False,
+}
 
 DEFAULT_BOOTSTRAP_USERNAME = getattr(config, "USERNAME", "admin")
 DEFAULT_BOOTSTRAP_PASSWORD = getattr(config, "PASSWORD", "changeme")
@@ -2075,6 +2083,7 @@ def _server_page_url(server_id: str, page_key: str) -> str:
 GLOBAL_PANEL_ROLES = {
     "deployment": "admin",
     "activity": "admin",
+    "jobs": "admin",
     "ports": "admin",
     "users": "admin",
     "cluster": "admin",
@@ -2280,6 +2289,7 @@ def _render_panel_shell(
         activity_pagination=activity_pagination,
         audit_mirror_status=AUDIT_SERVICE.mirror_status(),
         jobs=jobs,
+        job_worker_status=JOB_WORKER.status() if JOB_WORKER is not None else {"alive": False},
     )
 
 
@@ -2521,7 +2531,7 @@ def _enqueue_job(
         created_by=actor,
         correlation_id=correlation,
         progress_total=progress_total,
-        replay_safe=False,
+        replay_safe=JOB_REPLAY_POLICIES.get(job_type, False),
     )
     AUDIT_SERVICE.record(
         actor=actor,
@@ -2561,13 +2571,20 @@ def _job_terminal_audit(job, status: str, result, error_summary: Optional[str]) 
 @requires_login("admin")
 def api_jobs_list():
     server_id = str(request.args.get("server_id") or "").strip() or None
-    return jsonify({"success": True, "jobs": JOB_SERVICE.list(server_id=server_id, limit=200)})
+    return jsonify(
+        {
+            "success": True,
+            "jobs": JOB_SERVICE.list(server_id=server_id, limit=200),
+            "worker": JOB_WORKER.status() if JOB_WORKER is not None else {"alive": False},
+        }
+    )
 
 
 @app.get("/api/jobs/<job_id>")
 @requires_login("admin")
 def api_job_detail(job_id: str):
-    job = JOB_SERVICE.get(job_id, include_events=True)
+    include_lease = str(request.args.get("diagnostics") or "").strip().lower() == "lease"
+    job = JOB_SERVICE.get(job_id, include_events=True, include_lease=include_lease)
     if job is None:
         return jsonify({"success": False, "error": "Job not found"}), 404
     return jsonify({"success": True, "job": job})
@@ -2596,11 +2613,28 @@ def api_job_cancel(job_id: str):
 @app.post("/api/jobs/<job_id>/retry")
 @requires_login("admin")
 def api_job_retry(job_id: str):
+    data = request.get_json(silent=True) or {}
     try:
         job = JOB_SERVICE.retry(
             job_id,
             created_by=str(session.get("username") or "system"),
             correlation_id=str(getattr(g, "correlation_id", uuid.uuid4())),
+            force=bool(data.get("force")),
+            acknowledgement=str(data.get("acknowledgement") or ""),
+            reason=str(data.get("reason") or ""),
+        )
+    except _job_storage.ReplayUnsafe as error:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": str(error),
+                    "force_required": True,
+                    "acknowledgement": error.acknowledgement,
+                    "last_completed_step": error.last_completed_step,
+                }
+            ),
+            409,
         )
     except ValueError as error:
         return jsonify({"success": False, "error": str(error)}), 409
@@ -2615,7 +2649,12 @@ def api_job_retry(job_id: str):
         target_type="job",
         target_id=job.id,
         summary="Queued linked job retry",
-        request_payload={"parent_job_id": job.parent_job_id, "attempt": job.attempt},
+        request_payload={
+            "parent_job_id": job.parent_job_id,
+            "attempt": job.attempt,
+            "forced": bool(data.get("force")),
+            "reason": str(data.get("reason") or "")[:500] or None,
+        },
         job_id=job.id,
     )
     if JOB_WORKER is not None:
@@ -2628,7 +2667,7 @@ def api_job_retry(job_id: str):
 def api_cluster_job_enqueue():
     data = request.get_json(silent=True) or {}
     job_type = str(data.get("job_type") or "").strip()
-    if job_type not in {"server_update", "workshop_sync", "noblackbox_install"}:
+    if job_type not in {"server_update", "workshop_sync", "noblackbox_install", "moderation_install"}:
         return jsonify({"success": False, "error": "Unsupported cluster job type"}), 400
     sid = str(data.get("server_id") or "").strip()
     if not sid or _find_server_by_id(sid) is None:
@@ -2638,7 +2677,7 @@ def api_cluster_job_enqueue():
     parameters["server_id"] = sid
     if job_type == "workshop_sync":
         parameters["local_only"] = True
-    totals = {"server_update": 4, "workshop_sync": 2, "noblackbox_install": 3}
+    totals = {"server_update": 4, "workshop_sync": 2, "noblackbox_install": 3, "moderation_install": 3}
     job = _enqueue_job(
         job_type,
         server_id=sid,
@@ -5474,7 +5513,7 @@ def local_sync_workshop_missions():
     job = _enqueue_job(
         "workshop_sync",
         server_id=sid or None,
-        parameters={"server_id": sid or None, "local_only": True},
+        parameters={"server_id": sid or None, "local_only": True, "all_servers": False},
         scope_type="server" if sid else "global",
         progress_total=2,
     )
@@ -5503,21 +5542,39 @@ def api_sync_workshop_missions():
     job = _enqueue_job(
         "workshop_sync",
         server_id=None,
-        parameters={"server_id": sid, "local_only": False},
+        parameters={"server_id": sid, "local_only": False, "all_servers": True},
         scope_type="global",
         progress_total=2,
     )
     return jsonify({"success": True, "job": job.to_dict()}), 202
 
 
-def _sync_workshop_on_this_node(context=None) -> dict:
+def _sync_workshop_on_this_node(
+    context=None,
+    *,
+    selected_server_id: str | None = None,
+    all_servers: bool = False,
+) -> dict:
     if context:
         context.checkpoint("Scanning the local Steam Workshop cache.", current=1, total=2)
     result = _sync_workshop_cache_into_panel_missions(appid=2168680)
     output = list(result.get("output") or [])
     if context:
         context.checkpoint("Updating local server mission directories.", current=2, total=2)
-    for server in load_servers():
+    local_servers = [
+        server
+        for server in load_servers()
+        if str(server.get("location") or "").lower() != "remote"
+    ]
+    if selected_server_id:
+        local_servers = [
+            server for server in local_servers if str(server.get("id") or "") == selected_server_id
+        ]
+        if not local_servers:
+            raise RuntimeError("The selected server is not installed on this node.")
+    elif not all_servers:
+        local_servers = []
+    for server in local_servers:
         sid = str(server.get("id") or "").strip()
         if not sid or str(server.get("location") or "").lower() == "remote":
             continue
@@ -6210,11 +6267,21 @@ def api_moderation_status_get():
 @requires_login()
 def api_moderation_job_get():
     sid = _get_request_server_id()
-    proxied = _proxy_server_op_if_remote(sid, '/api/cluster/servers/moderation/job', {}, timeout=15)
-    if proxied:
-        payload, status = proxied
-        return jsonify(payload), status
-    return jsonify(_mod_job_get(sid))
+    jobs = [job for job in JOB_SERVICE.list(server_id=sid, limit=50) if job["job_type"] == "moderation_install"]
+    if not jobs:
+        return jsonify({"success": True, "server_id": sid, "done": True, "ok": False, "lines": []})
+    job = JOB_SERVICE.get(jobs[0]["id"], include_events=True) or jobs[0]
+    return jsonify(
+        {
+            "success": True,
+            "server_id": sid,
+            "job": job,
+            "done": job["status"] in {"succeeded", "failed", "cancelled", "interrupted"},
+            "ok": job["status"] == "succeeded",
+            "error": job.get("error_summary"),
+            "lines": [event["message"] for event in job.get("events", [])],
+        }
+    )
 
 @app.post('/api/moderation/install')
 @requires_login('admin')
@@ -6222,31 +6289,15 @@ def api_moderation_install():
     data = request.get_json(silent=True) or {}
     sid = str(data.get('server_id') or _get_request_server_id() or '').strip()
     dll_url = str(data.get('dll_url') or MOD_RELEASE_DLL_URL).strip() or MOD_RELEASE_DLL_URL
-    proxied = _proxy_server_op_if_remote(sid, '/api/cluster/servers/moderation/install', {'server_id': sid, 'dll_url': dll_url}, timeout=60)
-    if proxied:
-        payload, status = proxied
-        return jsonify(payload), status
-
-    _mod_job_init(sid)
-    _mod_job_add(sid, 'Starting moderation mod install...')
-
-    def worker():
-        try:
-            server = get_server_by_id(sid)
-            result = _install_moderation_mod(server, dll_url=dll_url)
-            for line in list(result.get('output') or []):
-                _mod_job_add(sid, line)
-            if result.get('success'):
-                _mod_job_finish(sid, True, None)
-            else:
-                _mod_job_add(sid, f"Install failed: {result.get('error')}")
-                _mod_job_finish(sid, False, result.get('error'))
-        except Exception as e:
-            _mod_job_add(sid, f'Install failed: {e}')
-            _mod_job_finish(sid, False, str(e))
-
-    threading.Thread(target=worker, daemon=True).start()
-    return jsonify({'success': True, 'started': True})
+    if _find_server_in_unified_view(sid) is None:
+        return jsonify({"success": False, "error": "Server not found"}), 404
+    job = _enqueue_job(
+        "moderation_install",
+        server_id=sid,
+        parameters={"server_id": sid, "dll_url": dll_url},
+        progress_total=3,
+    )
+    return jsonify({"success": True, "started": True, "job": job.to_dict()}), 202
 
 @app.get('/api/moderation/state')
 @requires_login()
@@ -6337,26 +6388,16 @@ def api_cluster_moderation_install():
         sid = str(payload.get('server_id') or '').strip()
         dll_url = str(payload.get('dll_url') or MOD_RELEASE_DLL_URL).strip() or MOD_RELEASE_DLL_URL
         _cluster_verify_or_abort(sid, payload)
-        _mod_job_init(sid)
-        _mod_job_add(sid, 'Starting moderation mod install...')
-
-        def worker():
-            try:
-                server = get_server_by_id(sid)
-                result = _install_moderation_mod(server, dll_url=dll_url)
-                for line in list(result.get('output') or []):
-                    _mod_job_add(sid, line)
-                if result.get('success'):
-                    _mod_job_finish(sid, True, None)
-                else:
-                    _mod_job_add(sid, f"Install failed: {result.get('error')}")
-                    _mod_job_finish(sid, False, result.get('error'))
-            except Exception as e:
-                _mod_job_add(sid, f'Install failed: {e}')
-                _mod_job_finish(sid, False, str(e))
-
-        threading.Thread(target=worker, daemon=True).start()
-        return jsonify({'success': True, 'started': True})
+        if _find_server_by_id(sid) is None:
+            return jsonify({"success": False, "error": "Local server not found"}), 404
+        job = _enqueue_job(
+            "moderation_install",
+            server_id=sid,
+            parameters={"server_id": sid, "dll_url": dll_url},
+            progress_total=3,
+            created_by="cluster-coordinator",
+        )
+        return jsonify({"success": True, "started": True, "job": job.to_dict()}), 202
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
@@ -8739,15 +8780,46 @@ def _server_update_job(context, parameters: dict) -> dict:
 
 
 def _workshop_sync_job(context, parameters: dict) -> dict:
+    selected_server_id = str(parameters.get("server_id") or context.job.server_id or "").strip() or None
     if bool(parameters.get("local_only")):
-        return _sync_workshop_on_this_node(context)
+        update_all = bool(parameters.get("all_servers"))
+        return _sync_workshop_on_this_node(
+            context,
+            selected_server_id=None if update_all else selected_server_id,
+            all_servers=update_all,
+        )
+
+    if not bool(parameters.get("all_servers")):
+        if selected_server_id is None:
+            return _sync_workshop_on_this_node(context, all_servers=False)
+        selected_server = _find_server_in_unified_view(selected_server_id)
+        if selected_server is None:
+            raise RuntimeError("Server not found.")
+        member = _job_remote_member(selected_server)
+        if member is not None:
+            return _enqueue_remote_job(
+                context,
+                selected_server,
+                "workshop_sync",
+                {"server_id": selected_server_id, "local_only": True, "all_servers": False},
+            )
+        return _sync_workshop_on_this_node(
+            context,
+            selected_server_id=selected_server_id,
+            all_servers=False,
+        )
 
     servers = _build_servers_view()
     if not servers:
         raise RuntimeError("No servers configured.")
     results: list[dict] = []
     if any(str(server.get("location") or "").lower() != "remote" for server in servers):
-        results.append({"node": _this_node_id() or "local", "result": _sync_workshop_on_this_node(context)})
+        results.append(
+            {
+                "node": _this_node_id() or "local",
+                "result": _sync_workshop_on_this_node(context, all_servers=True),
+            }
+        )
 
     remote_by_node: dict[str, dict] = {}
     for server in servers:
@@ -8761,7 +8833,11 @@ def _workshop_sync_job(context, parameters: dict) -> dict:
             context,
             server,
             "workshop_sync",
-            {"server_id": str(server.get("id") or ""), "local_only": True},
+            {
+                "server_id": str(server.get("id") or ""),
+                "local_only": True,
+                "all_servers": True,
+            },
         )
         results.append({"node": node_id, "result": result})
     return {"success": True, "nodes": results}
@@ -8790,11 +8866,41 @@ def _noblackbox_install_job(context, parameters: dict) -> dict:
     return result
 
 
+def _moderation_install_job(context, parameters: dict) -> dict:
+    server_id = str(parameters.get("server_id") or context.job.server_id or "").strip()
+    dll_url = str(parameters.get("dll_url") or MOD_RELEASE_DLL_URL).strip() or MOD_RELEASE_DLL_URL
+    server = _find_server_in_unified_view(server_id)
+    if server is None:
+        raise RuntimeError("Server not found.")
+    if _job_remote_member(server) is not None:
+        context.checkpoint("Handing the install to the owning cluster member.", current=0, total=3)
+        return _enqueue_remote_job(
+            context,
+            server,
+            "moderation_install",
+            {"server_id": server_id, "dll_url": dll_url},
+        )
+    local_server = _find_server_by_id(server_id)
+    if local_server is None:
+        raise RuntimeError("Server is not installed on this node.")
+    context.checkpoint("Checking the moderation plugin target directory.", current=1, total=3)
+    result = _install_moderation_mod(local_server, dll_url=dll_url)
+    for line in result.get("output") or []:
+        context.event(str(line))
+    if not result.get("success"):
+        raise RuntimeError(str(result.get("error") or "Moderation plugin install failed."))
+    context.checkpoint("Verifying the installed moderation plugin.", current=3, total=3)
+    if not _mod_plugin_path_for(local_server) or not _mod_plugin_path_for(local_server).exists():
+        raise RuntimeError("Moderation install returned success but the plugin DLL was not found.")
+    return result
+
+
 JOB_HANDLERS.update(
     {
         "server_update": _server_update_job,
         "workshop_sync": _workshop_sync_job,
         "noblackbox_install": _noblackbox_install_job,
+        "moderation_install": _moderation_install_job,
     }
 )
 JOB_WORKER = _job_storage.JobWorker(

@@ -3,6 +3,14 @@
 
   const terminal = new Set(["succeeded", "failed", "cancelled", "interrupted"]);
 
+  class JobRequestError extends Error {
+    constructor(message, payload, status) {
+      super(message);
+      this.payload = payload;
+      this.status = status;
+    }
+  }
+
   function jobCards() {
     return [...document.querySelectorAll("[data-job-id]")].map(
       (element) => /** @type {HTMLElement} */ (element),
@@ -10,12 +18,31 @@
   }
 
   async function jobRequest(url, options = {}) {
-    const response = await fetch(url, {
+    const background = options.background === true;
+    const requestOptions = {
       headers: { "Content-Type": "application/json", ...(options.headers || {}) },
       ...options,
-    });
-    const payload = await response.json();
-    if (!response.ok || !payload.success) throw new Error(payload.error || `HTTP ${response.status}`);
+      background,
+      diagnostics: !background,
+    };
+    let response;
+    let payload;
+    let status;
+    if (typeof apiFetch === "function") {
+      const result = await apiFetch(url, requestOptions);
+      response = result.ok;
+      payload = result.data || {};
+      status = result.status;
+    } else {
+      const { background: _background, diagnostics: _diagnostics, ...fetchOptions } = requestOptions;
+      const result = await fetch(url, fetchOptions);
+      response = result.ok;
+      payload = await result.json();
+      status = result.status;
+    }
+    if (!response || !payload.success) {
+      throw new JobRequestError(payload.error || `HTTP ${status}`, payload, status);
+    }
     return payload;
   }
 
@@ -43,11 +70,16 @@
     }
     const result = card.querySelector("[data-job-result]");
     if (result) result.textContent = job.result == null ? "Not available." : JSON.stringify(job.result, null, 2);
-    if (terminal.has(job.status)) card.querySelector("[data-job-cancel]")?.remove();
+    const cancelButton = /** @type {HTMLButtonElement | null} */ (card.querySelector("[data-job-cancel]"));
+    if (terminal.has(job.status)) cancelButton?.remove();
+    if (job.status === "cancel_requested" && cancelButton) {
+      cancelButton.disabled = true;
+      cancelButton.textContent = "Cancellation pending at safe checkpoint";
+    }
   }
 
   async function refresh(card) {
-    const payload = await jobRequest(`/api/jobs/${encodeURIComponent(card.dataset.jobId)}`);
+    const payload = await jobRequest(`/api/jobs/${encodeURIComponent(card.dataset.jobId)}`, { background: true });
     render(card, payload.job);
     return payload.job;
   }
@@ -61,7 +93,34 @@
       await refresh(card);
     });
     card.querySelector("[data-job-retry]")?.addEventListener("click", async () => {
-      const payload = await jobRequest(`/api/jobs/${encodeURIComponent(card.dataset.jobId)}/retry`, { method: "POST", body: "{}" });
+      const retryButton = /** @type {HTMLElement} */ (card.querySelector("[data-job-retry]"));
+      let body = {};
+      if (retryButton.dataset.forceRequired === "true") {
+        const expected = `FORCE RETRY ${card.dataset.jobId}`;
+        const acknowledgement = await window.NO_PANEL_DIALOG?.prompt({
+          title: "Force a non-replay-safe job?",
+          message: `Last completed step: ${card.querySelector("[data-job-step]")?.textContent || "unknown"}. Side effects may already have occurred.`,
+          label: `Type ${expected} to continue`,
+          requireText: expected,
+          tone: "danger",
+          confirmLabel: "Continue",
+        });
+        if (acknowledgement == null) return;
+        const reason = await window.NO_PANEL_DIALOG?.prompt({
+          title: "Record a reason",
+          message: "The actor, reason, source job, and last completed step will be stored with the forced retry.",
+          label: "Reason",
+          minLength: 3,
+          tone: "danger",
+          confirmLabel: "Force retry",
+        });
+        if (reason == null) return;
+        body = { force: true, acknowledgement, reason };
+      }
+      const payload = await jobRequest(`/api/jobs/${encodeURIComponent(card.dataset.jobId)}/retry`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
       window.location.assign(`/jobs#${payload.job.id}`);
     });
   });
