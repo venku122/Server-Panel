@@ -232,13 +232,14 @@ function diagnosticRequestBody(body){
 }
 
 async function apiFetch(url, opts={}){
+  const { background = false, diagnostics = true, ...fetchOpts } = opts;
   const effectiveUrl = withServerId(url);
   const r = await fetch(effectiveUrl, {
     credentials: "same-origin",
-    ...opts,
+    ...fetchOpts,
     headers: {
       "Content-Type": "application/json",
-      ...(opts.headers || {}),
+      ...(fetchOpts.headers || {}),
     },
   });
   // If the session expired (e.g., panel restarted), bounce to login.
@@ -247,15 +248,18 @@ async function apiFetch(url, opts={}){
   }
   let data = null;
   try { data = await r.json(); } catch(e){ data = null; }
-  panelDiagnostics?.render({
-    request: {method: opts.method || "GET", url: effectiveUrl, body: diagnosticRequestBody(opts.body)},
-    response: {status: r.status, data},
-  });
+  if (diagnostics) {
+    panelDiagnostics?.record({
+      background,
+      request: {method: fetchOpts.method || "GET", url: effectiveUrl, body: diagnosticRequestBody(fetchOpts.body)},
+      response: {status: r.status, data},
+    });
+  }
   return { ok: r.ok, status: r.status, data };
 }
 
 async function loadWhoAmI(){
-  const me = await apiFetch("/api/whoami");
+  const me = await apiFetch("/api/whoami", { background: true });
   if (me.ok && me.data?.success){
     const el = document.getElementById("current-user");
     if (el) el.textContent = `${me.data.username || ""} (${me.data.role || ""})`;
@@ -2252,7 +2256,7 @@ function wireClusterUI(){
     try{
       const page = document.getElementById("page-cluster");
       if(!page || !page.classList.contains("show")) return;
-      const st = await apiFetch("/api/cluster/state");
+      const st = await apiFetch("/api/cluster/state", { background: true });
       const isCoord = !!(st.ok && st.data?.success && st.data?.cluster?.is_coordinator);
       if(!isCoord) return;
       const wrap = document.getElementById("cluster-join-requests-wrap");
@@ -2260,7 +2264,7 @@ function wireClusterUI(){
       if(wrap) wrap.hidden = false;
       if(!el) return;
 
-      const r = await apiFetch("/api/cluster/join/requests");
+      const r = await apiFetch("/api/cluster/join/requests", { background: true });
       if(!r.ok || !r.data?.success) return;
       const reqs = r.data?.requests || [];
 
@@ -2990,7 +2994,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     el.progress.textContent = (cur ? (cur + "\n") : "") + String(line);
   }
   async function pollJob(sid){
-    const j = await apiFetch(`/api/noblackbox/job?server_id=${encodeURIComponent(sid)}`, { method:"GET" });
+    const j = await apiFetch(`/api/noblackbox/job?server_id=${encodeURIComponent(sid)}`, { background: true, method:"GET" });
     if (j?.ok && j.data?.success){
       setProgress(j.data.lines || []);
       if (j.data.done){
@@ -3000,7 +3004,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
 
   async function appendStatusAfterJob(sid){
-    const st = await apiFetch(`/api/noblackbox/status?server_id=${encodeURIComponent(sid)}`, { method:"GET" });
+    const st = await apiFetch(`/api/noblackbox/status?server_id=${encodeURIComponent(sid)}`, { background: true, method:"GET" });
     if (st?.ok && st.data?.success){
       // backend uses `installed` for the mod/plugin presence
       const modTxt = st.data.installed ? "Installed" : "Missing";
@@ -3016,7 +3020,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Status probing is cheap and reliable because it checks real files.
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline){
-      const st = await apiFetch(`/api/noblackbox/status?server_id=${encodeURIComponent(sid)}`, { method:"GET" });
+      const st = await apiFetch(`/api/noblackbox/status?server_id=${encodeURIComponent(sid)}`, { background: true, method:"GET" });
       if (st?.ok && st.data?.success){
         if (st.data.installed){
           appendProgress("✅ Install complete.");
@@ -3053,7 +3057,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (Date.now() - lastStatusProbe > 2500){
           lastStatusProbe = Date.now();
           try{
-            const st = await apiFetch(`/api/noblackbox/status?server_id=${encodeURIComponent(sid)}`, { method:"GET" });
+            const st = await apiFetch(`/api/noblackbox/status?server_id=${encodeURIComponent(sid)}`, { background: true, method:"GET" });
             if (st?.ok && st.data?.success && st.data.installed){
               appendProgress("✅ Install complete.");
               const cfgTxt = st.data.has_config ? "present" : "missing";
@@ -3255,7 +3259,7 @@ async function moderationRefreshStatus(){
 
 async function moderationPollInstallJob(){
   if (!currentServerId) return;
-  const res = await apiFetch(`/api/moderation/job?server_id=${encodeURIComponent(currentServerId)}`, { method:'GET' });
+  const res = await apiFetch(`/api/moderation/job?server_id=${encodeURIComponent(currentServerId)}`, { background: true, method:'GET' });
   if (!res.ok || !res.data?.success) return;
   moderationSetInstallLines(res.data.lines || []);
   if (res.data.done){
