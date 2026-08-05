@@ -60,10 +60,20 @@ def run_migrations(
     _ensure_schema_table(connection)
 
     known_versions = {migration.version for migration in ordered}
-    recorded = connection.execute("SELECT version, name FROM schema_migrations ORDER BY version").fetchall()
-    unexpected = [int(row["version"]) for row in recorded if int(row["version"]) not in known_versions]
+    recorded = connection.execute(
+        "SELECT version, name FROM schema_migrations ORDER BY version"
+    ).fetchall()
+    unexpected = [
+        int(row["version"])
+        for row in recorded
+        if int(row["version"]) not in known_versions
+    ]
     if unexpected:
-        raise RuntimeError(f"Database contains migrations unknown to this panel version: {unexpected}")
+        raise RuntimeError(
+            f"Database schema is newer than this panel version (unknown migrations: {unexpected}). "
+            "Schema downgrade is unsupported. Upgrade the panel or restore a database copy made for this version; "
+            "see docs/sqlite-storage-recovery.md."
+        )
 
     for migration in ordered:
         with transaction(connection):
@@ -85,5 +95,7 @@ def run_migrations(
 
     return tuple(
         int(row["version"])
-        for row in connection.execute("SELECT version FROM schema_migrations ORDER BY version").fetchall()
+        for row in connection.execute(
+            "SELECT version FROM schema_migrations ORDER BY version"
+        ).fetchall()
     )
