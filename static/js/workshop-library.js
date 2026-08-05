@@ -114,7 +114,8 @@
         const refreshButton = /** @type {HTMLButtonElement} */ (document.getElementById("workshop-refresh"));
         refreshButton.disabled = true;
         document.querySelectorAll("#workshop-resolve-form input, #workshop-resolve-form button").forEach((control) => {
-          if (control instanceof HTMLInputElement || control instanceof HTMLButtonElement) control.disabled = true;
+          const disableable = /** @type {HTMLInputElement | HTMLButtonElement} */ (control);
+          disableable.disabled = true;
         });
       }
     } catch (error) {
