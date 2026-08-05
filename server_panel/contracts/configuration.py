@@ -5,6 +5,7 @@ from __future__ import annotations
 from pydantic import Field, JsonValue, RootModel, model_validator
 
 from .base import ContractModel, ServerId
+from server_panel.limits import FPS_MAX, FPS_MIN, MAX_PLAYERS_MAX, MAX_PLAYERS_MIN, PORT_MAX, PORT_MIN
 
 
 class DedicatedConfig(RootModel[dict[str, JsonValue]]):
@@ -22,10 +23,10 @@ class DedicatedConfigUpdate(ContractModel):
 
 
 class StartupSettings(ContractModel):
-    fps: int | None = Field(default=None, ge=1, le=1000)
-    max_players: int | None = Field(default=None, ge=1, le=1024)
-    remote_commands_port: int | None = Field(default=None, ge=1, le=65535)
-    old_port: int | None = Field(default=None, ge=1, le=65535)
+    fps: int | None = Field(default=None, ge=FPS_MIN, le=FPS_MAX)
+    max_players: int | None = Field(default=None, ge=MAX_PLAYERS_MIN, le=MAX_PLAYERS_MAX)
+    remote_commands_port: int | None = Field(default=None, ge=PORT_MIN, le=PORT_MAX)
+    old_port: int | None = Field(default=None, ge=PORT_MIN, le=PORT_MAX)
 
     @model_validator(mode="after")
     def require_a_setting(self) -> StartupSettings:
