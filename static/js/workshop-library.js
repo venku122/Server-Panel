@@ -15,6 +15,9 @@
   const previewDetails = document.getElementById("workshop-preview-details");
   const previewNote = document.getElementById("workshop-preview-note");
   const addButton = /** @type {HTMLButtonElement} */ (document.getElementById("workshop-add"));
+  const partialRow = document.getElementById("workshop-partial-row");
+  const partialAck = /** @type {HTMLInputElement} */ (document.getElementById("workshop-partial-ack"));
+  const conflictPolicy = /** @type {HTMLSelectElement} */ (document.getElementById("workshop-conflict-policy"));
   let selectedItem = null;
 
   function status(message, tone = "info") {
@@ -51,6 +54,8 @@
     if (item.content_type === "collection") {
       metadataRow("Cached children", children.map((child) => child.title || child.id).join(", "));
       metadataRow("Missing child IDs", (payload.missing_child_ids || []).join(", "));
+      partialRow.hidden = !(payload.missing_child_ids || []).length;
+      if (partialRow.hidden) partialAck.checked = false;
     }
     previewNote.textContent = payload.message || (
       item.metadata_available
@@ -104,6 +109,13 @@
       count.textContent = `${payload.items.length} local ${payload.items.length === 1 ? "item" : "items"}`;
       empty.hidden = payload.items.length !== 0;
       sourceNote.textContent = payload.source_note;
+      if (!payload.capabilities.rotation_mutation) {
+        addButton.disabled = true;
+        document.getElementById("workshop-refresh").disabled = true;
+        document.querySelectorAll("#workshop-resolve-form input, #workshop-resolve-form button").forEach((control) => {
+          control.disabled = true;
+        });
+      }
     } catch (error) {
       results.replaceChildren();
       empty.hidden = false;
@@ -142,19 +154,48 @@
 
   addButton?.addEventListener("click", async () => {
     if (!selectedItem) return;
-    const confirmed = await panelWindow.NO_PANEL_DIALOG?.confirm({
-      title: "Add Workshop content",
-      message: `Copy local files for “${selectedItem.title}” and update this server's current two-slot rotation?`,
-      confirmLabel: "Add to rotation",
-    });
-    if (!confirmed) return;
     const placement = /** @type {HTMLSelectElement} */ (document.getElementById("workshop-placement")).value;
+    const requestPayload = {
+      item_id: selectedItem.id,
+      placement,
+      conflict_policy: conflictPolicy.value,
+      acknowledge_partial_collection: partialAck.checked,
+    };
     addButton.disabled = true;
     try {
+      const previewResponse = await fetch(
+        `/api/servers/${encodeURIComponent(serverId)}/workshop/rotation/preview`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestPayload),
+        },
+      );
+      const previewPayload = await readJson(previewResponse);
+      const rotationPreview = previewPayload.preview;
+      metadataRow(
+        "File conflicts",
+        rotationPreview.conflicts.map((conflict) => `${conflict.mission_name}: ${conflict.state}`).join(", "),
+      );
+      metadataRow(
+        "Proposed rotation",
+        [rotationPreview.proposed_slot1.name, rotationPreview.proposed_slot2.name].filter(Boolean).join(" → "),
+      );
+      metadataRow("Restart", "Required after apply");
+      if (!rotationPreview.can_apply) {
+        status(rotationPreview.apply_error, "warning");
+        return;
+      }
+      const confirmed = await panelWindow.NO_PANEL_DIALOG?.confirm({
+        title: "Apply Workshop rotation change",
+        message: `The preview is valid. Copy local files for “${selectedItem.title}” and apply the proposed two-slot rotation?`,
+        confirmLabel: "Apply preview",
+      });
+      if (!confirmed) return;
       const response = await fetch(`/api/servers/${encodeURIComponent(serverId)}/workshop/rotation`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ item_id: selectedItem.id, placement }),
+        body: JSON.stringify(requestPayload),
       });
       const payload = await readJson(response);
       const remaining = payload.remaining.length ? ` ${payload.remaining.length} additional missions did not fit.` : "";
