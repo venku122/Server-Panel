@@ -110,6 +110,10 @@
   margin-block-start: var(--space-4);
 }
 
+.audit-pagination .btn:last-child {
+  margin-inline-start: auto;
+}
+
 @media (max-width: 760px) {
   .audit-filters {
     grid-template-columns: 1fr;
