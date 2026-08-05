@@ -399,6 +399,7 @@ from server_panel.contracts import (  # noqa: E402 - dependency bootstrap preced
     normalize_job_parameters,
     validation_failure,
 )
+from server_panel import limits as _panel_limits  # noqa: E402 - dependency bootstrap precedes application imports
 
 # Cluster (LAN)
 from cluster import ClusterDiscovery, ClusterState, DISCOVERY_PORT, best_effort_local_ip, http_post_json
@@ -922,6 +923,7 @@ def _update_server_game_query_ports_local(server_id: str, game_port: Optional[in
 # Flask app
 # =============================
 app = Flask(__name__, template_folder="templates", static_folder="static")
+app.jinja_env.globals["panel_limits"] = _panel_limits
 app.secret_key = _load_or_create_panel_secret()
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
@@ -2329,7 +2331,7 @@ def _render_panel_shell(
                 job_type=job_filters["job_type"] or None,
                 query=job_filters["q"] or None,
                 since=job_since,
-                limit=200,
+                limit=_panel_limits.JOB_LIST_DEFAULT,
             )
         ]
     elif page["active_page"] == "dashboard" and server_id is not None:
@@ -2610,9 +2612,44 @@ def _contract_error_response(error: ValidationError):
     return jsonify(validation_failure(error)), 400
 
 
-def _job_payload(job):
-    raw = job.to_dict() if hasattr(job, "to_dict") else job
-    return JobView.model_validate(raw).model_dump(mode="json", exclude_unset=True)
+def _job_payload(job, *, include_lease: bool = False):
+    raw_value = job.to_dict() if hasattr(job, "to_dict") else job
+    raw = dict(raw_value) if isinstance(raw_value, dict) else {}
+    lease = raw.pop("lease", None)
+    try:
+        payload = JobView.model_validate(raw).model_dump(mode="json", exclude_unset=True)
+    except ValidationError:
+        safe_id = str(raw.get("id") or "invalid-job")[: _panel_limits.JOB_ID_MAX_LENGTH]
+        payload = {
+            "id": safe_id,
+            "job_type": "invalid",
+            "scope_type": "server" if raw.get("server_id") else "global",
+            "server_id": str(raw.get("server_id") or "") or None,
+            "status": "invalid",
+            "parameters": {},
+            "result": None,
+            "progress_current": 0,
+            "progress_total": 0,
+            "created_by": "unknown",
+            "created_at": str(raw.get("created_at") or "unknown"),
+            "updated_at": str(raw.get("updated_at") or "unknown"),
+            "started_at": None,
+            "finished_at": None,
+            "error_summary": None,
+            "cancel_requested": False,
+            "attempt": 1,
+            "parent_job_id": None,
+            "correlation_id": "unavailable",
+            "replay_safe": False,
+            "last_completed_step": None,
+            "invalid_record": True,
+            "validation_warning": (
+                "This persisted job record could not be fully validated. Unsafe fields were replaced with placeholders."
+            ),
+        }
+    if include_lease and isinstance(lease, dict):
+        payload["lease"] = {"owner": lease.get("owner"), "expires_at": lease.get("expires_at")}
+    return payload
 
 
 def _enqueue_job(
@@ -2679,7 +2716,10 @@ def api_jobs_list():
     return jsonify(
         {
             "success": True,
-            "jobs": [_job_payload(job) for job in JOB_SERVICE.list(server_id=server_id, limit=200)],
+            "jobs": [
+                _job_payload(job)
+                for job in JOB_SERVICE.list(server_id=server_id, limit=_panel_limits.JOB_LIST_DEFAULT)
+            ],
             "worker": JOB_WORKER.status() if JOB_WORKER is not None else {"alive": False},
         }
     )
@@ -2692,7 +2732,7 @@ def api_job_detail(job_id: str):
     job = JOB_SERVICE.get(job_id, include_events=True, include_lease=include_lease)
     if job is None:
         return jsonify({"success": False, "error": "Job not found"}), 404
-    return jsonify({"success": True, "job": _job_payload(job)})
+    return jsonify({"success": True, "job": _job_payload(job, include_lease=include_lease)})
 
 
 @app.post("/api/jobs/<job_id>/cancel")
@@ -9892,14 +9932,14 @@ def _moderation_install_job(context, parameters: dict) -> dict:
     return dict(result)
 
 
-JOB_HANDLERS.update(
-    {
-        "server_update": _server_update_job,
-        "workshop_sync": _workshop_sync_job,
-        "noblackbox_install": _noblackbox_install_job,
-        "moderation_install": _moderation_install_job,
-    }
-)
+JOB_RUNTIME_HANDLERS = {
+    "server_update": _server_update_job,
+    "workshop_sync": _workshop_sync_job,
+    "noblackbox_install": _noblackbox_install_job,
+    "moderation_install": _moderation_install_job,
+}
+JOB_HANDLERS.clear()
+JOB_HANDLERS.update(JOB_RUNTIME_HANDLERS)
 JOB_WORKER = _job_storage.JobWorker(
     JOB_SERVICE,
     JOB_HANDLERS,
