@@ -36,21 +36,25 @@ class ModerationService:
         return ServiceResult(self.repository.status(server_id))
 
     def install_job(self, server_id: str) -> ServiceResult:
+        self.repository.status(server_id)
         return ServiceResult(self._install_job(server_id))
 
     def start_install(self, request: InstallRequest) -> ServiceResult:
-        job = self._enqueue_install(request)
+        normalized = request.sanitized()
+        self.repository.status(normalized.server_id)
+        job = self._enqueue_install(normalized)
         self._audit(
             "moderation.install.queued",
-            request.server_id,
-            "Queued moderation module install/repair",
-            {"dll_url": request.dll_url},
+            normalized.server_id,
+            "Queued durable moderation module install/repair job",
+            {"dll_url": normalized.dll_url},
             str(job.get("id") or "") or None,
         )
         return ServiceResult({"success": True, "started": True, "job": job})
 
     def install_now(self, request: InstallRequest) -> dict[str, Any]:
-        return self.installer.install(request.server_id, request.dll_url)
+        normalized = request.sanitized()
+        return self.installer.install(normalized.server_id, normalized.dll_url)
 
     def state(self, server_id: str) -> ServiceResult:
         snapshot = self.repository.snapshot(server_id)
