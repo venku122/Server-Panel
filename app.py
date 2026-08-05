@@ -727,12 +727,8 @@ def _bounded_float_config(name: str, default: float, minimum: float, maximum: fl
     return max(minimum, min(maximum, value))
 
 
-SERVER_ROUTE_REMOTE_TIMEOUT_SEC = _bounded_float_config(
-    "NO_PANEL_ROUTE_REMOTE_TIMEOUT_SEC", 1.5, 0.25, 3.0
-)
-SERVER_VIEW_STALE_MAX_AGE_SEC = _bounded_float_config(
-    "NO_PANEL_SERVER_VIEW_STALE_MAX_AGE_SEC", 300.0, 5.0, 3600.0
-)
+SERVER_ROUTE_REMOTE_TIMEOUT_SEC = _bounded_float_config("NO_PANEL_ROUTE_REMOTE_TIMEOUT_SEC", 1.5, 0.25, 3.0)
+SERVER_VIEW_STALE_MAX_AGE_SEC = _bounded_float_config("NO_PANEL_SERVER_VIEW_STALE_MAX_AGE_SEC", 300.0, 5.0, 3600.0)
 
 
 def _find_server_by_id(server_id: Optional[str]) -> Optional[dict]:
@@ -1795,12 +1791,7 @@ GLOBAL_PANEL_ROLES = {
 
 def _panel_servers_for_routes() -> list[dict]:
     warnings: list[str] = []
-    servers = (
-        _build_servers_view(
-            remote_timeout=SERVER_ROUTE_REMOTE_TIMEOUT_SEC, warnings=warnings
-        )
-        or []
-    )
+    servers = _build_servers_view(remote_timeout=SERVER_ROUTE_REMOTE_TIMEOUT_SEC, warnings=warnings) or []
     _cache_servers_view(servers)
     g.server_view_warnings = warnings
     return servers
