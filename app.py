@@ -2042,7 +2042,6 @@ GLOBAL_PANEL_PAGES = {
     },
 }
 
-
 def _redirect_preserving_query(target: str):
     query = request.query_string.decode("latin-1")
     return redirect(f"{target}?{query}" if query else target, code=308)
@@ -2051,6 +2050,17 @@ def _redirect_preserving_query(target: str):
 def _server_page_url(server_id: str, page_key: str) -> str:
     page = SERVER_PAGE_REGISTRY.get(page_key) or SERVER_PAGE_REGISTRY["overview"]
     return f"/servers/{server_id}{page.path}"
+
+
+GLOBAL_PANEL_ROLES = {
+    "deployment": "admin",
+    "activity": "admin",
+    "ports": "admin",
+    "users": "admin",
+    "cluster": "admin",
+    "integrations/discord": "admin",
+    "about": None,
+}
 
 
 def _panel_servers_for_routes() -> list[dict]:
@@ -2139,15 +2149,37 @@ def _render_panel_shell(
         "server_id": server_id or str(request.args.get("server_id") or "").strip(),
         "outcome": str(request.args.get("outcome") or "").strip(),
         "actor": str(request.args.get("actor") or "").strip(),
+        "action": str(request.args.get("action") or "").strip(),
     }
     activity_events = []
+    activity_pagination = {"next_url": None, "previous_url": None, "limit": 50}
     if page["active_page"] == "activity":
-        activity_events = AUDIT_SERVICE.list_events(
-            server_id=activity_filters["server_id"] or None,
-            outcome=activity_filters["outcome"] or None,
-            actor=activity_filters["actor"] or None,
-            limit=200,
-        )
+        try:
+            activity_page = AUDIT_SERVICE.list_events_page(
+                server_id=activity_filters["server_id"] or None,
+                outcome=activity_filters["outcome"] or None,
+                actor=activity_filters["actor"] or None,
+                action=activity_filters["action"] or None,
+                cursor=str(request.args.get("cursor") or "").strip() or None,
+                limit=50,
+            )
+        except ValueError as error:
+            return Response(str(error), 400)
+        activity_events = activity_page["events"]
+
+        def activity_url(cursor: str | None) -> str | None:
+            if not cursor:
+                return None
+            parameters = dict(request.view_args or {})
+            parameters.update({key: value for key, value in activity_filters.items() if value})
+            parameters["cursor"] = cursor
+            return url_for(str(request.endpoint), **parameters)
+
+        activity_pagination = {
+            "next_url": activity_url(activity_page["next_cursor"]),
+            "previous_url": activity_url(activity_page["previous_cursor"]),
+            "limit": activity_page["limit"],
+        }
     return render_template(
         page["template"],
         ports=ports,
@@ -2174,6 +2206,8 @@ def _render_panel_shell(
         activity_events=activity_events,
         activity_filters=activity_filters,
         activity_outcomes=("success", "failure", "denied", "unknown"),
+        activity_pagination=activity_pagination,
+        audit_mirror_status=AUDIT_SERVICE.mirror_status(),
     )
 
 
@@ -7935,7 +7969,32 @@ def api_cluster_users_apply():
 def api_audit_logs_get():
     if not _is_localhost():
         return jsonify({"success": False, "error": "Localhost only."}), 403
-    return jsonify({"success": True, "logs": AUDIT_SERVICE.list_events(limit=500)})
+    try:
+        limit = int(request.args.get("limit", 100))
+        page = AUDIT_SERVICE.list_events_page(
+            server_id=str(request.args.get("server_id") or "").strip() or None,
+            actor=str(request.args.get("actor") or "").strip() or None,
+            outcome=str(request.args.get("outcome") or "").strip() or None,
+            action=str(request.args.get("action") or "").strip() or None,
+            cursor=str(request.args.get("cursor") or "").strip() or None,
+            limit=limit,
+        )
+    except ValueError as error:
+        return jsonify({"success": False, "error": str(error)}), 400
+    return jsonify(
+        {
+            "success": True,
+            "logs": page["events"],
+            "pagination": {key: value for key, value in page.items() if key != "events"},
+            "filters": {
+                "server_id": str(request.args.get("server_id") or "").strip(),
+                "actor": str(request.args.get("actor") or "").strip(),
+                "outcome": str(request.args.get("outcome") or "").strip(),
+                "action": str(request.args.get("action") or "").strip(),
+            },
+            "mirror": AUDIT_SERVICE.mirror_status(),
+        }
+    )
 
 @app.delete("/api/audit-logs")
 @requires_login(role="admin")
