@@ -32,7 +32,8 @@
                                 {{ 'Retry' if job.replay_safe else 'Force retry…' }}
                             </button>
                         {% endif %}
-                        <a class="btn ghost" href="{{ url_for('api_job_detail', job_id=job.id) }}">JSON</a>
+                        <a class="btn ghost"
+                           href="{{ url_for('api_job_detail', job_id=job.id) }}">JSON</a>
                     </div>
                     <details class="job-diagnostics">
                         <summary>Diagnostics and event log</summary>
@@ -58,9 +59,13 @@
                                 {{ job.finished_at or '—' }}
                             </dd>
                             <dt>Replay policy</dt>
-                            <dd>{{ 'Normal retry allowed' if job.replay_safe else 'Forced retry only; side effects may already have occurred' }}</dd>
+                            <dd>
+                                {{ 'Normal retry allowed' if job.replay_safe else 'Forced retry only; side effects may already have occurred' }}
+                            </dd>
                             <dt>Last completed step</dt>
-                            <dd>{{ job.last_completed_step or 'No completed step recorded.' }}</dd>
+                            <dd>
+                                {{ job.last_completed_step or 'No completed step recorded.' }}
+                            </dd>
                         </dl>
                         <pre data-job-events>Loading event log…</pre>
                         <h3>Parameters</h3>
