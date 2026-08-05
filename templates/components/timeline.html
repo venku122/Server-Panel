@@ -127,8 +127,6 @@
         <nav class="actions audit-pagination" aria-label="Activity pages">
             {% if pagination.previous_url %}
                 <a class="btn ghost" href="{{ pagination.previous_url }}">Newer activity</a>
-            {% else %}
-                <span></span>
             {% endif %}
             {% if pagination.next_url %}
                 <a class="btn ghost" href="{{ pagination.next_url }}">Older activity</a>
