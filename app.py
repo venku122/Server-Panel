@@ -905,6 +905,7 @@ PANEL_DATABASE_PATH = importlib.import_module("server_panel.storage").configure_
     app,
     BASE_DIR,
     os.environ.get("NO_PANEL_DATABASE_PATH") or getattr(config, "DATABASE_PATH", None),
+    os.environ.get("NO_PANEL_DATABASE_BUSY_TIMEOUT_MS") or getattr(config, "DATABASE_BUSY_TIMEOUT_MS", None),
 )
 
 # Used to invalidate browser sessions on panel restart.
