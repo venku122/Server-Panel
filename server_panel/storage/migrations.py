@@ -60,14 +60,8 @@ def run_migrations(
     _ensure_schema_table(connection)
 
     known_versions = {migration.version for migration in ordered}
-    recorded = connection.execute(
-        "SELECT version, name FROM schema_migrations ORDER BY version"
-    ).fetchall()
-    unexpected = [
-        int(row["version"])
-        for row in recorded
-        if int(row["version"]) not in known_versions
-    ]
+    recorded = connection.execute("SELECT version, name FROM schema_migrations ORDER BY version").fetchall()
+    unexpected = [int(row["version"]) for row in recorded if int(row["version"]) not in known_versions]
     if unexpected:
         raise RuntimeError(
             f"Database schema is newer than this panel version (unknown migrations: {unexpected}). "
@@ -95,7 +89,5 @@ def run_migrations(
 
     return tuple(
         int(row["version"])
-        for row in connection.execute(
-            "SELECT version FROM schema_migrations ORDER BY version"
-        ).fetchall()
+        for row in connection.execute("SELECT version FROM schema_migrations ORDER BY version").fetchall()
     )
