@@ -2714,8 +2714,7 @@ def api_jobs_list():
         {
             "success": True,
             "jobs": [
-                _job_payload(job)
-                for job in JOB_SERVICE.list(server_id=server_id, limit=_panel_limits.JOB_LIST_DEFAULT)
+                _job_payload(job) for job in JOB_SERVICE.list(server_id=server_id, limit=_panel_limits.JOB_LIST_DEFAULT)
             ],
             "worker": JOB_WORKER.status() if JOB_WORKER is not None else {"alive": False},
         }
