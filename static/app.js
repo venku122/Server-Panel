@@ -1468,16 +1468,22 @@ async function saveStartupSettingsFromUI(){
   const mp  = safeInt(mpEl.value);
   const rp = safeInt(portEl.value);
 
-  if (fps !== null && (fps < 1 || fps > 1000)){
-    notify("FPS must be between 1 and 1000.", "error", fpsEl);
+  const fpsMin = parseInt(fpsEl?.min || "1", 10);
+  const fpsMax = parseInt(fpsEl?.max || "1000", 10);
+  const playersMin = parseInt(mpEl?.min || "1", 10);
+  const playersMax = parseInt(mpEl?.max || "256", 10);
+  const portMin = parseInt(portEl?.min || "1", 10);
+  const portMax = parseInt(portEl?.max || "65535", 10);
+  if (fps !== null && (fps < fpsMin || fps > fpsMax)){
+    notify(`FPS must be between ${fpsMin} and ${fpsMax}.`, "error", fpsEl);
     return;
   }
-  if (mp !== null && (mp < 1 || mp > 256)){
-    notify("Max Players must be between 1 and 256.", "error", mpEl);
+  if (mp !== null && (mp < playersMin || mp > playersMax)){
+    notify(`Max Players must be between ${playersMin} and ${playersMax}.`, "error", mpEl);
     return;
   }
-  if (rp !== null && (rp < 1 || rp > 65535)){
-    notify("Remote Commands Port must be between 1 and 65535.", "error", portEl);
+  if (rp !== null && (rp < portMin || rp > portMax)){
+    notify(`Remote Commands Port must be between ${portMin} and ${portMax}.`, "error", portEl);
     return;
   }
 
