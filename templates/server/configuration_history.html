@@ -9,27 +9,35 @@
         <div class="config-history-list" data-config-history>
             {% if config_versions %}
                 {% for version in config_versions %}
-                    <article class="card config-version" data-version-id="{{ version.id }}">
-                        <div class="card-h">
-                            <div>
-                                <div class="card-t">{{ version.resource_type|replace('_', ' ') |title }} · v{{ version.version_number }}</div>
-                                <div class="card-s">{{ version.change_summary }}</div>
+                    {% if version.invalid %}
+                        <article class="card config-version invalid-record">
+                            <div class="notice notice-error inline-notice">
+                                Configuration history unavailable: {{ version.error }} (HTTP {{ version.status }})
                             </div>
-                            {% if version.restart_required %}<span class="status-pill">Restart required</span>{% endif %}
-                        </div>
-                        <p class="small muted">
-                            {{ version.created_at }} · {{ version.created_by }}
-                            {% if version.restored_from_version_id %}· restored from {{ version.restored_from_version_id }}{% endif %}
-                        </p>
-                        <div class="btns">
-                            <button class="btn ghost" type="button" data-version-diff>Compare to previous</button>
-                            <button class="btn danger" type="button" data-version-restore>Restore as new version</button>
-                        </div>
-                        <details class="job-diagnostics">
-                            <summary>Version diff</summary>
-                            <pre data-version-diff-output>Choose Compare to previous.</pre>
-                        </details>
-                    </article>
+                        </article>
+                    {% else %}
+                        <article class="card config-version" data-version-id="{{ version.id }}">
+                            <div class="card-h">
+                                <div>
+                                    <div class="card-t">{{ version.resource_type|replace('_', ' ') |title }} · v{{ version.version_number }}</div>
+                                    <div class="card-s">{{ version.change_summary }}</div>
+                                </div>
+                                {% if version.restart_required %}<span class="status-pill">Restart required</span>{% endif %}
+                            </div>
+                            <p class="small muted">
+                                {{ version.created_at }} · {{ version.created_by }}
+                                {% if version.restored_from_version_id %}· restored from {{ version.restored_from_version_id }}{% endif %}
+                            </p>
+                            <div class="btns">
+                                <button class="btn ghost" type="button" data-version-diff>Compare to previous</button>
+                                <button class="btn danger" type="button" data-version-restore>Restore as new version</button>
+                            </div>
+                            <details class="job-diagnostics">
+                                <summary>Version diff</summary>
+                                <pre data-version-diff-output>Choose Compare to previous.</pre>
+                            </details>
+                        </article>
+                    {% endif %}
                 {% endfor %}
             {% else %}
                 <div class="card empty-state">
