@@ -48,18 +48,19 @@
     if (seen.has(value)) return "[CIRCULAR]";
 
     seen.add(value);
-    let output;
     if (Array.isArray(value)) {
-      output = value.slice(0, maxEntries).map((item) => redact(item, depth + 1, seen));
+      const output = value.slice(0, maxEntries).map((item) => redact(item, depth + 1, seen));
       if (value.length > maxEntries) output.push(`[${value.length - maxEntries} more items]`);
-    } else {
-      const entries = Object.entries(value).slice(0, maxEntries);
-      output = {};
-      for (const [key, item] of entries) {
-        output[key] = sensitiveKey.test(key) ? "[REDACTED]" : redact(item, depth + 1, seen);
-      }
-      if (Object.keys(value).length > maxEntries) output.__truncated__ = `${Object.keys(value).length - maxEntries} more keys`;
+      seen.delete(value);
+      return output;
     }
+
+    const entries = Object.entries(value).slice(0, maxEntries);
+    const output = /** @type {Record<string, unknown>} */ ({});
+    for (const [key, item] of entries) {
+      output[key] = sensitiveKey.test(key) ? "[REDACTED]" : redact(item, depth + 1, seen);
+    }
+    if (Object.keys(value).length > maxEntries) output.__truncated__ = `${Object.keys(value).length - maxEntries} more keys`;
     seen.delete(value);
     return output;
   }
