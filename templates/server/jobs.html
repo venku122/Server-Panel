@@ -2,6 +2,16 @@
 {% from "components/jobs.html" import job_list %}
 {% block panel_content %}
     <section class="page show" id="page-jobs" data-page="jobs">
+        <div class="card" data-worker-status>
+            <div class="card-h">
+                <div>
+                    <div class="card-t">Job worker</div>
+                    <div class="card-s">{{ 'Running' if job_worker_status.alive else 'Not running' }} · cancellations wait for safe checkpoints</div>
+                </div>
+                <span class="status-pill" data-worker-alive="{{ 'true' if job_worker_status.alive else 'false' }}">{{ 'healthy' if job_worker_status.alive else 'stopped' }}</span>
+            </div>
+            {% if job_worker_status.last_error %}<p class="small error">Last worker error: {{ job_worker_status.last_error }} ({{ job_worker_status.last_error_at }})</p>{% endif %}
+        </div>
         {{ job_list(jobs) }}
     </section>
 {% endblock %}
