@@ -12,9 +12,14 @@ from pydantic import (
     ValidationError,
 )
 
+from server_panel.limits import SERVER_ID_MAX_LENGTH
+
 JsonObject: TypeAlias = dict[str, JsonValue]
 NonEmptyText: TypeAlias = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
-ServerId: TypeAlias = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+ServerId: TypeAlias = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=SERVER_ID_MAX_LENGTH),
+]
 
 
 class ContractModel(BaseModel):
