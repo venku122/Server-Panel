@@ -6467,7 +6467,7 @@ def _place_workshop_missions(
     return updated1, updated2, added
 
 
-def _workshop_preview_payload(server_id: str, payload: dict) -> tuple[dict, object]:
+def _workshop_preview_payload(server_id: str, payload: dict):
     item_id = str(payload.get("item_id") or "").strip()
     placement = str(payload.get("placement") or "first_available").strip()
     conflict_policy = str(payload.get("conflict_policy") or "error").strip().lower()
