@@ -30,6 +30,8 @@
             <div class="job-list-head" aria-hidden="true"><span>Status</span><span>Job</span><span>Target</span><span>Actor</span><span>Created / duration</span><span>Attempt</span><span>&nbsp;</span></div>
             {% for job in jobs %}
                 <article class="job-row" data-job-id="{{ job.id }}">
+                    {% if job.invalid_record %}<div class="note note--warning job-record-warning"
+     data-invalid-job-warning><strong>Persisted record warning.</strong><span>{{ job.validation_warning }}</span></div>{% endif %}
                     <button id="job-row-{{ job.id }}"
                             class="job-row-main"
                             type="button"
