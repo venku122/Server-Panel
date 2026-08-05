@@ -5,6 +5,7 @@ import sys
 import subprocess
 import base64
 import importlib.util
+from concurrent.futures import ThreadPoolExecutor, wait
 
 # pip package -> import module mapping (when they differ)
 PIP_TO_IMPORT = {
@@ -56,7 +57,6 @@ import urllib.request
 import secrets
 import uuid
 import traceback
-from concurrent.futures import ThreadPoolExecutor, wait
 from pathlib import Path
 from functools import wraps
 from typing import Optional, Tuple
