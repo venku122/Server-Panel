@@ -261,6 +261,7 @@ async function apiFetch(url, opts={}){
   }
   return { ok: r.ok, status: r.status, data };
 }
+(/** @type {any} */ (window)).apiFetch = apiFetch;
 
 async function loadWhoAmI(){
   const me = await apiFetch("/api/whoami", { background: true });
