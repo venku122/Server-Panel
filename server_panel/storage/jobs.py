@@ -52,7 +52,7 @@ def _strict_json_payload(value: Any) -> str | None:
         json.dumps(value, allow_nan=False)
     except (TypeError, ValueError, OverflowError) as error:
         raise ValueError("Job results must be finite, JSON-compatible values.") from error
-    return serialize_payload(value)
+    return cast(str | None, serialize_payload(value))
 
 
 @dataclass(frozen=True)

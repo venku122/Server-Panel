@@ -34,7 +34,7 @@ def configure_storage(
     configured_busy_timeout_ms: str | int | None = None,
 ) -> Path:
     """Configure request connections and bring the embedded schema up to date."""
-    database_path = resolve_database_path(base_dir, configured_path)
+    database_path = Path(resolve_database_path(base_dir, configured_path))
     busy_timeout_ms = resolve_busy_timeout_ms(configured_busy_timeout_ms)
     init_app(app, database_path, busy_timeout_ms)
     connection = connect(database_path, busy_timeout_ms)
