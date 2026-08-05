@@ -3359,7 +3359,7 @@ def api_set_ports():
             n = int(str(v).strip())
         except Exception:
             return "__invalid__"
-        if n < 1 or n > 65535:
+        if n < _panel_limits.PORT_MIN or n > _panel_limits.PORT_MAX:
             return "__invalid__"
         return n
 
@@ -3376,7 +3376,13 @@ def api_set_ports():
         gp = _parse_port(item.get("game_port"))
         qp = _parse_port(item.get("query_port"))
         if gp == "__invalid__" or qp == "__invalid__":
-            return jsonify({"success": False, "error": f"Invalid port value for server {sid}. Ports must be blank or 1-65535."}), 400
+            return jsonify({
+                "success": False,
+                "error": (
+                    f"Invalid port value for server {sid}. Ports must be blank or "
+                    f"{_panel_limits.PORT_MIN}-{_panel_limits.PORT_MAX}."
+                ),
+            }), 400
 
         target = unified_by_id.get(sid)
         if not target:
@@ -8215,7 +8221,7 @@ def _create_server_local_from_payload(data: dict) -> tuple[dict, int]:
         return {"success": False, "error": "Server name is required"}, 400
 
     remote_port = int(data.get("remote_commands_port") or 7779)
-    if remote_port < 1 or remote_port > 65535:
+    if remote_port < _panel_limits.PORT_MIN or remote_port > _panel_limits.PORT_MAX:
         return {"success": False, "error": "Remote Commands port out of range"}, 400
 
     def _to_int(v):
