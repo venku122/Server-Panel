@@ -6292,7 +6292,13 @@ def _sync_workshop_on_this_node(
             _write_json_file(path, server_config)
         except Exception as error:
             output.append(f"Failed to update MissionDirectory for {sid}: {error}")
-    return {"success": True, **result, "output": output}
+    _workshop_storage.invalidate_workshop_cache()
+    refreshed_at = None
+    if local_servers:
+        refreshed_library = _workshop_library(str(local_servers[0].get("id") or ""))
+        refreshed_library.refresh()
+        refreshed_at = refreshed_library.last_refresh_at
+    return {"success": True, **result, "output": output, "library_refreshed_at": refreshed_at}
 
 
 def _workshop_rotation_memberships(server_id: str) -> dict[str, list[str]]:
@@ -6329,20 +6335,46 @@ def _workshop_library(server_id: str):
 @app.get("/api/servers/<server_id>/workshop")
 @requires_login("admin")
 def api_workshop_library(server_id: str):
-    if _find_server_in_unified_view(server_id) is None:
+    server = _find_server_in_unified_view(server_id)
+    if server is None:
         return jsonify({"success": False, "error": "Server not found."}), 404
+    remote = str(server.get("location") or "").lower() == "remote"
+    if remote:
+        return jsonify(
+            {
+                "success": True,
+                "items": [],
+                "last_refresh_at": None,
+                "capabilities": {
+                    "local_index": False,
+                    "local_collection_expansion": False,
+                    "remote_search": False,
+                    "remote_download": False,
+                    "rotation_mutation": False,
+                    "named_playlists": False,
+                    "rotation_slots": 2,
+                },
+                "source_note": (
+                    "This server belongs to a remote cluster member. Coordinator-local Workshop files are not "
+                    "shown because they cannot describe or mutate the member's library."
+                ),
+            }
+        )
     query = str(request.args.get("q") or "")
     filter_name = str(request.args.get("filter") or "all")
-    items = _workshop_library(server_id).search(query, filter_name)
+    library = _workshop_library(server_id)
+    items = library.search(query, filter_name)
     return jsonify(
         {
             "success": True,
             "items": [item.to_dict() for item in items],
+            "last_refresh_at": library.last_refresh_at,
             "capabilities": {
                 "local_index": True,
                 "local_collection_expansion": True,
                 "remote_search": False,
                 "remote_download": False,
+                "rotation_mutation": True,
                 "named_playlists": False,
                 "rotation_slots": 2,
             },
@@ -6357,8 +6389,19 @@ def api_workshop_library(server_id: str):
 @app.post("/api/servers/<server_id>/workshop/resolve")
 @requires_login("admin")
 def api_workshop_resolve(server_id: str):
-    if _find_server_in_unified_view(server_id) is None:
+    server = _find_server_in_unified_view(server_id)
+    if server is None:
         return jsonify({"success": False, "error": "Server not found."}), 404
+    if str(server.get("location") or "").lower() == "remote":
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "Workshop references must be resolved on the remote member that owns this server.",
+                }
+            ),
+            409,
+        )
     payload = request.get_json(force=True, silent=True) or {}
     try:
         result = _workshop_library(server_id).resolve(str(payload.get("reference") or ""))
@@ -6391,12 +6434,23 @@ def _place_workshop_missions(
     updated2 = dict(slot2)
     added: list[str] = []
     if placement == "slot1":
+        if len(candidates) != 1:
+            raise ValueError("Replacing slot 1 requires an item containing exactly one mission.")
         updated1 = {"group": "User", "name": candidates[0], "max_time": 7200.0}
         added.append(candidates.pop(0))
     elif placement == "slot2":
+        if len(candidates) != 1:
+            raise ValueError("Replacing slot 2 requires an item containing exactly one mission.")
         updated2 = {"group": "User", "name": candidates[0], "max_time": 7200.0}
         added.append(candidates.pop(0))
     else:
+        available = int(not str(updated1.get("name") or "").strip()) + int(
+            not str(updated2.get("name") or "").strip()
+        )
+        if len(candidates) > available:
+            raise ValueError(
+                f"The item contains {len(candidates)} missions but the current rotation has only {available} open slots."
+            )
         if not str(updated1.get("name") or "").strip() and candidates:
             name = candidates.pop(0)
             updated1 = {"group": "User", "name": name, "max_time": 7200.0}
@@ -6408,6 +6462,54 @@ def _place_workshop_missions(
         if not added:
             raise ValueError("The current two-slot rotation is full. Choose a slot to replace.")
     return updated1, updated2, added
+
+
+def _workshop_preview_payload(server_id: str, payload: dict) -> tuple[dict, object]:
+    item_id = str(payload.get("item_id") or "").strip()
+    placement = str(payload.get("placement") or "first_available").strip()
+    conflict_policy = str(payload.get("conflict_policy") or "error").strip().lower()
+    partial_acknowledged = bool(payload.get("acknowledge_partial_collection", False))
+    library = _workshop_library(server_id)
+    plan = library.preview_item(item_id, partial_acknowledged=partial_acknowledged)
+    _, slot1, slot2 = _workshop_slots_for_server(server_id)
+    apply_error = None
+    installed = [candidate.mission_name for candidate in plan.candidates]
+    try:
+        _, installed = plan.replacements(conflict_policy)
+        proposed1, proposed2, added = _place_workshop_missions(installed, slot1, slot2, placement)
+    except ValueError as error:
+        apply_error = str(error)
+        proposed1, proposed2, added = slot1, slot2, []
+    preview = {
+        **plan.to_dict(),
+        "placement": placement,
+        "conflict_policy": conflict_policy,
+        "proposed_slot1": proposed1,
+        "proposed_slot2": proposed2,
+        "added": added,
+        "restart_required": True,
+        "can_apply": apply_error is None,
+        "apply_error": apply_error,
+    }
+    return preview, plan
+
+
+@app.post("/api/servers/<server_id>/workshop/rotation/preview")
+@requires_login("admin")
+def api_workshop_rotation_preview(server_id: str):
+    server = _find_server_in_unified_view(server_id)
+    if server is None:
+        return jsonify({"success": False, "error": "Server not found."}), 404
+    if str(server.get("location") or "").lower() == "remote":
+        return jsonify({"success": False, "error": "Remote-member Workshop mutation is unavailable."}), 409
+    payload = request.get_json(force=True, silent=True) or {}
+    try:
+        preview, _ = _workshop_preview_payload(server_id, payload)
+    except KeyError as error:
+        return jsonify({"success": False, "error": str(error).strip("'")}), 404
+    except ValueError as error:
+        return jsonify({"success": False, "error": str(error)}), 409
+    return jsonify({"success": True, "preview": preview})
 
 
 @app.post("/api/servers/<server_id>/workshop/rotation")
@@ -6432,9 +6534,14 @@ def api_workshop_add_to_rotation(server_id: str):
     payload = request.get_json(force=True, silent=True) or {}
     item_id = str(payload.get("item_id") or "").strip()
     placement = str(payload.get("placement") or "first_available").strip()
+    conflict_policy = str(payload.get("conflict_policy") or "error").strip().lower()
+    actor = str(session.get("username") or "unknown")
+    correlation_id = str(getattr(g, "correlation_id", uuid.uuid4()))
     try:
-        library = _workshop_library(server_id)
-        mission_names = library.copy_item_to_missions(item_id)
+        preview, plan = _workshop_preview_payload(server_id, payload)
+        if not preview["can_apply"]:
+            raise ValueError(str(preview["apply_error"]))
+        replacements, mission_names = plan.replacements(conflict_policy)
         config_data, slot1, slot2 = _workshop_slots_for_server(server_id)
         slot1, slot2, added = _place_workshop_missions(mission_names, slot1, slot2, placement)
         updates = {
@@ -6445,36 +6552,71 @@ def api_workshop_add_to_rotation(server_id: str):
             "mission2_name": slot2.get("name") or "",
             "mission2_max_time": slot2.get("max_time"),
         }
-        _update_server_fields(server_id, updates)
-        config_data = _apply_mission_slots_to_config(config_data, slot1, slot2)
-        saved = _dedicated_config_save_local(
-            server_id,
-            config_data,
-            change_summary="Added local Workshop mission to the current rotation",
-        )
-        AUDIT_SERVICE.record(
-            actor=str(session.get("username") or "unknown"),
-            action="workshop.rotation.updated",
-            correlation_id=str(getattr(g, "correlation_id", uuid.uuid4())),
-            scope_type="server",
-            server_id=server_id,
-            target_type="workshop_item",
-            target_id=item_id,
-            summary="Added local Workshop content to the current mission rotation",
-            request_payload={"placement": placement, "mission_names": added},
-        )
+        previous_config = json.loads(json.dumps(config_data))
+        proposed_config = _apply_mission_slots_to_config(config_data, slot1, slot2)
+        replacements[_config_path(server_id)] = (json.dumps(proposed_config, indent=2) + "\n").encode("utf-8")
+        servers = load_servers()
+        updated_server = None
+        for entry in servers:
+            if isinstance(entry, dict) and str(entry.get("id") or "") == server_id:
+                entry.update(updates)
+                updated_server = entry
+                break
+        if updated_server is None:
+            raise KeyError(f"Unknown server_id: {server_id}")
+        disk_servers = [
+            encrypt_fields(entry, _server_secret_fields(), BASE_DIR) if isinstance(entry, dict) else entry
+            for entry in servers
+        ]
+        replacements[_servers_file_path()] = json.dumps({"servers": disk_servers}, indent=2).encode("utf-8")
+
+        def persist_metadata():
+            AUDIT_SERVICE.record(
+                actor=actor,
+                action="workshop.rotation.updated",
+                correlation_id=correlation_id,
+                scope_type="server",
+                server_id=server_id,
+                target_type="workshop_item",
+                target_id=item_id,
+                summary="Added local Workshop content to the current mission rotation",
+                request_payload={
+                    "placement": placement,
+                    "mission_names": added,
+                    "conflict_policy": conflict_policy,
+                    "missing_child_ids": plan.missing_child_ids,
+                    "partial_collection_acknowledged": plan.partial_acknowledged,
+                },
+            )
+            return _record_config_change(
+                "dedicated_server_config",
+                server_id,
+                previous_config,
+                proposed_config,
+                actor=actor,
+                correlation_id=correlation_id,
+                change_summary="Added local Workshop mission to the current rotation",
+                restart_required=True,
+            )
+
+        version = _config_version_storage.apply_compensating_file_mutation(replacements, persist_metadata)
+        _SERVERS_VIEW_CACHE[server_id] = updated_server
+        _workshop_storage.invalidate_workshop_cache()
+        saved = {"config_version": version}
     except KeyError as error:
         return jsonify({"success": False, "error": str(error).strip("'")}), 404
     except ValueError as error:
         return jsonify({"success": False, "error": str(error)}), 409
     except (OSError, json.JSONDecodeError) as error:
-        return jsonify({"success": False, "error": f"Could not update the local library: {error}"}), 500
+        return _config_mutation_failure(error)
+    except Exception as error:  # noqa: BLE001 - compensation reports the precise failure state
+        return _config_mutation_failure(error)
     return jsonify(
         {
             "success": True,
             "added": added,
             "copied": mission_names,
-            "remaining": [name for name in mission_names if name not in added],
+            "remaining": [],
             "slot1": slot1,
             "slot2": slot2,
             "config_version": saved.get("config_version"),
