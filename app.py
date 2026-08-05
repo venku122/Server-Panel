@@ -735,8 +735,6 @@ SERVER_VIEW_STALE_MAX_AGE_SEC = _bounded_float_config(
 )
 
 
-
-
 def _find_server_by_id(server_id: Optional[str]) -> Optional[dict]:
     """Safe local server lookup. Returns None when server_id is unknown."""
     try:
@@ -1797,10 +1795,12 @@ GLOBAL_PANEL_ROLES = {
 
 def _panel_servers_for_routes() -> list[dict]:
     warnings: list[str] = []
-    servers = _build_servers_view(
-        remote_timeout=SERVER_ROUTE_REMOTE_TIMEOUT_SEC,
-        warnings=warnings,
-    ) or []
+    servers = (
+        _build_servers_view(
+            remote_timeout=SERVER_ROUTE_REMOTE_TIMEOUT_SEC, warnings=warnings
+        )
+        or []
+    )
     _cache_servers_view(servers)
     g.server_view_warnings = warnings
     return servers
