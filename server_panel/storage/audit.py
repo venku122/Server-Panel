@@ -11,7 +11,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 from .db import Repository
 
@@ -446,14 +446,17 @@ class AuditService:
         cursor: str | None = None,
         limit: int = 50,
     ) -> list[dict[str, Any]]:
-        return self.list_events_page(
-            server_id=server_id,
-            outcome=outcome,
-            actor=actor,
-            action=action,
-            cursor=cursor,
-            limit=limit,
-        )["events"]
+        return cast(
+            list[dict[str, Any]],
+            self.list_events_page(
+                server_id=server_id,
+                outcome=outcome,
+                actor=actor,
+                action=action,
+                cursor=cursor,
+                limit=limit,
+            )["events"],
+        )
 
     def list_events_page(
         self,
