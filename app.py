@@ -5558,15 +5558,9 @@ def _sync_workshop_on_this_node(
     output = list(result.get("output") or [])
     if context:
         context.checkpoint("Updating local server mission directories.", current=2, total=2)
-    local_servers = [
-        server
-        for server in load_servers()
-        if str(server.get("location") or "").lower() != "remote"
-    ]
+    local_servers = [server for server in load_servers() if str(server.get("location") or "").lower() != "remote"]
     if selected_server_id:
-        local_servers = [
-            server for server in local_servers if str(server.get("id") or "") == selected_server_id
-        ]
+        local_servers = [server for server in local_servers if str(server.get("id") or "") == selected_server_id]
         if not local_servers:
             raise RuntimeError("The selected server is not installed on this node.")
     elif not all_servers:
