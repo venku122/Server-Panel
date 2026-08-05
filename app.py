@@ -56,6 +56,7 @@ import urllib.request
 import secrets
 import uuid
 import traceback
+from concurrent.futures import ThreadPoolExecutor, wait
 from pathlib import Path
 from functools import wraps
 from typing import Optional, Tuple
@@ -371,7 +372,7 @@ def _fw_cleanup_stale_panel_rules() -> tuple[int, int, list[str]]:
 
 import psutil
 import socket
-from flask import Flask, jsonify, request, Response, render_template, session, redirect, url_for, abort
+from flask import Flask, jsonify, request, Response, render_template, session, redirect, url_for, abort, g
 
 # Cluster (LAN)
 from cluster import ClusterDiscovery, ClusterState, DISCOVERY_PORT, best_effort_local_ip, http_post_json
@@ -714,6 +715,24 @@ def get_server_by_id(server_id: Optional[str]) -> dict:
 # remote servers. The UI still has those server_ids selected, so remote actions
 # should fall back to the last known mapping.
 _SERVERS_VIEW_CACHE: dict[str, dict] = {}
+_SERVERS_VIEW_CACHE_UPDATED_AT: dict[str, float] = {}
+_SERVERS_VIEW_CACHE_MAX_ITEMS = 512
+
+
+def _bounded_float_config(name: str, default: float, minimum: float, maximum: float) -> float:
+    try:
+        value = float(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, min(maximum, value))
+
+
+SERVER_ROUTE_REMOTE_TIMEOUT_SEC = _bounded_float_config(
+    "NO_PANEL_ROUTE_REMOTE_TIMEOUT_SEC", 1.5, 0.25, 3.0
+)
+SERVER_VIEW_STALE_MAX_AGE_SEC = _bounded_float_config(
+    "NO_PANEL_SERVER_VIEW_STALE_MAX_AGE_SEC", 300.0, 5.0, 3600.0
+)
 
 
 
@@ -727,11 +746,44 @@ def _find_server_by_id(server_id: Optional[str]) -> Optional[dict]:
 
 def _cache_servers_view(items: list[dict]) -> None:
     """Cache servers by id for remote proxy lookups."""
-    global _SERVERS_VIEW_CACHE
+    now = time.monotonic()
     for s in items or []:
         sid = str(s.get("id") or "").strip()
-        if sid:
-            _SERVERS_VIEW_CACHE[sid] = s
+        if sid and not s.get("stale"):
+            _SERVERS_VIEW_CACHE[sid] = dict(s)
+            _SERVERS_VIEW_CACHE_UPDATED_AT[sid] = now
+
+    overflow = len(_SERVERS_VIEW_CACHE) - _SERVERS_VIEW_CACHE_MAX_ITEMS
+    if overflow > 0:
+        oldest = sorted(
+            _SERVERS_VIEW_CACHE,
+            key=lambda key: _SERVERS_VIEW_CACHE_UPDATED_AT.get(key, 0.0),
+        )[:overflow]
+        for sid in oldest:
+            _SERVERS_VIEW_CACHE.pop(sid, None)
+            _SERVERS_VIEW_CACHE_UPDATED_AT.pop(sid, None)
+
+
+def _cached_remote_servers_for_member(node_id: str) -> list[dict]:
+    now = time.monotonic()
+    cached: list[dict] = []
+    for sid, server in list(_SERVERS_VIEW_CACHE.items()):
+        if str(server.get("location") or "") != "remote":
+            continue
+        if str(server.get("node_id") or "") != node_id:
+            continue
+        age = max(0.0, now - _SERVERS_VIEW_CACHE_UPDATED_AT.get(sid, 0.0))
+        if age > SERVER_VIEW_STALE_MAX_AGE_SEC:
+            continue
+        item = dict(server)
+        item.update(
+            stale=True,
+            available=False,
+            availability="unavailable",
+            cache_age_seconds=round(age, 1),
+        )
+        cached.append(item)
+    return cached
 
 def _path_is_within(child_path: Optional[str], parent_dir: Optional[str]) -> bool:
     """Return True only when child_path is inside parent_dir (not just string-prefix matching)."""
@@ -1733,24 +1785,42 @@ GLOBAL_PANEL_PAGES = {
     "about": "about",
 }
 
+GLOBAL_PANEL_ROLES = {
+    "deployment": "admin",
+    "ports": "admin",
+    "users": "admin",
+    "cluster": "admin",
+    "integrations/discord": "admin",
+    "about": None,
+}
+
 
 def _panel_servers_for_routes() -> list[dict]:
-    servers = _build_servers_view() or []
+    warnings: list[str] = []
+    servers = _build_servers_view(
+        remote_timeout=SERVER_ROUTE_REMOTE_TIMEOUT_SEC,
+        warnings=warnings,
+    ) or []
     _cache_servers_view(servers)
+    g.server_view_warnings = warnings
     return servers
 
 
 def _render_global_servers(error: Optional[str] = None, status: int = 200):
+    warnings: list[str] = []
     try:
         servers = _panel_servers_for_routes()
-    except Exception:
-        servers = []
-        error = error or "The server list could not be loaded. Retry this page."
+        warnings = list(getattr(g, "server_view_warnings", []))
+    except Exception as exc:
+        servers = _local_servers_view()
+        warnings = [f"Remote server status is unavailable: {exc}"]
+        error = error or "The complete server list could not be loaded. Local servers remain available."
         status = 503
     return (
         render_template(
             "servers.html",
             servers=servers,
+            server_view_warnings=warnings,
             page_error=error,
             current_user=session.get("username"),
             current_role=session.get("role"),
@@ -1766,6 +1836,7 @@ def _render_panel_shell(
     server_section: Optional[str] = None,
 ):
     servers = _panel_servers_for_routes()
+    server_view_warnings = list(getattr(g, "server_view_warnings", []))
     current_server = None
     page_scope = "global"
     if server_id is not None:
@@ -1791,6 +1862,7 @@ def _render_panel_shell(
         current_server=current_server,
         server_section=server_section,
         servers=servers,
+        server_view_warnings=server_view_warnings,
     )
 
 
@@ -1825,19 +1897,49 @@ def server_section(server_id: str, section: str):
     )
 
 
-@app.get("/deployment")
-@app.get("/ports")
-@app.get("/users")
-@app.get("/cluster")
-@app.get("/integrations/discord")
-@app.get("/about")
-@requires_login()
-def global_panel_page():
-    route_key = request.path.lstrip("/")
+def _render_global_panel_page(route_key: str):
     active_page = GLOBAL_PANEL_PAGES.get(route_key)
     if active_page is None:
         return abort(404)
+    if GLOBAL_PANEL_ROLES.get(route_key) == "admin" and session.get("role") != "admin":
+        return Response("Admin access required.", 403)
     return _render_panel_shell(active_page)
+
+
+@app.get("/deployment")
+@requires_login()
+def deployment_page():
+    return _render_global_panel_page("deployment")
+
+
+@app.get("/ports")
+@requires_login()
+def ports_page():
+    return _render_global_panel_page("ports")
+
+
+@app.get("/users")
+@requires_login()
+def users_page():
+    return _render_global_panel_page("users")
+
+
+@app.get("/cluster")
+@requires_login()
+def cluster_page():
+    return _render_global_panel_page("cluster")
+
+
+@app.get("/integrations/discord")
+@requires_login()
+def discord_page():
+    return _render_global_panel_page("integrations/discord")
+
+
+@app.get("/about")
+@requires_login()
+def about_page():
+    return _render_global_panel_page("about")
 
 
 # ----- Ports API (Ports tab: Game/Query editor) -----
@@ -2887,46 +2989,104 @@ def api_list_servers():
     return jsonify({"success": True, "servers": servers})
 
 
-def _build_servers_view() -> list[dict]:
+def _local_servers_view() -> list[dict]:
+    """Build the local part of the server view without cluster network I/O."""
+    local: list[dict] = []
+    this_nid = _this_node_id() if cluster_state.is_enabled() else ""
+    for server in load_servers():
+        server_dir = _server_install_dir_for(server)
+        sid = str(server.get("id") or "")
+        if not sid:
+            continue
+        local.append(
+            {
+                "id": sid,
+                "name": server.get("name"),
+                "install_dir": server.get("install_dir"),
+                "remote_commands_port": server.get("remote_commands_port"),
+                "running": _is_server_running(server_dir),
+                "node_id": str(server.get("node_id") or this_nid or ""),
+                "location": "local",
+                "stale": False,
+                "available": True,
+                "availability": "available",
+            }
+        )
+    return local
+
+
+def _build_servers_view(
+    *,
+    remote_timeout: Optional[float] = None,
+    warnings: Optional[list[str]] = None,
+) -> list[dict]:
     """Build the unified server list used for pills.
 
     Local servers are always included. If this node is the coordinator, it will
     also include member-local servers via signed cluster calls.
     """
-    out_map: dict[str, dict] = {}
-    this_nid = _this_node_id() if cluster_state.is_enabled() else ""
-
-    for s in load_servers():
-        server_dir = _server_install_dir_for(s)
-        sid = str(s.get("id") or "")
-        if not sid:
-            continue
-        out_map[sid] = {
-            "id": sid,
-            "name": s.get("name"),
-            "install_dir": s.get("install_dir"),
-            "remote_commands_port": s.get("remote_commands_port"),
-            "running": _is_server_running(server_dir),
-            "node_id": str(s.get("node_id") or this_nid or ""),
-            "location": "local",
-        }
+    out_map = {str(server["id"]): server for server in _local_servers_view()}
 
     if cluster_state.is_enabled() and cluster_state.is_coordinator():
-        try:
-            for mem in list(cluster_state.state.get("members", [])):
-                nid = str(mem.get("node_id") or "")
-                resp = _cluster_signed_post_to_member(mem, "/api/cluster/servers/list_local", {}, timeout=10)
-                if not isinstance(resp, dict) or not resp.get("success"):
-                    continue
-                for srv in resp.get("servers", []) or []:
-                    sid = str(srv.get("id") or "")
+        members = list(cluster_state.state.get("members", []))
+        timeout = 10.0 if remote_timeout is None else max(0.1, float(remote_timeout))
+        executor = ThreadPoolExecutor(max_workers=max(1, min(8, len(members))))
+        requests = [
+            (
+                member,
+                executor.submit(
+                    _cluster_signed_post_to_member,
+                    member,
+                    "/api/cluster/servers/list_local",
+                    {},
+                    timeout,
+                ),
+            )
+            for member in members
+        ]
+        done, pending = wait(
+            [future for _member, future in requests],
+            timeout=timeout + 0.1,
+        )
+        for future in pending:
+            future.cancel()
+
+        for member, future in requests:
+            nid = str(member.get("node_id") or "")
+            label = str(member.get("node_name") or member.get("name") or nid or "remote member")
+            response: dict = {}
+            if future in done:
+                try:
+                    candidate = future.result()
+                    if isinstance(candidate, dict):
+                        response = candidate
+                except Exception as exc:
+                    response = {"success": False, "error": str(exc)}
+
+            if response.get("success"):
+                for remote in response.get("servers", []) or []:
+                    if not isinstance(remote, dict):
+                        continue
+                    sid = str(remote.get("id") or "")
                     if not sid:
                         continue
-                    srv["node_id"] = str(srv.get("node_id") or nid)
-                    srv["location"] = "remote"
-                    out_map[sid] = srv
-        except Exception:
-            pass
+                    item = dict(remote)
+                    item.update(
+                        node_id=str(item.get("node_id") or nid),
+                        location="remote",
+                        stale=False,
+                        available=True,
+                        availability="available",
+                    )
+                    out_map[sid] = item
+                continue
+
+            if warnings is not None:
+                warnings.append(f"{label} is unavailable; cached server state may be shown.")
+            for cached in _cached_remote_servers_for_member(nid):
+                out_map[str(cached["id"])] = cached
+
+        executor.shutdown(wait=False, cancel_futures=True)
 
     return list(out_map.values())
 

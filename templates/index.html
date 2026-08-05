@@ -53,12 +53,12 @@
           </a>
         {% else %}
           <a class="nav-item" href="{{ url_for('servers_index') }}"><span class="dot"></span> Servers</a>
-          <a class="nav-item{% if active_page == 'manage' %} active{% endif %}" data-page="manage" href="/deployment"><span class="dot"></span> Deployment</a>
-          <a class="nav-item{% if active_page == 'ports' %} active{% endif %}" data-page="ports" href="/ports"><span class="dot"></span> Ports</a>
-          <a class="nav-item{% if active_page == 'cluster' %} active{% endif %}" data-page="cluster" href="/cluster"><span class="dot"></span> Cluster Setup</a>
-          <a class="nav-item{% if active_page == 'users' %} active{% endif %}" data-page="users" href="/users"><span class="dot"></span> Panel Users</a>
-          <a class="nav-item{% if active_page == 'discord' %} active{% endif %}" data-page="discord" href="/integrations/discord"><span class="dot"></span> Discord Bot</a>
-          <a class="nav-item{% if active_page == 'about' %} active{% endif %}" data-page="about" href="/about"><span class="dot"></span> About</a>
+          <a class="nav-item{% if active_page == 'manage' %} active{% endif %}" data-page="manage" href="{{ url_for('deployment_page') }}"><span class="dot"></span> Deployment</a>
+          <a class="nav-item{% if active_page == 'ports' %} active{% endif %}" data-page="ports" href="{{ url_for('ports_page') }}"><span class="dot"></span> Ports</a>
+          <a class="nav-item{% if active_page == 'cluster' %} active{% endif %}" data-page="cluster" href="{{ url_for('cluster_page') }}"><span class="dot"></span> Cluster Setup</a>
+          <a class="nav-item{% if active_page == 'users' %} active{% endif %}" data-page="users" href="{{ url_for('users_page') }}"><span class="dot"></span> Panel Users</a>
+          <a class="nav-item{% if active_page == 'discord' %} active{% endif %}" data-page="discord" href="{{ url_for('discord_page') }}"><span class="dot"></span> Discord Bot</a>
+          <a class="nav-item{% if active_page == 'about' %} active{% endif %}" data-page="about" href="{{ url_for('about_page') }}"><span class="dot"></span> About</a>
         {% endif %}
       </nav>
 
@@ -82,7 +82,7 @@
           <a class="scope-back-link" href="{{ url_for('servers_index') }}">View all servers</a>
         {% endif %}
         <div class="hint">
-          Logged in as <span id="current-user" class="mono"></span> • <a class="link" href="/logout">Logout</a>
+          Logged in as <span id="current-user" class="mono"></span> • <a class="link" href="{{ url_for('logout') }}">Logout</a>
         </div>
       </div>
     </aside>
