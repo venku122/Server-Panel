@@ -6454,6 +6454,8 @@ def _place_workshop_missions(
         available = int(not str(updated1.get("name") or "").strip()) + int(
             not str(updated2.get("name") or "").strip()
         )
+        if available == 0:
+            raise ValueError("The current two-slot rotation is full. Choose a slot to replace.")
         if len(candidates) > available:
             raise ValueError(
                 f"The item contains {len(candidates)} missions but the current rotation has only {available} open slots."
