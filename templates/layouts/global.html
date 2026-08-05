@@ -9,7 +9,7 @@
             {{ global_navigation(active_page) }}
             <div class="sidebar-foot">
                 <div class="scope-label">Panel-wide view</div>
-                <div class="hint">Logged in as <span id="current-user" class="mono">{% if current_user %}{{ current_user }}{% if current_role %} ({{ current_role }}){% endif %}{% endif %}</span> • <a class="link" href="{{ url_for('logout') }}">Logout</a></div>
+                <div class="hint">Logged in as <span id="current-user" class="mono">{% if current_user %}{{ current_user }}{% if current_role %} ({{ current_role }}){% endif %}{% endif %}</span> • <a class="link" href="{{ url_for("logout") }}">Logout</a></div>
             </div>
         </aside>
         <main class="main global-main" id="main-content">

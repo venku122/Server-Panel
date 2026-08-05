@@ -10,7 +10,7 @@
             {{ server_navigation(active_page, current_server) }}
             <div class="sidebar-foot">
                 {{ server_switcher(servers, current_server, server_section) }}
-                <div class="hint">Logged in as <span id="current-user" class="mono"></span> • <a class="link" href="{{ url_for('logout') }}">Logout</a></div>
+                <div class="hint">Logged in as <span id="current-user" class="mono"></span> • <a class="link" href="{{ url_for("logout") }}">Logout</a></div>
             </div>
         </aside>
         <main class="main" id="main-content">
