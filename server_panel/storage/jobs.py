@@ -936,7 +936,9 @@ class JobWorker:
                     "The worker could not persist this job's terminal state; recovery will mark it interrupted after lease expiry.",
                 )
             except Exception as diagnostic_error:  # noqa: BLE001 - best-effort diagnostic only
-                LOGGER.warning("Could not append finalization-failure diagnostic for job %s: %s", job.id, diagnostic_error)
+                LOGGER.warning(
+                    "Could not append finalization-failure diagnostic for job %s: %s", job.id, diagnostic_error
+                )
             return True
         if self.on_terminal is not None:
             try:
