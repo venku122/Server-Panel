@@ -1,10 +1,25 @@
 {% extends "base.html" %}
-{% from "components/navigation.html" import brand, global_navigation, global_settings_navigation %}
+{% from "components/navigation.html" import brand, global_navigation, global_settings_navigation, global_bottom_navigation %}
 {% from "components/page_header.html" import global_page_header %}
 {% block body_class %}panel-page global-page{% endblock %}
 {% block body %}
     <div class="shell global-shell">
-        <aside class="sidebar" aria-label="Panel sidebar">
+        <header class="mobile-appbar">
+            <span class="mobile-context"><span class="scope-kicker">Panel</span><strong>{{ page_title }}</strong></span>
+            <button class="icon-button"
+                    type="button"
+                    data-open-find
+                    aria-label="Find servers and pages">⌕</button>
+        </header>
+        <button class="sidebar-backdrop"
+                type="button"
+                data-sidebar-close
+                aria-label="Close navigation"
+                hidden></button>
+        <aside class="sidebar"
+               id="panel-sidebar"
+               aria-label="Panel sidebar"
+               tabindex="-1">
             <div class="sidebar-head">
                 {{ brand() }}<button class="sidebar-collapse"
         id="sidebar-collapse"
@@ -12,6 +27,7 @@
         aria-label="Collapse sidebar"
         aria-expanded="true">‹</button>
             </div>
+            <button class="btn ghost sidebar-close" type="button" data-sidebar-close>Close</button>
             {{ global_navigation(active_page) }}
             <div class="sidebar-foot">
                 <div class="scope-label">Panel scope</div>
@@ -28,6 +44,7 @@
                  class="notice page-status"
                  role="status"
                  aria-live="polite"
+                 tabindex="-1"
                  hidden></div>
             {% if active_page in ('ports', 'cluster', 'users', 'discord', 'about') %}
                 <div class="settings-layout">
@@ -43,9 +60,31 @@
         {% if active_page in ('ports', 'cluster', 'users', 'discord', 'about') %}</div>{% endif %}
     </main>
     </div>
+    {{ global_bottom_navigation(active_page) }}
+    <aside class="mobile-drawer"
+           id="more-drawer"
+           role="dialog"
+           aria-modal="true"
+           aria-labelledby="more-drawer-title"
+           hidden>
+        <header>
+            <div>
+                <span class="eyebrow">Panel</span>
+                <h2 id="more-drawer-title">More</h2>
+            </div>
+            <button class="icon-button"
+                    type="button"
+                    data-close-drawer
+                    aria-label="Close More">×</button>
+        </header>
+        <nav class="drawer-nav" aria-label="More panel navigation">
+            <a href="/deployment">Deployment</a><a href="/settings">Settings</a><a href="{{ url_for('logout') }}">Log out {{ current_user or '' }}</a>
+        </nav>
+    </aside>
     {% include "components/shell_overlays.html" %}
 {% endblock %}
 {% block scripts %}
+    <script defer src="{{ url_for('static', filename='js/core/navigation.js') }}"></script>
     {% if load_panel_script %}
         <script>window.NO_ALLOWED_PORTS = {{ allowed_ports|default([], true)|tojson }}; window.NO_PANEL_CONTEXT = {scope: "global", serverId: null, activePage: {{ active_page|tojson }}, serversPath: {{ url_for('servers_index')|tojson }}};</script>
         <script defer src="{{ url_for('static', filename='app.js') }}?v=20260811ux"></script>
