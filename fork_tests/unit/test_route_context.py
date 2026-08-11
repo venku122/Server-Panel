@@ -5,18 +5,16 @@ def test_route_maps_keep_global_and_server_sections_disjoint(panel_module) -> No
     assert panel_module.SERVER_SECTION_PAGES == {
         "operations": "control",
         "players": "bans",
-        "moderation": "moderation",
+        "recordings": "noblackbox",
         "settings": "server",
-        "noblackbox": "noblackbox",
-        "gallery": "gallery",
     }
     assert panel_module.GLOBAL_PANEL_PAGES == {
         "deployment": "manage",
-        "ports": "ports",
-        "users": "users",
-        "cluster": "cluster",
-        "integrations/discord": "discord",
-        "about": "about",
+        "settings/ports": "ports",
+        "settings/users": "users",
+        "settings/cluster": "cluster",
+        "settings/discord": "discord",
+        "settings/about": "about",
     }
     assert set(panel_module.SERVER_SECTION_PAGES).isdisjoint(panel_module.GLOBAL_PANEL_PAGES)
 

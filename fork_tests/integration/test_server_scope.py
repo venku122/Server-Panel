@@ -32,10 +32,10 @@ def test_each_server_route_derives_context_from_url(client) -> None:
         "/servers/alpha-operations": "dashboard",
         "/servers/alpha-operations/operations": "control",
         "/servers/alpha-operations/players": "bans",
-        "/servers/alpha-operations/moderation": "moderation",
+        "/servers/alpha-operations/players/moderation": "moderation",
         "/servers/alpha-operations/settings": "server",
-        "/servers/alpha-operations/noblackbox": "noblackbox",
-        "/servers/alpha-operations/gallery": "gallery",
+        "/servers/alpha-operations/recordings": "noblackbox",
+        "/servers/alpha-operations/recordings/gallery": "gallery",
     }
     for route, page in routes.items():
         response = client.get(route)
@@ -51,11 +51,11 @@ def test_each_server_route_derives_context_from_url(client) -> None:
 def test_global_routes_never_inherit_a_server_target(client) -> None:
     routes = {
         "/deployment": "manage",
-        "/ports": "ports",
-        "/users": "users",
-        "/cluster": "cluster",
-        "/integrations/discord": "discord",
-        "/about": "about",
+        "/settings/ports": "ports",
+        "/settings/users": "users",
+        "/settings/cluster": "cluster",
+        "/settings/discord": "discord",
+        "/settings/about": "about",
     }
     for route, page in routes.items():
         response = client.get(route)
@@ -181,7 +181,7 @@ def test_remote_failure_is_not_rendered_as_an_empty_healthy_cluster(
 
 @pytest.mark.parametrize(
     "path",
-    ["/deployment", "/ports", "/users", "/cluster", "/integrations/discord"],
+    ["/deployment", "/settings/ports", "/settings/users", "/settings/cluster", "/settings/discord"],
 )
 def test_non_admin_cannot_render_admin_global_pages(
     panel_module,
@@ -200,12 +200,21 @@ def test_non_admin_can_render_non_admin_global_pages(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(panel_module, "_panel_servers_for_routes", lambda: managed_servers)
-    response = _authenticated_client(panel_module, role="mod").get("/about")
+    response = _authenticated_client(panel_module, role="mod").get("/settings/about")
     assert response.status_code == 200
 
 
 def test_global_navigation_uses_named_route_outputs(client) -> None:
     html = client.get("/servers").get_data(as_text=True)
-    for path in ("/deployment", "/ports", "/users", "/cluster", "/integrations/discord", "/about"):
+    for path in ("/deployment", "/settings/ports"):
         assert f'href="{path}"' in html
+    settings_html = client.get("/settings/ports").get_data(as_text=True)
+    for path in (
+        "/settings/ports",
+        "/settings/users",
+        "/settings/cluster",
+        "/settings/discord",
+        "/settings/about",
+    ):
+        assert f'href="{path}"' in settings_html
     assert 'href="/logout"' in html
