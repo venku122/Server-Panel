@@ -1918,7 +1918,7 @@ SERVER_PAGE_REGISTRY = {
             sibling_group="players",
             compatibility_paths=("/moderation",),
         ),
-        PageSpec("workshop", "Workshop", "/workshop", None),
+        PageSpec("workshop", "Workshop", "/workshop", "workshop", "admin"),
         PageSpec("activity", "Activity", "/activity", "activity", "admin", global_peer="activity"),
         PageSpec("jobs", "Jobs", "/jobs", "jobs", "admin", global_peer="jobs"),
         PageSpec(
@@ -2398,6 +2398,7 @@ def _render_server_registry_page(server_id: str, page_key: str):
         "settings-history": "configuration-history",
         "activity": "activity",
         "jobs": "jobs",
+        "workshop": "workshop",
     }
     page = SERVER_SECTION_PAGES.get(section_keys.get(page_key, ""))
     if page is None:
@@ -2464,6 +2465,7 @@ def server_section(server_id: str, section: str):
         "configuration-history": "settings-history",
         "activity": "activity",
         "jobs": "jobs",
+        "workshop": "workshop",
     }
     page_key = aliases.get(section)
     if page_key is None:
