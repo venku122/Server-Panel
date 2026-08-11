@@ -1,0 +1,8 @@
+{% extends "layouts/global.html" %}
+{% from "components/timeline.html" import audit_filters, audit_health, audit_pagination, audit_timeline %}
+{% block panel_content %}
+    {{ audit_health(audit_mirror_status) }}
+    {{ audit_filters(activity_filters, activity_outcomes, servers, none, activity_filter_chips) }}
+    {{ audit_timeline(activity_events) }}
+    {{ audit_pagination(activity_pagination) }}
+{% endblock %}

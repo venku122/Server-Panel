@@ -1,0 +1,216 @@
+{% from "components/primitives.html" import sheet %}
+{% macro audit_filters(filters, outcomes, servers=[], current_server=none, chips=[]) -%}
+    <form class="audit-toolbar" method="get" aria-label="Filter activity">
+        <label class="audit-search">
+            <span class="sr-only">Search activity</span>
+            <span aria-hidden="true">⌕</span>
+            <input type="search"
+                   name="q"
+                   value="{{ filters.q }}"
+                   placeholder="Search Activity"
+                   autocomplete="off">
+        </label>
+        {% if current_server %}
+            <span class="audit-scope-control" title="Activity is scoped by this URL">
+                <span class="status-dot{% if current_server.running %} running{% endif %}"
+                      aria-hidden="true"></span>
+                {{ current_server.name }}
+            </span>
+        {% else %}
+            <label>
+                <span class="sr-only">Server</span>
+                <select name="server_id" aria-label="Server">
+                    <option value="">All Servers</option>
+                    {% for server in servers %}
+                        <option value="{{ server.id }}"
+                                {% if filters.server_id == server.id %}selected{% endif %}>{{ server.name }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+        {% endif %}
+        <label>
+            <span class="sr-only">Outcome</span>
+            <select name="outcome" aria-label="Outcome">
+                <option value="">Outcome</option>
+                {% for outcome in outcomes %}
+                    <option value="{{ outcome }}"
+                            {% if filters.outcome == outcome %}selected{% endif %}>{{ outcome|title }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            <span class="sr-only">Action</span>
+            <input name="action"
+                   value="{{ filters.action }}"
+                   placeholder="Action"
+                   aria-label="Action">
+        </label>
+        <label>
+            <span class="sr-only">Actor</span>
+            <input name="actor"
+                   value="{{ filters.actor }}"
+                   placeholder="Actor"
+                   aria-label="Actor">
+        </label>
+        <label>
+            <span class="sr-only">Time</span>
+            <select name="time" aria-label="Time">
+                <option value="">Any time</option>
+                <option value="1h" {% if filters.time == '1h' %}selected{% endif %}>Last hour</option>
+                <option value="24h" {% if filters.time == '24h' %}selected{% endif %}>Last 24 hours</option>
+                <option value="7d" {% if filters.time == '7d' %}selected{% endif %}>Last 7 days</option>
+                <option value="30d" {% if filters.time == '30d' %}selected{% endif %}>Last 30 days</option>
+            </select>
+        </label>
+        <button class="btn primary" type="submit">Apply</button>
+    </form>
+    {% if current_server or chips %}
+        <div class="audit-chips" aria-label="Active filters">
+            {% if current_server %}
+                <span class="filter-chip filter-chip--locked">Server: {{ current_server.name }} <span aria-hidden="true">⌁</span></span>
+            {% endif %}
+            {% for chip in chips %}
+                <a class="filter-chip"
+                   href="{{ chip.remove_url }}"
+                   aria-label="Remove {{ chip.label }} filter: {{ chip.value }}">{{ chip.label }}: {{ chip.value }} <span aria-hidden="true">×</span></a>
+            {% endfor %}
+            {% if chips %}<a class="audit-clear" href="{{ request.path }}">Clear filters</a>{% endif %}
+        </div>
+    {% endif %}
+{%- endmacro %}
+{% macro audit_health(mirror) -%}
+    {% if mirror.degraded %}
+        <div class="note note--warning" role="status">
+            <strong>Compatibility mirror degraded.</strong>
+            <span>SQLite history is intact. {{ mirror.failure_count }} JSONL mirror operation(s) failed{% if mirror.last_failed_at %}, most recently {{ mirror.last_failed_at }}{% endif %}.</span>
+        </div>
+    {% endif %}
+{%- endmacro %}
+{% macro audit_timeline(events) -%}
+    {% if events %}
+        <div class="audit-list-wrap">
+            <table class="audit-list">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Outcome</th>
+                        <th>Action</th>
+                        <th>Target / Server</th>
+                        <th>Actor</th>
+                        <th>Summary</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in events %}
+                        <tr id="activity-row-{{ event.id }}"
+                            tabindex="0"
+                            role="button"
+                            aria-label="Inspect {{ event.action_label }} activity"
+                            data-open-sheet="activity-detail-{{ event.id }}">
+                            <td><time datetime="{{ event.created_at }}" data-relative-time>{{ event.created_at }}</time></td>
+                            <td><span class="audit-outcome audit-outcome--{{ event.outcome }}"><span class="status-dot" aria-hidden="true"></span>{{ event.outcome }}</span></td>
+                            <td><strong>{{ event.action_label }}</strong><small class="mono">{{ event.action }}</small></td>
+                            <td><span>{{ event.target_label }}</span>{% if event.server_id and event.target_label != event.server_id %}<small class="mono">{{ event.server_id }}</small>{% endif %}</td>
+                            <td class="mono">{{ event.actor }}</td>
+                            <td><span class="audit-summary-cell" title="{{ event.summary }}">{{ event.summary }}</span></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% for event in events %}
+            {% call sheet('activity-detail-' ~ event.id, event.action_label) %}
+                <div class="sheet-status-line">
+                    <span class="audit-outcome audit-outcome--{{ event.outcome }}"><span class="status-dot" aria-hidden="true"></span>{{ event.outcome }}</span>
+                    <time datetime="{{ event.created_at }}" data-relative-time>{{ event.created_at }}</time>
+                </div>
+                <p class="sheet-summary">{{ event.summary }}</p>
+                <dl class="audit-identifiers">
+                    <div>
+                        <dt>Action</dt>
+                        <dd class="mono">
+                            {{ event.action }}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt>Actor</dt>
+                        <dd class="mono">
+                            {{ event.actor }}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt>Target</dt>
+                        <dd>
+                            {{ event.target_label }}
+                        </dd>
+                    </div>
+                    <div><dt>Scope</dt><dd>{{ event.scope_type }}{% if event.server_id %} / <span class="mono">{{ event.server_id }}</span>{% endif %}</dd></div>
+                    <div>
+                        <dt>Correlation ID</dt>
+                        <dd class="mono">
+                            {{ event.correlation_id }}
+                        </dd>
+                    </div>
+                    {% if event.job_id %}<div><dt>Related job</dt><dd><a href="/jobs?job_id={{ event.job_id|urlencode }}" class="mono">{{ event.job_id }}</a></dd></div>{% endif %}
+                </dl>
+                {% if event.request_pretty %}
+                    <details class="payload-disclosure">
+                        <summary>Redacted request JSON</summary>
+                        <pre class="response audit-json">{{ event.request_pretty }}</pre>
+                    </details>
+                {% endif %}
+                {% if event.response_pretty %}
+                    <details class="payload-disclosure">
+                        <summary>Redacted response JSON</summary>
+                        <pre class="response audit-json">{{ event.response_pretty }}</pre>
+                    </details>
+                {% endif %}
+                {% if not event.request_pretty and not event.response_pretty %}<p class="hint">No request or response payload was recorded.</p>{% endif %}
+            {% endcall %}
+        {% endfor %}
+    {% else %}
+        <div class="empty-state audit-empty">
+            <span class="empty-state-icon" aria-hidden="true">⌁</span>
+            <h2>No activity found</h2>
+            <p>Try removing a filter. Actions recorded through the panel will appear here.</p>
+            {% if request.query_string %}<a class="btn ghost" href="{{ request.path }}">Clear filters</a>{% endif %}
+        </div>
+    {% endif %}
+{%- endmacro %}
+{% macro audit_pagination(pagination) -%}
+    {% if pagination.previous_url or pagination.next_url %}
+        <nav class="audit-pagination" aria-label="Activity pages">
+            <span>Showing up to {{ pagination.limit }} events</span>
+            <div>
+                {% if pagination.previous_url %}<a class="btn ghost" href="{{ pagination.previous_url }}">← Newer</a>{% endif %}
+                {% if pagination.next_url %}<a class="btn ghost" href="{{ pagination.next_url }}">Older →</a>{% endif %}
+            </div>
+        </nav>
+    {% endif %}
+{%- endmacro %}
+{% macro recent_activity_list(events, server_id) -%}
+    <section class="quick-links recent-activity">
+        <header>
+            <div>
+                <span class="eyebrow">Audit trail</span>
+                <h2>Recent Activity</h2>
+            </div>
+            <a href="/servers/{{ server_id }}/activity">View all</a>
+        </header>
+        {% if events %}
+            <div class="entity-list">
+                {% for event in events %}
+                    <a class="entity-row"
+                       href="/servers/{{ server_id }}/activity?q={{ event.correlation_id|urlencode }}">
+                        <span><strong>{{ event.action_label }}</strong><small>{{ event.summary }}</small></span>
+                        <span class="recent-activity-meta"><span class="audit-outcome audit-outcome--{{ event.outcome }}">{{ event.outcome }}</span><time datetime="{{ event.created_at }}" data-relative-time>{{ event.created_at }}</time></span>
+                    </a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state compact-empty">
+                <p>No server activity has been recorded yet.</p>
+            </div>
+        {% endif %}
+    </section>
+{%- endmacro %}
