@@ -73,11 +73,11 @@
 }
 
 @media (max-width: 900px) {
-  .audit-toolbar { display: flex; width: 100%; min-width: 0; max-width: 100%; align-items: stretch; overflow-x: auto; padding-bottom: 4px; }
+  .audit-toolbar { display: grid; width: 100%; min-width: 0; max-width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; overflow: visible; padding-bottom: 4px; }
   .audit-toolbar label,
-  .audit-toolbar .audit-scope-control { min-width: 138px; }
-  .audit-toolbar .audit-search { min-width: min(75vw, 280px); }
-  .audit-toolbar .btn { flex: none; }
+  .audit-toolbar .audit-scope-control { min-width: 0; }
+  .audit-toolbar .audit-search { min-width: 0; grid-column: 1 / -1; }
+  .audit-toolbar .btn { width: 100%; }
   .audit-list-wrap { border: 0; background: transparent; overflow: visible; }
   .audit-list { display: block; width: 100%; min-width: 0; }
   .audit-list thead { display: none; }
