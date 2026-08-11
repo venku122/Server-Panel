@@ -19,12 +19,17 @@ def panel_module(tmp_path_factory: pytest.TempPathFactory):
     shutil.copytree(source_root / "templates", runtime_root / "templates")
     shutil.copytree(source_root / "static", runtime_root / "static")
     shutil.copytree(source_root / "defaults", runtime_root / "defaults")
+    if (source_root / "server_panel").is_dir():
+        shutil.copytree(source_root / "server_panel", runtime_root / "server_panel")
     shutil.copy2(source_root / "ports.json", runtime_root / "ports.json")
     shutil.copy2(source_root / "servers.json", runtime_root / "servers.json")
 
     os.environ["NO_PANEL_SECRET_KEY"] = "fork-test-only-secret"
     sys.path.insert(0, str(runtime_root))
     try:
+        for name in tuple(sys.modules):
+            if name == "server_panel" or name.startswith("server_panel."):
+                sys.modules.pop(name, None)
         module = importlib.import_module("app")
         module.app.config.update(TESTING=True, SECRET_KEY="fork-test-only-secret")
         yield module
@@ -32,6 +37,9 @@ def panel_module(tmp_path_factory: pytest.TempPathFactory):
         sys.path.remove(str(runtime_root))
         for name in ("app", "cluster", "config", "discord_bot", "remote_commander", "secret_store", "server_commands"):
             sys.modules.pop(name, None)
+        for name in tuple(sys.modules):
+            if name == "server_panel" or name.startswith("server_panel."):
+                sys.modules.pop(name, None)
 
 
 @pytest.fixture()

@@ -61,7 +61,6 @@ from pathlib import Path
 from functools import wraps
 from typing import NamedTuple, Optional, Tuple
 
-
 # =============================
 # Windows Firewall management (best-effort, rules created/owned by panel only)
 # =============================
@@ -901,6 +900,12 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=_bool_config("SESSION_COOKIE_SECURE", False),
+)
+PANEL_DATABASE_PATH = importlib.import_module("server_panel.storage").configure_storage(
+    app,
+    BASE_DIR,
+    os.environ.get("NO_PANEL_DATABASE_PATH") or getattr(config, "DATABASE_PATH", None),
+    os.environ.get("NO_PANEL_DATABASE_BUSY_TIMEOUT_MS") or getattr(config, "DATABASE_BUSY_TIMEOUT_MS", None),
 )
 
 # Used to invalidate browser sessions on panel restart.
