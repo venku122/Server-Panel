@@ -1,5 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
   const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+  /** @type {Array<[Intl.RelativeTimeFormatUnit, number]>} */
   const units = [
     ["year", 31_536_000],
     ["month", 2_592_000],
@@ -9,7 +10,8 @@ document.addEventListener("DOMContentLoaded", () => {
     ["minute", 60],
   ];
 
-  document.querySelectorAll("time[data-relative-time]").forEach((node) => {
+  document.querySelectorAll("time[data-relative-time]").forEach((nodeElement) => {
+    const node = /** @type {HTMLTimeElement} */ (nodeElement);
     const timestamp = new Date(node.dateTime).getTime();
     if (!Number.isFinite(timestamp)) return;
     const delta = Math.round((timestamp - Date.now()) / 1000);
