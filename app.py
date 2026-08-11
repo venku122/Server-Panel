@@ -54,6 +54,7 @@ import zipfile
 import io
 import threading
 import urllib.request
+import urllib.parse
 import secrets
 import uuid
 import traceback
@@ -2146,20 +2147,35 @@ def _render_panel_shell(
     ports = load_ports()
     allowed_ports = [port["port"] for port in ports]
     activity_filters = {
+        "q": str(request.args.get("q") or "").strip(),
         "server_id": server_id or str(request.args.get("server_id") or "").strip(),
         "outcome": str(request.args.get("outcome") or "").strip(),
         "actor": str(request.args.get("actor") or "").strip(),
         "action": str(request.args.get("action") or "").strip(),
+        "time": str(request.args.get("time") or "").strip(),
     }
     activity_events = []
+    recent_activity = []
+    activity_filter_chips = []
     activity_pagination: dict[str, object] = {"next_url": None, "previous_url": None, "limit": 50}
     if page["active_page"] == "activity":
+        time_windows = {"1h": 1, "24h": 24, "7d": 24 * 7, "30d": 24 * 30}
+        if activity_filters["time"] and activity_filters["time"] not in time_windows:
+            return Response("Invalid activity time filter.", 400)
+        since = None
+        if activity_filters["time"]:
+            since = (
+                datetime.datetime.now(datetime.timezone.utc)
+                - datetime.timedelta(hours=time_windows[activity_filters["time"]])
+            ).isoformat(timespec="milliseconds").replace("+00:00", "Z")
         try:
             activity_page = AUDIT_SERVICE.list_events_page(
                 server_id=activity_filters["server_id"] or None,
                 outcome=activity_filters["outcome"] or None,
                 actor=activity_filters["actor"] or None,
                 action=activity_filters["action"] or None,
+                query=activity_filters["q"] or None,
+                since=since,
                 cursor=str(request.args.get("cursor") or "").strip() or None,
                 limit=50,
             )
@@ -2175,11 +2191,38 @@ def _render_panel_shell(
             parameters["cursor"] = cursor
             return str(url_for(str(request.endpoint), **parameters))
 
+        chip_labels = {
+            "q": "Search",
+            "server_id": "Server",
+            "outcome": "Outcome",
+            "action": "Action",
+            "actor": "Actor",
+            "time": "Time",
+        }
+        for key, value in activity_filters.items():
+            if not value or (key == "server_id" and server_id is not None):
+                continue
+            remaining = {
+                filter_key: filter_value
+                for filter_key, filter_value in activity_filters.items()
+                if filter_value and filter_key != key and not (filter_key == "server_id" and server_id is not None)
+            }
+            activity_filter_chips.append(
+                {
+                    "label": chip_labels[key],
+                    "value": value,
+                    "remove_url": request.path
+                    + (f"?{urllib.parse.urlencode(remaining)}" if remaining else ""),
+                }
+            )
+
         activity_pagination = {
             "next_url": activity_url(activity_page["next_cursor"]),
             "previous_url": activity_url(activity_page["previous_cursor"]),
             "limit": activity_page["limit"],
         }
+    elif page["active_page"] == "dashboard" and server_id is not None:
+        recent_activity = AUDIT_SERVICE.list_events(server_id=server_id, limit=5)
     return render_template(
         page["template"],
         ports=ports,
@@ -2204,7 +2247,9 @@ def _render_panel_shell(
         current_user=session.get("username"),
         current_role=session.get("role"),
         activity_events=activity_events,
+        recent_activity=recent_activity,
         activity_filters=activity_filters,
+        activity_filter_chips=activity_filter_chips,
         activity_outcomes=("success", "failure", "denied", "unknown"),
         activity_pagination=activity_pagination,
         audit_mirror_status=AUDIT_SERVICE.mirror_status(),
