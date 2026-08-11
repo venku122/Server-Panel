@@ -1982,7 +1982,7 @@ SERVER_SECTION_PAGES = {
         "show_response": True,
     },
     "moderation": {
-        "template": "server/moderation.html",
+        "template": "moderation/index.html",
         "active_page": "moderation",
         "title": "Moderation",
         "subtitle": "Friendly-fire settings and notifications",
@@ -7293,213 +7293,102 @@ def _moderation_notification_loop():
             pass
         time.sleep(10)
 
-@app.get('/api/moderation/status')
-@requires_login()
-def api_moderation_status_get():
-    sid = _get_request_server_id()
-    proxied = _proxy_server_op_if_remote(sid, '/api/cluster/servers/moderation/status', {}, timeout=20)
-    if proxied:
-        payload, status = proxied
-        return jsonify(payload), status
-    try:
-        server = get_server_by_id(sid)
-        return jsonify(_mod_status_for(server))
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
 
-@app.get('/api/moderation/job')
-@requires_login()
-def api_moderation_job_get():
-    sid = _get_request_server_id()
-    jobs = [job for job in JOB_SERVICE.list(server_id=sid, limit=50) if job["job_type"] == "moderation_install"]
-    if not jobs:
-        return jsonify({"success": True, "server_id": sid, "done": True, "ok": False, "lines": []})
-    job = JOB_SERVICE.get(jobs[0]["id"], include_events=True) or jobs[0]
-    return jsonify(
-        {
-            "success": True,
-            "server_id": sid,
-            "job": job,
-            "done": job["status"] in {"succeeded", "failed", "cancelled", "interrupted"},
-            "ok": job["status"] == "succeeded",
-            "error": job.get("error_summary"),
-            "lines": [event["message"] for event in job.get("events", [])],
-        }
-    )
+_moderation_feature = importlib.import_module("server_panel.moderation")
 
-@app.post('/api/moderation/install')
-@requires_login('admin')
-def api_moderation_install():
-    data = request.get_json(silent=True) or {}
-    sid = str(data.get('server_id') or _get_request_server_id() or '').strip()
-    dll_url = str(data.get('dll_url') or MOD_RELEASE_DLL_URL).strip() or MOD_RELEASE_DLL_URL
-    if _find_server_in_unified_view(sid) is None:
-        return jsonify({"success": False, "error": "Server not found"}), 404
+
+def _moderation_enqueue_install(install_request):
     job = _enqueue_job(
         "moderation_install",
-        server_id=sid,
-        parameters={"server_id": sid, "dll_url": dll_url},
+        server_id=install_request.server_id,
+        parameters={"server_id": install_request.server_id, "dll_url": install_request.dll_url},
+        scope_type="server",
         progress_total=3,
     )
-    return jsonify({"success": True, "started": True, "job": job.to_dict()}), 202
+    return job.to_dict()
 
-@app.get('/api/moderation/state')
-@requires_login()
-def api_moderation_state_get():
-    sid = str(request.args.get('server_id') or '').strip()
-    proxied = _proxy_server_op_if_remote(sid, '/api/cluster/servers/moderation/get_state', {}, timeout=20)
-    if proxied:
-        payload, code = proxied
-        return jsonify(payload), code
-    try:
-        server = get_server_by_id(sid)
-        snap = _mod_settings_snapshot(server)
-        return jsonify({'success': True, 'server_id': sid or server.get('id'), **snap})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.post('/api/moderation/settings')
-@requires_login(role='admin')
-def api_moderation_settings_set():
-    data = request.get_json(force=True, silent=True) or {}
-    sid = str(data.get('server_id') or '').strip()
-    proxied = _proxy_server_op_if_remote(sid, '/api/cluster/servers/moderation/set_settings', data, timeout=20)
-    if proxied:
-        payload, code = proxied
-        return jsonify(payload), code
-    try:
-        ok2, err = _mod_write_settings(sid, data)
-        if not ok2:
-            return jsonify({'success': False, 'error': err or 'Failed to save moderation settings.'}), 400
-        server = get_server_by_id(sid)
-        snap = _mod_settings_snapshot(server)
-        return jsonify({'success': True, **snap})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+def _moderation_install_job_status(server_id: str) -> dict:
+    jobs = [
+        job for job in JOB_SERVICE.list(server_id=server_id, limit=50) if job.get("job_type") == "moderation_install"
+    ]
+    if not jobs:
+        return {"success": True, "server_id": server_id, "done": False, "ok": False, "error": None, "lines": []}
+    job = JOB_SERVICE.get(str(jobs[0].get("id") or ""), include_events=True) or jobs[0]
+    status = str(job.get("status") or "")
+    lines = [str(event.get("message") or "") for event in job.get("events") or [] if event.get("message")]
+    return {
+        "success": True,
+        "server_id": server_id,
+        "done": status in {"succeeded", "failed", "cancelled", "interrupted"},
+        "ok": status == "succeeded",
+        "error": job.get("error_summary"),
+        "lines": lines,
+        "job": job,
+    }
 
-@app.post('/api/moderation/ticket_action')
-@requires_login()
-def api_moderation_ticket_action():
-    data = request.get_json(force=True, silent=True) or {}
-    sid = str(data.get('server_id') or '').strip()
-    actor = str(data.get('actor') or session.get('username') or 'panel').strip() or 'panel'
-    data['actor'] = actor
-    proxied = _proxy_server_op_if_remote(sid, '/api/cluster/servers/moderation/ticket_action', data, timeout=30)
-    if proxied:
-        payload, code = proxied
-        return jsonify(payload), code
-    try:
-        steam_id = str(data.get('steam_id') or '').strip()
-        action = str(data.get('action') or '').strip()
-        actor = str(data.get('actor') or session.get('username') or 'panel').strip() or 'panel'
-        if action == 'monitor_once':
-            ok2, msg = _mod_set_monitor_once(sid, steam_id, actor)
-        else:
-            ok2, msg = _mod_apply_ticket_action_local(sid, steam_id, action, data.get('text'), actor)
-        if not ok2:
-            return jsonify({'success': False, 'error': msg}), 400
-        server = get_server_by_id(sid)
-        snap = _mod_settings_snapshot(server)
-        return jsonify({'success': True, 'message': msg, **snap})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.post('/api/cluster/servers/moderation/status')
-def api_cluster_moderation_status():
-    try:
-        payload = request.get_json(silent=True) or {}
-        sid = str(payload.get('server_id') or '').strip()
-        _cluster_verify_or_abort(sid, payload)
-        server = get_server_by_id(sid)
-        return jsonify(_mod_status_for(server))
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+def _moderation_audit(action: str, server_id: str, summary: str, payload: dict, job_id: str | None) -> None:
+    AUDIT_SERVICE.record(
+        actor=str(session.get("username") or "system"),
+        action=action,
+        correlation_id=str(getattr(g, "correlation_id", uuid.uuid4())),
+        scope_type="server",
+        server_id=server_id,
+        target_type="moderation",
+        target_id=server_id,
+        summary=summary,
+        request_payload=payload,
+        job_id=job_id,
+    )
 
-@app.post('/api/cluster/servers/moderation/job')
-def api_cluster_moderation_job():
-    try:
-        payload = request.get_json(silent=True) or {}
-        sid = str(payload.get('server_id') or '').strip()
-        _cluster_verify_or_abort(sid, payload)
-        return jsonify(_mod_job_get(sid))
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
 
-@app.post('/api/cluster/servers/moderation/install')
-def api_cluster_moderation_install():
-    try:
-        payload = request.get_json(silent=True) or {}
-        sid = str(payload.get('server_id') or '').strip()
-        dll_url = str(payload.get('dll_url') or MOD_RELEASE_DLL_URL).strip() or MOD_RELEASE_DLL_URL
-        _cluster_verify_or_abort(sid, payload)
-        if _find_server_by_id(sid) is None:
-            return jsonify({"success": False, "error": "Local server not found"}), 404
-        job = _enqueue_job(
-            "moderation_install",
-            server_id=sid,
-            parameters={"server_id": sid, "dll_url": dll_url},
-            progress_total=3,
-            created_by="cluster-coordinator",
-        )
-        return jsonify({"success": True, "started": True, "job": job.to_dict()}), 202
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+def _moderation_proxy(server_id: str, path: str, payload: dict, timeout: int):
+    return _proxy_server_op_if_remote(server_id, path, payload, timeout=timeout)
 
-@app.post('/api/cluster/servers/moderation/get_state')
-def api_cluster_moderation_get_state():
-    body_bytes = request.get_data() or b''
-    ok_sig, msg = cluster_state.verify_signed_request(request.method, request.path, body_bytes, dict(request.headers))
-    if not ok_sig:
-        return jsonify({'success': False, 'error': msg}), 401
-    data = request.get_json(force=True, silent=True) or {}
-    sid = str(data.get('server_id') or '').strip()
-    try:
-        server = get_server_by_id(sid)
-        snap = _mod_settings_snapshot(server)
-        return jsonify({'success': True, 'server_id': sid or server.get('id'), **snap})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.post('/api/cluster/servers/moderation/set_settings')
-def api_cluster_moderation_set_settings():
-    body_bytes = request.get_data() or b''
-    ok_sig, msg = cluster_state.verify_signed_request(request.method, request.path, body_bytes, dict(request.headers))
-    if not ok_sig:
-        return jsonify({'success': False, 'error': msg}), 401
-    data = request.get_json(force=True, silent=True) or {}
-    sid = str(data.get('server_id') or '').strip()
-    try:
-        ok2, err = _mod_write_settings(sid, data)
-        if not ok2:
-            return jsonify({'success': False, 'error': err}), 400
-        server = get_server_by_id(sid)
-        snap = _mod_settings_snapshot(server)
-        return jsonify({'success': True, **snap})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+def _moderation_verify_signed_request() -> tuple[bool, str]:
+    body_bytes = request.get_data() or b""
+    verified, message = cluster_state.verify_signed_request(
+        request.method, request.path, body_bytes, dict(request.headers)
+    )
+    return bool(verified), str(message)
 
-@app.post('/api/cluster/servers/moderation/ticket_action')
-def api_cluster_moderation_ticket_action():
-    body_bytes = request.get_data() or b''
-    ok_sig, msg = cluster_state.verify_signed_request(request.method, request.path, body_bytes, dict(request.headers))
-    if not ok_sig:
-        return jsonify({'success': False, 'error': msg}), 401
-    data = request.get_json(force=True, silent=True) or {}
-    sid = str(data.get('server_id') or '').strip()
-    try:
-        action = str(data.get('action') or '').strip()
-        actor = str(data.get('actor') or 'panel').strip() or 'panel'
-        if action == 'monitor_once':
-            ok2, msg2 = _mod_set_monitor_once(sid, str(data.get('steam_id') or ''), actor)
-        else:
-            ok2, msg2 = _mod_apply_ticket_action_local(sid, str(data.get('steam_id') or ''), action, data.get('text'), actor)
-        if not ok2:
-            return jsonify({'success': False, 'error': msg2}), 400
-        server = get_server_by_id(sid)
-        snap = _mod_settings_snapshot(server)
-        return jsonify({'success': True, 'message': msg2, **snap})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+
+def _moderation_verify_cluster_payload(_server_id: str, _payload: dict) -> None:
+    verified, message = _moderation_verify_signed_request()
+    if not verified:
+        raise RuntimeError(message)
+
+
+MODERATION_REPOSITORY = _moderation_feature.ModerationRepository(
+    get_server=get_server_by_id,
+    status_for=_mod_status_for,
+    snapshot_for=_mod_settings_snapshot,
+    write_settings=_mod_write_settings,
+    apply_ticket_action=_mod_apply_ticket_action_local,
+    set_monitor_once=_mod_set_monitor_once,
+)
+MODERATION_INSTALLER = _moderation_feature.ModerationInstaller(get_server_by_id, _install_moderation_mod)
+MODERATION_SERVICE = _moderation_feature.ModerationService(
+    MODERATION_REPOSITORY,
+    MODERATION_INSTALLER,
+    enqueue_install=_moderation_enqueue_install,
+    install_job=_moderation_install_job_status,
+    audit=_moderation_audit,
+)
+MODERATION_BLUEPRINT = _moderation_feature.create_routes(
+    MODERATION_SERVICE,
+    requires_login=requires_login,
+    proxy=_moderation_proxy,
+    verify_cluster_payload=_moderation_verify_cluster_payload,
+    verify_signed_request=_moderation_verify_signed_request,
+    request_server_id=_get_request_server_id,
+    default_dll_url=MOD_RELEASE_DLL_URL,
+)
+app.register_blueprint(MODERATION_BLUEPRINT)
+MODERATION_POLLER = _moderation_feature.ModerationPoller(_moderation_notification_loop)
+
 
 # =============================
 # Panel Users / Moderation
@@ -9932,17 +9821,17 @@ def _moderation_install_job(context, parameters: dict) -> dict:
     local_server = _find_server_by_id(server_id)
     if local_server is None:
         raise RuntimeError("Server is not installed on this node.")
-    context.checkpoint("Checking the moderation plugin target directory.", current=1, total=3)
-    result = _install_moderation_mod(local_server, dll_url=dll_url)
+    context.checkpoint("Checking moderation installation prerequisites.", current=1, total=3)
+    result = MODERATION_SERVICE.install_now(_moderation_feature.InstallRequest(server_id, dll_url))
     for line in result.get("output") or []:
         context.event(str(line))
     if not result.get("success"):
-        raise RuntimeError(str(result.get("error") or "Moderation plugin install failed."))
-    context.checkpoint("Verifying the installed moderation plugin.", current=3, total=3)
-    installed_plugin = _mod_plugin_path_for(local_server)
-    if installed_plugin is None or not installed_plugin.exists():
+        raise RuntimeError(str(result.get("error") or "Moderation module install failed."))
+    context.checkpoint("Verifying moderation plugin and generated state paths.", current=3, total=3)
+    status = MODERATION_SERVICE.status(server_id).payload
+    if not status.get("installed"):
         raise RuntimeError("Moderation install returned success but the plugin DLL was not found.")
-    return result
+    return dict(result)
 
 
 JOB_HANDLERS.update(
@@ -9962,8 +9851,7 @@ JOB_WORKER.start()
 
 
 if __name__ == "__main__":
-    _mod_thread = threading.Thread(target=_moderation_notification_loop, daemon=True)
-    _mod_thread.start()
+    MODERATION_POLLER.start()
 
     # Background MOTD broadcaster (daemon)
     try:

@@ -18,7 +18,7 @@ def test_route_maps_keep_global_and_server_sections_disjoint(panel_module) -> No
             "show_response": True,
         },
         "moderation": {
-            "template": "server/moderation.html",
+            "template": "moderation/index.html",
             "active_page": "moderation",
             "title": "Moderation",
             "subtitle": "Friendly-fire settings and notifications",

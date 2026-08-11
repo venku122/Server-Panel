@@ -39,7 +39,7 @@ def test_route_templates_use_layouts_without_inline_styles() -> None:
         "templates/server/overview.html": "layouts/server.html",
         "templates/server/operations.html": "layouts/server.html",
         "templates/server/players.html": "layouts/server.html",
-        "templates/server/moderation.html": "layouts/server.html",
+        "server_panel/moderation/templates/moderation/index.html": "layouts/server.html",
         "templates/server/settings.html": "layouts/server.html",
         "templates/server/noblackbox.html": "layouts/server.html",
         "templates/server/gallery.html": "layouts/server.html",
