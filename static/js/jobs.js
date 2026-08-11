@@ -11,7 +11,7 @@
     }
   }
 
-  const jobCards = () => [...document.querySelectorAll("[data-job-id]")];
+  const jobCards = () => /** @type {HTMLElement[]} */ ([...document.querySelectorAll("[data-job-id]")]);
 
   async function jobRequest(url, options = {}) {
     const background = options.background === true;
@@ -21,7 +21,7 @@
       background,
       diagnostics: !background,
     };
-    const panelApiFetch = window.apiFetch;
+    const panelApiFetch = /** @type {any} */ (window).apiFetch;
     let ok;
     let payload;
     let status;
@@ -107,7 +107,8 @@
   }
 
   function updateDurations() {
-    document.querySelectorAll("[data-job-duration]").forEach((node) => {
+    document.querySelectorAll("[data-job-duration]").forEach((nodeElement) => {
+      const node = /** @type {HTMLElement} */ (nodeElement);
       const started = new Date(node.dataset.started).getTime();
       const finished = node.dataset.finished ? new Date(node.dataset.finished).getTime() : Date.now();
       if (!Number.isFinite(started) || !Number.isFinite(finished)) return;
@@ -125,13 +126,13 @@
     });
     card.querySelector("[data-job-retry]")?.addEventListener("click", async (event) => {
       event.stopPropagation();
-      const retryButton = card.querySelector("[data-job-retry]");
+      const retryButton = /** @type {HTMLElement | null} */ (card.querySelector("[data-job-retry]"));
       let body = {};
       if (retryButton.dataset.forceRequired === "true") {
         const expected = `FORCE RETRY ${card.dataset.jobId}`;
-        const acknowledgement = await window.NO_PANEL_DIALOG?.prompt({ title: "Force a non-replay-safe job?", message: "Side effects may already have occurred. Review the event sequence before continuing.", label: `Type ${expected} to continue`, requireText: expected, tone: "danger", confirmLabel: "Continue" });
+        const acknowledgement = await /** @type {any} */ (window).NO_PANEL_DIALOG?.prompt({ title: "Force a non-replay-safe job?", message: "Side effects may already have occurred. Review the event sequence before continuing.", label: `Type ${expected} to continue`, requireText: expected, tone: "danger", confirmLabel: "Continue" });
         if (acknowledgement == null) return;
-        const reason = await window.NO_PANEL_DIALOG?.prompt({ title: "Record a reason", message: "The actor, reason, source job, and checkpoint will be stored.", label: "Reason", minLength: 3, tone: "danger", confirmLabel: "Force retry" });
+        const reason = await /** @type {any} */ (window).NO_PANEL_DIALOG?.prompt({ title: "Record a reason", message: "The actor, reason, source job, and checkpoint will be stored.", label: "Reason", minLength: 3, tone: "danger", confirmLabel: "Force retry" });
         if (reason == null) return;
         body = { force: true, acknowledgement, reason };
       }
@@ -143,7 +144,7 @@
   async function poll() {
     updateDurations();
     await Promise.all(jobCards().map(async (card) => {
-      const state = card.querySelector("[data-job-status]")?.dataset.jobStatus;
+      const state = /** @type {HTMLElement | null} */ (card.querySelector("[data-job-status]"))?.dataset.jobStatus;
       if (!terminal.has(state)) await refresh(card).catch(() => {});
     }));
   }
