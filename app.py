@@ -1907,9 +1907,7 @@ GLOBAL_PANEL_PAGES = {
     if spec.active_page is not None and spec.key not in {"servers", "settings"}
 }
 GLOBAL_PANEL_ROLES = {
-    spec.path.removeprefix("/"): spec.role
-    for spec in GLOBAL_PAGE_REGISTRY.values()
-    if spec.active_page is not None
+    spec.path.removeprefix("/"): spec.role for spec in GLOBAL_PAGE_REGISTRY.values() if spec.active_page is not None
 }
 
 
@@ -1987,7 +1985,7 @@ def _render_panel_shell(
         current_server=current_server,
         server_page_key=server_page_key,
         server_switch_path=(
-            SERVER_PAGE_REGISTRY.get(server_page_key, SERVER_PAGE_REGISTRY["overview"]).path
+            SERVER_PAGE_REGISTRY.get(server_page_key or "overview", SERVER_PAGE_REGISTRY["overview"]).path
             if server_id is not None
             else ""
         ),
