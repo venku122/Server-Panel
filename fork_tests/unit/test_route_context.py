@@ -7,8 +7,8 @@ def test_route_maps_keep_global_and_server_sections_disjoint(panel_module) -> No
             "template": "server/operations.html",
             "active_page": "control",
             "title": "Operations",
-            "subtitle": "Mission and server controls",
-            "show_response": True,
+            "subtitle": "Lifecycle, mission, and server commands",
+            "show_response": False,
         },
         "players": {
             "template": "server/players.html",
@@ -28,14 +28,14 @@ def test_route_maps_keep_global_and_server_sections_disjoint(panel_module) -> No
             "template": "server/settings.html",
             "active_page": "server",
             "title": "Settings",
-            "subtitle": "Configuration and startup settings",
-            "show_response": True,
+            "subtitle": "Gameplay and startup configuration",
+            "show_response": False,
         },
         "noblackbox": {
             "template": "server/noblackbox.html",
             "active_page": "noblackbox",
-            "title": "NoBlackBox",
-            "subtitle": "Install and configure Tacview recording",
+            "title": "Recordings",
+            "subtitle": "Recorder installation and configuration",
             "show_response": False,
         },
         "gallery": {
@@ -43,7 +43,7 @@ def test_route_maps_keep_global_and_server_sections_disjoint(panel_module) -> No
             "active_page": "gallery",
             "title": "Gallery",
             "subtitle": "Browse NoBlackBox recordings",
-            "show_response": True,
+            "show_response": False,
         },
         "activity": {
             "template": "server/activity.html",
