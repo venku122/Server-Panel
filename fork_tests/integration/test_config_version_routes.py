@@ -210,6 +210,6 @@ def test_remote_history_failure_is_visible_not_an_empty_history(
     response = client.get("/servers/bravo-training/settings/history")
     assert response.status_code == 200
     html = response.get_data(as_text=True)
-    assert "Configuration history unavailable" in html
+    assert "History unavailable" in html
     assert "Remote member unavailable" in html
     assert "No configuration versions yet" not in html
