@@ -77,7 +77,7 @@ def test_settings_load_save_and_template_render_compatibility(
     monkeypatch.setattr(panel_module, "_update_server_fields", lambda _server_id, values: updated.update(values))
     monkeypatch.setattr(panel_module.MODERATION_SERVICE, "_audit", lambda *_args: None)
 
-    page = client.get("/servers/alpha-operations/moderation")
+    page = client.get("/servers/alpha-operations/players/moderation")
     before = client.get("/api/moderation/state?server_id=alpha-operations")
     saved = client.post(
         "/api/moderation/settings",
