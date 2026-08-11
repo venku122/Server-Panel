@@ -8,7 +8,7 @@
 {% macro entity(title, description, href='', action_label='') -%}{% if href %}<a class="entity-row" href="{{ href }}">{% else %}<div class="entity-row entity-row--static">{% endif %}<span><strong>{{ title }}</strong><small>{{ description }}</small></span>{% if action_label %}<span>{{ action_label }}</span>{% endif %}{% if href %}</a>{% else %}</div>{% endif %}{%- endmacro %}
 {% macro skeleton(rows=3) -%}
     <div class="skeleton" aria-label="Loading" aria-busy="true">
-        {% for _ in range(rows) %}<span></span>{% endfor %}
+        {% for _ in range(rows) %}<span aria-hidden="true">&nbsp;</span>{% endfor %}
     </div>
 {%- endmacro %}
 {% macro sheet(sheet_id, title) -%}<aside class="detail-sheet"
@@ -16,7 +16,8 @@
        role="dialog"
        aria-modal="false"
        aria-labelledby="{{ sheet_id }}-title"
-       hidden><header><h2 id="{{ sheet_id }}-title">{{ title }}</h2><button class="icon-button"
+       hidden><header><h2 id="{{ sheet_id }}-title">{{ title }}</h2>
+<button class="icon-button"
         type="button"
         data-close-sheet
         aria-label="Close details">×</button></header><div class="sheet-body">{{ caller() }}</div></aside>{%- endmacro %}
