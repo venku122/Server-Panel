@@ -1,23 +1,31 @@
 {% extends "base.html" %}
-{% from "components/navigation.html" import brand, server_navigation, server_switcher %}
+{% from "components/navigation.html" import brand, server_navigation, server_switcher, server_bottom_navigation %}
 {% from "components/page_header.html" import server_page_header %}
 {% block title %}{{ current_server.name }} • Nuclear Option Server Panel{% endblock %}
 {% block body_class %}panel-page server-page{% endblock %}
 {% block body %}
     <div class="shell server-shell">
         <header class="mobile-appbar">
-            <button class="btn ghost sidebar-toggle"
+            <button class="mobile-scope-button"
                     type="button"
-                    aria-controls="panel-sidebar"
-                    aria-expanded="false">Menu</button>
-            <span class="mobile-context">{{ current_server.name }}</span>
+                    data-open-drawer="server-selector-drawer"
+                    aria-controls="server-selector-drawer"
+                    aria-expanded="false"><span class="status-dot{% if current_server.running %} running{% endif %}"
+      aria-hidden="true"></span><span><small>Server</small><strong>{{ current_server.name }}</strong></span><span aria-hidden="true">⌄</span></button>
+            <button class="icon-button"
+                    type="button"
+                    data-open-find
+                    aria-label="Find servers and pages">⌕</button>
         </header>
         <button class="sidebar-backdrop"
                 type="button"
                 data-sidebar-close
                 aria-label="Close navigation"
                 hidden></button>
-        <aside class="sidebar" id="panel-sidebar" aria-label="Server sidebar" tabindex="-1">
+        <aside class="sidebar"
+               id="panel-sidebar"
+               aria-label="Server sidebar"
+               tabindex="-1">
             <div class="sidebar-head">
                 {{ brand() }}
                 <button class="sidebar-collapse"
@@ -50,6 +58,47 @@
             </section>
         </main>
     </div>
+    {{ server_bottom_navigation(active_page, current_server) }}
+    <aside class="mobile-drawer"
+           id="server-selector-drawer"
+           role="dialog"
+           aria-modal="true"
+           aria-labelledby="server-selector-title"
+           hidden>
+        <header>
+            <div>
+                <span class="eyebrow">Scope</span>
+                <h2 id="server-selector-title">Switch server</h2>
+            </div>
+            <button class="icon-button"
+                    type="button"
+                    data-close-drawer
+                    aria-label="Close server selector">×</button>
+        </header>
+        <nav class="drawer-nav drawer-server-list" aria-label="Available servers">{% for server in servers %}<a class="{% if server.id == current_server.id %}active{% endif %}"
+   href="/servers/{{ server.id }}{{ server_switch_path }}"><span class="status-dot{% if server.running %} running{% endif %}"
+      aria-hidden="true"></span><span><strong>{{ server.name }}</strong><small>{{ server.location|default("local") |title }}{% if server.node_id %} · {{ server.node_id }}{% endif %}</small></span>{% if server.id == current_server.id %}<span aria-hidden="true">✓</span>{% endif %}</a>{% endfor %}<a href="/servers">All servers</a></nav>
+    </aside>
+    <aside class="mobile-drawer"
+           id="more-drawer"
+           role="dialog"
+           aria-modal="true"
+           aria-labelledby="more-drawer-title"
+           hidden>
+        <header>
+            <div>
+                <span class="eyebrow">{{ current_server.name }}</span>
+                <h2 id="more-drawer-title">More</h2>
+            </div>
+            <button class="icon-button"
+                    type="button"
+                    data-close-drawer
+                    aria-label="Close More">×</button>
+        </header>
+        <nav class="drawer-nav" aria-label="More server navigation">
+            <a href="/servers/{{ current_server.id }}/workshop">Workshop</a><a href="/servers/{{ current_server.id }}/activity">Activity</a><a href="/servers/{{ current_server.id }}/jobs">Jobs</a><a href="/servers/{{ current_server.id }}/recordings">Recordings</a><a href="/servers/{{ current_server.id }}/settings">Settings</a><a href="/servers">All servers</a>
+        </nav>
+    </aside>
     {% include "components/shell_overlays.html" %}
 {% endblock %}
 {% block scripts %}
