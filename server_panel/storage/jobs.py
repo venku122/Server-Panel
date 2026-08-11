@@ -205,8 +205,7 @@ class JobRepository(Repository):
             parameters.append(server_id)
         if status:
             clauses.append(
-                "CASE WHEN status = 'running' AND cancel_requested = 1 "
-                "THEN 'cancel_requested' ELSE status END = ?"
+                "CASE WHEN status = 'running' AND cancel_requested = 1 THEN 'cancel_requested' ELSE status END = ?"
             )
             parameters.append(status)
         if job_type:
