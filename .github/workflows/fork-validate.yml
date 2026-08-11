@@ -44,6 +44,6 @@ jobs:
       - name: Run complete fork PR gate
         run: >-
           python scripts/fork/validate-pr.py
-          --base-ref origin/feature/05-audit-timeline
-          --feature-ref origin/feature/06-job-system
+          --base-ref origin/feature/06-job-system
+          --feature-ref origin/feature/07-config-versions
           --capture-script scripts/fork/capture-pr3.cjs

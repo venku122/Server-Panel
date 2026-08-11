@@ -24,11 +24,12 @@ def test_app_startup_creates_the_migrated_campaign_schema_in_fixture_runtime(pan
     finally:
         connection.close()
 
-    assert tables == {"audit_events", "job_events", "jobs", "schema_migrations"}
+    assert tables == {"audit_events", "config_versions", "job_events", "jobs", "schema_migrations"}
     assert versions == [
         (1, "sqlite_storage_foundation"),
         (2, "audit_timeline"),
         (3, "durable_jobs"),
+        (4, "configuration_versions"),
     ]
     verification = sqlite3.connect(database_path)
     try:

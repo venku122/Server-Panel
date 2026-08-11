@@ -61,6 +61,14 @@ def test_route_maps_keep_global_and_server_sections_disjoint(panel_module) -> No
             "show_response": False,
             "admin_only": True,
         },
+        "configuration-history": {
+            "template": "server/configuration_history.html",
+            "active_page": "configuration-history",
+            "title": "Configuration history",
+            "subtitle": "Version history and restore — not a full backup",
+            "show_response": False,
+            "admin_only": True,
+        },
     }
     assert panel_module.GLOBAL_PANEL_PAGES == {
         "deployment": {
