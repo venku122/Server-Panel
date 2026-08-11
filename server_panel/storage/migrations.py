@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Callable, Iterable
 
 from .db import transaction
-
 
 MigrationAction = Callable[[sqlite3.Connection], None]
 
@@ -57,9 +56,61 @@ def _audit_timeline(connection: sqlite3.Connection) -> None:
     connection.execute("CREATE INDEX audit_events_correlation_idx ON audit_events (correlation_id)")
 
 
+def _durable_jobs(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE jobs (
+            id TEXT PRIMARY KEY,
+            job_type TEXT NOT NULL,
+            scope_type TEXT NOT NULL CHECK (scope_type IN ('global', 'server')),
+            server_id TEXT,
+            status TEXT NOT NULL CHECK (
+                status IN ('queued', 'running', 'succeeded', 'failed', 'cancelled', 'interrupted')
+            ),
+            parameters_json TEXT NOT NULL,
+            result_json TEXT,
+            progress_current INTEGER NOT NULL DEFAULT 0 CHECK (progress_current >= 0),
+            progress_total INTEGER NOT NULL DEFAULT 0 CHECK (progress_total >= 0),
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            started_at TEXT,
+            finished_at TEXT,
+            error_summary TEXT,
+            cancel_requested INTEGER NOT NULL DEFAULT 0 CHECK (cancel_requested IN (0, 1)),
+            attempt INTEGER NOT NULL DEFAULT 1 CHECK (attempt >= 1),
+            lease_owner TEXT,
+            lease_expires_at TEXT,
+            parent_job_id TEXT REFERENCES jobs(id),
+            correlation_id TEXT NOT NULL,
+            replay_safe INTEGER NOT NULL DEFAULT 0 CHECK (replay_safe IN (0, 1))
+        )
+        """
+    )
+    connection.execute("CREATE INDEX jobs_created_at_idx ON jobs (created_at DESC, id DESC)")
+    connection.execute("CREATE INDEX jobs_server_idx ON jobs (server_id, created_at DESC)")
+    connection.execute("CREATE INDEX jobs_claim_idx ON jobs (status, created_at)")
+    connection.execute(
+        """
+        CREATE TABLE job_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+            sequence INTEGER NOT NULL,
+            level TEXT NOT NULL CHECK (level IN ('debug', 'info', 'warning', 'error')),
+            message TEXT NOT NULL,
+            data_json TEXT,
+            created_at TEXT NOT NULL,
+            UNIQUE (job_id, sequence)
+        )
+        """
+    )
+    connection.execute("CREATE INDEX job_events_job_idx ON job_events (job_id, sequence)")
+
+
 MIGRATIONS = (
     Migration(1, "sqlite_storage_foundation", _storage_foundation),
     Migration(2, "audit_timeline", _audit_timeline),
+    Migration(3, "durable_jobs", _durable_jobs),
 )
 
 

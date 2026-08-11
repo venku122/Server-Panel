@@ -1,0 +1,8 @@
+{% extends "layouts/server.html" %}
+{% from "components/jobs.html" import job_filters_bar, job_list %}
+{% block panel_content %}
+    {% if not job_worker_status.alive or job_worker_status.last_error %}<div class="note note--warning" data-worker-status><strong>Job worker needs attention.</strong><span>{% if not job_worker_status.alive %}New work will remain queued until a worker is available.{% endif %}{% if job_worker_status.last_error %} Last error: {{ job_worker_status.last_error }}{% endif %}</span></div>{% endif %}
+    {{ job_filters_bar(job_filters, servers, job_statuses, job_types, current_server) }}
+    {{ job_list(jobs) }}
+{% endblock %}
+{% block panel_scripts %}<script defer src="{{ url_for('static', filename='js/jobs.js') }}"></script>{% endblock %}
