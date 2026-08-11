@@ -1,0 +1,77 @@
+{% extends "layouts/global.html" %}
+{% from "components/status_message.html" import status_message %}
+{% from "components/empty_state.html" import empty_state %}
+{% block panel_content %}
+    {{ status_message(page_error, 'error') }}
+    {% for warning in server_view_warnings %}{{ status_message(warning, 'warning') }}{% endfor %}
+    {% if servers %}
+        {% set running = servers|selectattr('running')|list|length %}
+        <section class="metric-strip" aria-label="Server summary">
+            <div><strong class="tabular">{{ servers|length }}</strong><span>Total servers</span></div>
+            <div><strong class="tabular status-text-success">{{ running }}</strong><span>Running</span></div>
+            <div><strong class="tabular">{{ servers|length - running }}</strong><span>Stopped or unavailable</span></div>
+            <div><strong class="tabular">—</strong><span>Connected players</span></div>
+        </section>
+        <form class="resource-toolbar" method="get" action="/servers" role="search">
+            <label class="search-field">
+                <span aria-hidden="true">⌕</span><span class="sr-only">Search servers</span><input type="search"
+       name="q"
+       value="{{ request.args.get('q', '') }}"
+       placeholder="Search servers by name or node">
+            </label>
+            <div class="filter-tabs" aria-label="Server state filter">
+                <a class="filter-tab{% if not request.args.get('state') %} active{% endif %}"
+                   href="/servers">All</a>
+                <a class="filter-tab{% if request.args.get('state') == 'running' %} active{% endif %}"
+                   href="/servers?state=running">Running</a>
+                <a class="filter-tab{% if request.args.get('state') == 'stopped' %} active{% endif %}"
+                   href="/servers?state=stopped">Stopped</a>
+                <a class="filter-tab{% if request.args.get('location') == 'remote' %} active{% endif %}"
+                   href="/servers?location=remote">Remote</a>
+            </div>
+        </form>
+        <div class="resource-table-wrap">
+            <table class="resource-table server-table">
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Server</th>
+                        <th>Location / Node</th>
+                        <th>Players</th>
+                        <th>Mission</th>
+                        <th>Version</th>
+                        <th><span class="sr-only">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for server in servers %}
+                        <tr class="resource-row" data-resource-row>
+                            <td><span class="status-badge status-badge--{% if server.stale %}warning{% elif server.running %}success{% else %}neutral{% endif %}"><span class="status-dot" aria-hidden="true"></span>{% if server.stale %}Unavailable{% elif server.running %}Running{% else %}Stopped{% endif %}</span></td>
+                            <td><a class="resource-name" href="/servers/{{ server.id }}">{{ server.name }}</a><small class="mono">{{ server.id }}</small></td>
+                            <td>{{ server.location|default("local") |title }}<small>{{ server.node_label|default(server.node_name|default(server.node_id|default('This node'))) }}</small></td>
+                            <td class="tabular">{{ server.player_count|default('—', true) }}</td>
+                            <td>{{ server.current_mission|default('—', true) }}</td>
+                            <td class="mono">{{ server.version|default('—', true) }}</td>
+                            <td class="row-actions">
+                                <div class="menu-wrap">
+                                    <button class="icon-button"
+                                            type="button"
+                                            aria-label="More actions for {{ server.name }}"
+                                            aria-controls="server-menu-{{ loop.index }}"
+                                            aria-expanded="false"
+                                            data-menu-button>•••</button>
+                                    <div class="resource-menu"
+                                         id="server-menu-{{ loop.index }}"
+                                         role="menu"
+                                         hidden><a role="menuitem" href="/servers/{{ server.id }}">Open overview</a><a role="menuitem" href="/servers/{{ server.id }}/operations">Operations</a><a role="menuitem" href="/servers/{{ server.id }}/settings">Settings</a></div>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        {{ empty_state('No servers configured', 'Deploy your first server to create a dedicated server workspace.', 'Deploy server', url_for('deployment_page')) }}
+    {% endif %}
+{% endblock %}

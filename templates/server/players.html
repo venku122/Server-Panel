@@ -1,0 +1,114 @@
+{% extends "layouts/server.html" %}
+{% block panel_content %}
+    <div class="page show" id="page-bans">
+        <nav class="page-tabs" aria-label="Player management views"><a class="active" href="/servers/{{ current_server.id }}/players" aria-current="page">Players</a><a href="/servers/{{ current_server.id }}/players/moderation">Moderation</a></nav>
+        <div class="row">
+            <div class="card">
+                <div class="card-h">
+                    <div>
+                        <div class="card-t">Banning & kicking</div>
+                        <div class="card-s">SteamID actions</div>
+                    </div>
+                </div>
+                <div class="btns">
+                    <button class="btn ghost" data-command="clear-kicked-players">Clear Kicked Players</button>
+                    <button class="btn ghost" data-command="banlist-reload">Reload Banlist</button>
+                    <button class="btn ghost" data-command="banlist-clear">Clear Banlist</button>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-h">
+                    <div>
+                        <div class="card-t">Kick player</div>
+                        <div class="card-s">Requires SteamID</div>
+                    </div>
+                </div>
+                <form class="form" id="kick-player-form">
+                    <div class="field">
+                        <label for="kick-steam-id">Steam ID</label>
+                        <input id="kick-steam-id"
+                               type="text"
+                               name="steam_id"
+                               placeholder="7656119…"
+                               required>
+                    </div>
+                    <button class="btn danger" type="submit">Kick</button>
+                </form>
+            </div>
+            <div class="card">
+                <div class="card-h">
+                    <div>
+                        <div class="card-t">Unkick player</div>
+                        <div class="card-s">Removes from kicked list</div>
+                    </div>
+                </div>
+                <form class="form" id="unkick-player-form">
+                    <div class="field">
+                        <label for="unkick-steam-id">Steam ID</label>
+                        <input id="unkick-steam-id"
+                               type="text"
+                               name="steam_id"
+                               placeholder="7656119…"
+                               required>
+                    </div>
+                    <button class="btn good" type="submit">Unkick</button>
+                </form>
+            </div>
+            <div class="card">
+                <div class="card-h">
+                    <div>
+                        <div class="card-t">Ban player</div>
+                        <div class="card-s">Optional reason</div>
+                    </div>
+                </div>
+                <form class="form" id="ban-player-form">
+                    <div class="field">
+                        <label for="ban-steam-id">Steam ID</label>
+                        <input id="ban-steam-id"
+                               type="text"
+                               name="steam_id"
+                               placeholder="7656119…"
+                               required>
+                    </div>
+                    <div class="field">
+                        <label for="ban-reason">Reason (optional)</label>
+                        <input id="ban-reason" type="text" name="reason" placeholder="Griefing">
+                    </div>
+                    <button class="btn danger" type="submit">Ban</button>
+                </form>
+            </div>
+            <div class="card">
+                <div class="card-h">
+                    <div>
+                        <div class="card-t">Unban player</div>
+                        <div class="card-s">Removes from ban list</div>
+                    </div>
+                </div>
+                <form class="form" id="unban-player-form">
+                    <div class="field">
+                        <label for="unban-steam-id">Steam ID</label>
+                        <input id="unban-steam-id"
+                               type="text"
+                               name="steam_id"
+                               placeholder="7656119…"
+                               required>
+                    </div>
+                    <button class="btn warn" type="submit">Unban</button>
+                </form>
+            </div>
+            <div class="card grid-span-full">
+                <div class="card-h card-header-row">
+                    <div>
+                        <div class="card-t">Players</div>
+                        <div class="card-s">Click a player to auto-fill SteamID fields for Kick/Ban.</div>
+                    </div>
+                    <div class="btns flush">
+                        <button class="btn ghost" id="bans-refresh-players">Refresh</button>
+                    </div>
+                </div>
+                <div id="bans-player-status" class="muted small space-after-3"></div>
+                <div id="bans-player-pills" class="player-pill-wrap"></div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

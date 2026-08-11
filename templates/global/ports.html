@@ -1,0 +1,40 @@
+{% extends "layouts/global.html" %}
+{% block panel_content %}
+    <div class="page show" id="page-ports">
+        <div class="card">
+            <div class="card-h">
+                <div>
+                    <div class="card-t">Ports</div>
+                    <div class="card-s">Edit each server's <b>Game Port</b> and <b>Query Port</b>. Works for both local and remote (cluster) servers.</div>
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table class="table" id="ports-table">
+                    <thead>
+                        <tr>
+                            <th class="table-col-wide">Server Name</th>
+                            <th class="table-col-medium">Game Port</th>
+                            <th class="table-col-medium">Query Port</th>
+                            <th class="table-col-actions"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="4" class="muted">Loading ports…</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="btns">
+                <button class="btn ghost" id="refresh-ports">Refresh</button>
+                <button class="btn primary" id="save-ports">Save Changes</button>
+                <button class="btn danger"
+                        id="cleanup-firewall"
+                        title="Removes stale Windows Firewall rules created by the panel">Clear Firewall Rules</button>
+            </div>
+            <div class="hint space-before-3">
+                Tip: Remote Commands Port is managed in <b>Server Settings</b>. This page is only for Game/Query ports.
+            </div>
+        </div>
+    </div>
+{% endblock %}

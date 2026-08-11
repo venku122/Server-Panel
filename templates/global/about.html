@@ -1,0 +1,49 @@
+{% extends "layouts/global.html" %}
+{% block panel_content %}
+    <div class="page show" id="page-about">
+        <div class="card">
+            <div class="card-h">
+                <div>
+                    <div class="card-t">What this panel does</div>
+                    <div class="card-s">It sends TCP remote-commands to the dedicated server.</div>
+                </div>
+            </div>
+            <div class="mono">
+                <p><b>Protocol:</b> length-prefixed JSON request → response header (status, length) → JSON body.</p>
+                <p><b>Commands implemented:</b> update-ready, send-chat-message, reload-config, get-mission-time, get-mission, get-player-list, set-time-remaining, set-next-mission, kick-player, unkick-player, clear-kicked-players, banlist-reload, banlist-add, banlist-remove, banlist-clear.</p>
+                <p><b>Security:</b> HTTP Basic Auth. For public hosting, put behind a reverse proxy with HTTPS.</p>
+            </div>
+            <div class="card space-before-4">
+                <div class="card-h">
+                    <div>
+                        <div class="card-t">Branding</div>
+                        <div class="card-s">Customize accent color and logo for this panel.</div>
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div class="field">
+                        <label for="branding-accent">Panel accent color</label>
+                        <input id="branding-accent"
+                               type="color"
+                               value="#6c63ff"
+                               class="color-control">
+                    </div>
+                    <div class="field field-actions">
+                        <button class="btn" id="branding-save-color">Save Color</button>
+                        <div class="muted small">Applies instantly.</div>
+                    </div>
+                    <div class="field">
+                        <label for="branding-logo-file">Logo image <span class="muted small">16:9 is fine — it will be center-cropped.</span></label>
+                        <input id="branding-logo-file" type="file" accept="image/*">
+                        <div class="muted small space-before-1">Logo resolution: <b>42×42</b> px (square).</div>
+                    </div>
+                    <div class="field field-actions">
+                        <button class="btn" id="branding-upload-logo">Upload Logo</button>
+                        <button class="btn btn-ghost" id="branding-clear-logo">Reset</button>
+                    </div>
+                </div>
+                <div id="branding-status" class="muted small space-before-3"></div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

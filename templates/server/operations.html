@@ -1,0 +1,140 @@
+{% extends "layouts/server.html" %}
+{% block panel_content %}
+    <div class="page show operations-page" id="page-control">
+        <section class="operation-section">
+            <div class="section-copy">
+                <span class="eyebrow">Lifecycle</span>
+                <h2>Server lifecycle</h2>
+                <p>State-aware controls for this server process and installation.</p>
+            </div>
+            <div class="operation-panel">
+                <div class="entity-row entity-row--static"><span><strong>Current state</strong><small>{% if current_server.running %}Accepting remote commands{% else %}Process is not running{% endif %}</small></span><span class="status-badge status-badge--{% if current_server.running %}success{% else %}neutral{% endif %}"><span class="status-dot" aria-hidden="true"></span>{% if current_server.running %}Running{% else %}Stopped{% endif %}</span></div>
+                <div class="btns lifecycle-actions">
+                    {% if current_server.running %}<button class="btn primary" id="restart-server-btn">Restart server</button><button class="btn" id="stop-server-btn">Stop server</button>{% else %}<button class="btn primary" id="start-server-btn">Start server</button>{% endif %}
+                    <button class="btn ghost" id="update-server-btn">Update installation</button>
+                </div>
+            </div>
+        </section>
+        <section class="operation-section">
+            <div class="section-copy">
+                <span class="eyebrow">Mission</span>
+                <h2>Mission controls</h2>
+                <p>Manage the current session and the next rotation slots.</p>
+            </div>
+            <div class="operation-panel stack gap-3">
+                <div class="inline-actions">
+                    <button class="btn ghost" data-command="get-mission">Get current mission</button>
+                    <button class="btn ghost" data-command="get-mission-time">Get mission time</button>
+                    <button class="btn ghost" data-command="set-time-remaining" data-time="5">Advance mission</button>
+                </div>
+                <form class="form compact-form" id="set-next-mission-form">
+                    <div class="field">
+                        <label for="next-mission-group">Group</label><input id="next-mission-group"
+       type="text"
+       name="group"
+       placeholder="Builtin"
+       required>
+                    </div>
+                    <div class="field">
+                        <label for="next-mission-name">Mission</label><input id="next-mission-name"
+       type="text"
+       name="name"
+       placeholder="mission_name"
+       required>
+                    </div>
+                    <div class="field">
+                        <label for="next-mission-max-time">Max seconds</label><input id="next-mission-max-time"
+       type="number"
+       name="max_time"
+       placeholder="1800"
+       required>
+                    </div>
+                    <button class="btn primary" type="submit">Set next mission</button>
+                </form>
+                <div class="divider"></div>
+                <div id="server-settings-notice" class="notice inline-notice" hidden></div>
+                <div class="mission-slots">
+                    <div class="field">
+                        <label for="mission1-group">Mission slot 1</label>
+                        <div class="field-pair">
+                            <select id="mission1-group">
+                                <option value="BuiltIn">Built-in</option>
+                                <option value="User">Workshop / User</option>
+                            </select><select id="mission1-name" aria-label="Mission slot 1 mission">
+                                <option value="">None</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label for="mission2-group">Mission slot 2</label>
+                        <div class="field-pair">
+                            <select id="mission2-group">
+                                <option value="BuiltIn">Built-in</option>
+                                <option value="User">Workshop / User</option>
+                            </select><select id="mission2-name" aria-label="Mission slot 2 mission">
+                                <option value="">None</option>
+                            </select>
+                        </div>
+                        <div class="help" id="mission-help"></div>
+                    </div>
+                </div>
+                <button class="btn primary align-start"
+                        id="mission-slots-save-btn"
+                        type="button">Save rotation</button>
+            </div>
+        </section>
+        <section class="operation-section">
+            <div class="section-copy">
+                <span class="eyebrow">Commands</span>
+                <h2>Server commands</h2>
+                <p>Send a message or adjust the active mission timer.</p>
+            </div>
+            <div class="operation-panel two-column-forms">
+                <form class="form" id="send-chat-message-form">
+                    <div class="field">
+                        <label for="send-chat-message">Chat message</label><input id="send-chat-message"
+       type="text"
+       name="message"
+       placeholder="Message to connected players…"
+       required>
+                    </div>
+                    <button class="btn primary" type="submit">Send message</button>
+                </form>
+                <form class="form" id="set-time-remaining-form">
+                    <div class="field">
+                        <label for="time-remaining">Seconds remaining</label><input id="time-remaining"
+       type="number"
+       name="time"
+       placeholder="900"
+       required>
+                    </div>
+                    <button class="btn primary" type="submit">Set time</button>
+                </form>
+            </div>
+        </section>
+        <details class="advanced-disclosure">
+            <summary><span><strong>Advanced operations</strong><small>Workshop sync and direct configuration reload</small></span><span aria-hidden="true">⌄</span></summary>
+            <div class="operation-panel two-column-forms">
+                <div class="form">
+                    <h3>Workshop files</h3>
+                    <p class="muted">Refresh subscribed mission files. Workshop PR8 moves this into the resource browser.</p>
+                    <button class="btn" id="sync-workshop-btn" type="button">Sync Workshop files</button>
+                    <div class="help" id="sync-workshop-status"></div>
+                </div>
+                <form class="form" id="reload-config-form">
+                    <h3>Reload config</h3>
+                    <div class="field">
+                        <label for="reload-config-path">Config path (optional)</label><input id="reload-config-path"
+       type="text"
+       name="path"
+       placeholder="Server default">
+                    </div>
+                    <button class="btn" type="submit">Reload configuration</button>
+                </form>
+            </div>
+        </details>
+        <section class="operation-output" aria-label="Command response">
+            {% include "components/response_panel.html" %}
+        </section>
+    </div>
+{% endblock %}

@@ -1,0 +1,11 @@
+{% macro field(name, label, type='text', value='', help='', error='', required=false, autocomplete='', field_id='', input_class='', field_class='', placeholder='') -%}
+    {% set control_id = field_id or name %}
+    {% set help_id = control_id ~ '-help' %}
+    {% set error_id = control_id ~ '-error' %}
+    <div class="field{% if field_class %} {{ field_class }}{% endif %}">
+        <label for="{{ control_id }}">{{ label }}</label>
+        <input id="{{ control_id }}" name="{{ name }}" type="{{ type }}" value="{{ value }}"{% if input_class %} class="{{ input_class }}"{% endif %}{% if placeholder %} placeholder="{{ placeholder }}"{% endif %}{% if help or error %} aria-describedby="{% if help %}{{ help_id }}{% endif %}{% if help and error %} {% endif %}{% if error %}{{ error_id }}{% endif %}"{% endif %}{% if error %} aria-invalid="true"{% endif %}{% if required %} required{% endif %}{% if autocomplete %} autocomplete="{{ autocomplete }}"{% endif %}>
+        {% if help %}<div class="help" id="{{ help_id }}">{{ help }}</div>{% endif %}
+        {% if error %}<div class="field-error" id="{{ error_id }}">{{ error }}</div>{% endif %}
+    </div>
+{%- endmacro %}

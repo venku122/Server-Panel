@@ -1,0 +1,26 @@
+{% extends "layouts/server.html" %}
+{% block panel_content %}
+    <div class="page show" id="page-gallery">
+        <nav class="page-tabs" aria-label="Recording views"><a href="/servers/{{ current_server.id }}/recordings">Recorder</a><a class="active" href="/servers/{{ current_server.id }}/recordings/gallery" aria-current="page">Gallery</a></nav>
+        <div class="card">
+            <div class="card-h">
+                <div>
+                    <div class="card-t">Gallery</div>
+                    <div class="card-s">Browse NOBlackBox recordings for any server (local or remote).</div>
+                </div>
+                <button class="btn" id="gallery-refresh" type="button">Refresh</button>
+            </div>
+            <div class="field">
+                <div class="field-label">Servers</div>
+                <div id="gallery-servers" class="pills space-before-3 wrap"></div>
+                <div id="gallery-status" class="muted small space-before-2"></div>
+            </div>
+            <div class="hr"></div>
+            <div class="field">
+                <div class="field-label">Recordings</div>
+                <div id="gallery-files" class="list space-before-3"></div>
+                <div class="help">Click <b>View in program</b> to open the .acmi in Tacview (or your default viewer), or <b>Go to file path</b> to open the clip location for manual upload. For remote servers, the panel will fetch it first.</div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

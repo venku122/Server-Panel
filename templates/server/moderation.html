@@ -1,0 +1,54 @@
+{% extends "layouts/server.html" %}
+{% block panel_content %}
+    <div class="page show" id="page-moderation">
+        <nav class="page-tabs" aria-label="Player management views"><a href="/servers/{{ current_server.id }}/players">Players</a><a class="active" href="/servers/{{ current_server.id }}/players/moderation" aria-current="page">Moderation</a></nav>
+        <div class="row">
+            <div class="card grid-span-full">
+                <div class="card-h">
+                    <div>
+                        <div class="card-t">Moderation settings</div>
+                        <div class="card-s">Configure automatic friendly-fire enforcement and Discord bot notifications for the selected server.</div>
+                    </div>
+                </div>
+                <div class="form">
+                    <div class="btns">
+                        <button class="btn ghost" id="mod-install-btn" type="button">Install / Repair Moderation Mod</button>
+                        <button class="btn ghost" id="mod-refresh-status-btn" type="button">Refresh Status</button>
+                    </div>
+                    <div class="hint" id="mod-install-status">Select a server to check moderation mod status.</div>
+                    <div id="mod-install-progress" class="list compact-scroll">
+                        <div class="muted small">Install output will appear here.</div>
+                    </div>
+                    <label class="chk">
+                        <input type="checkbox" id="mod-enable-autokick" />
+                        Enable auto-kick for teamkilling
+                    </label>
+                    <label class="chk">
+                        <input type="checkbox" id="mod-bot-notify" />
+                        Send friendly-fire notifications through the panel bot
+                    </label>
+                    <div class="grid2">
+                        <div class="field">
+                            <label for="mod-aircraft-tol">Aircraft tolerance</label>
+                            <input id="mod-aircraft-tol" type="number" min="-1" />
+                        </div>
+                        <div class="field">
+                            <label for="mod-vehicle-tol">Vehicle tolerance</label>
+                            <input id="mod-vehicle-tol" type="number" min="-1" />
+                        </div>
+                        <div class="field">
+                            <label for="mod-ship-tol">Ship tolerance</label>
+                            <input id="mod-ship-tol" type="number" min="-1" />
+                        </div>
+                    </div>
+                    <div class="hint" id="mod-paths-hint"></div>
+                    <div class="hint">The moderation backend still tracks incidents and tickets in the background for enforcement and bot messages, but the standalone ticket view is hidden in the panel.</div>
+                    <div class="btns">
+                        <button class="btn ghost" id="mod-load-btn" type="button">Load</button>
+                        <button class="btn primary" id="mod-save-btn" type="button">Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
