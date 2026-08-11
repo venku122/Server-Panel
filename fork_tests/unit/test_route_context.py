@@ -53,6 +53,14 @@ def test_route_maps_keep_global_and_server_sections_disjoint(panel_module) -> No
             "show_response": False,
             "admin_only": True,
         },
+        "jobs": {
+            "template": "server/jobs.html",
+            "active_page": "jobs",
+            "title": "Jobs",
+            "subtitle": "Durable work and step history for this server",
+            "show_response": False,
+            "admin_only": True,
+        },
     }
     assert panel_module.GLOBAL_PANEL_PAGES == {
         "deployment": {
@@ -67,6 +75,14 @@ def test_route_maps_keep_global_and_server_sections_disjoint(panel_module) -> No
             "active_page": "activity",
             "title": "Activity",
             "subtitle": "Structured panel and server actions",
+            "show_response": False,
+            "admin_only": True,
+        },
+        "jobs": {
+            "template": "global/jobs.html",
+            "active_page": "jobs",
+            "title": "Jobs",
+            "subtitle": "Durable background work across the panel",
             "show_response": False,
             "admin_only": True,
         },
@@ -106,11 +122,15 @@ def test_route_maps_keep_global_and_server_sections_disjoint(panel_module) -> No
             "show_response": True,
         },
     }
-    assert set(panel_module.SERVER_SECTION_PAGES) & set(panel_module.GLOBAL_PANEL_PAGES) == {"activity"}
-    assert (
-        panel_module.SERVER_SECTION_PAGES["activity"]["template"]
-        != panel_module.GLOBAL_PANEL_PAGES["activity"]["template"]
-    )
+    assert set(panel_module.SERVER_SECTION_PAGES) & set(panel_module.GLOBAL_PANEL_PAGES) == {
+        "activity",
+        "jobs",
+    }
+    for shared_section in ("activity", "jobs"):
+        assert (
+            panel_module.SERVER_SECTION_PAGES[shared_section]["template"]
+            != panel_module.GLOBAL_PANEL_PAGES[shared_section]["template"]
+        )
 
 
 def test_unknown_server_section_returns_404(client) -> None:

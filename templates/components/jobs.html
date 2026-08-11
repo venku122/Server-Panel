@@ -1,0 +1,134 @@
+{% from "components/primitives.html" import progress, sheet %}
+{% macro job_filters_bar(filters, servers, statuses, types, current_server=none) -%}
+    <form class="job-toolbar" method="get" aria-label="Filter jobs">
+        <label class="job-search">
+            <span aria-hidden="true">⌕</span><span class="sr-only">Search jobs</span>
+            <input type="search"
+                   name="q"
+                   value="{{ filters.q }}"
+                   placeholder="Search Jobs">
+        </label>
+        {% if current_server %}
+            <span class="job-scope-control"><span class="status-dot{% if current_server.running %} running{% endif %}"
+      aria-hidden="true"></span>{{ current_server.name }}</span>
+        {% else %}
+            <label><span class="sr-only">Server</span><select name="server_id" aria-label="Server"><option value="">All Servers</option>{% for server in servers %}<option value="{{ server.id }}"
+        {% if filters.server_id == server.id %}selected{% endif %}>{{ server.name }}</option>{% endfor %}</select></label>
+        {% endif %}
+        <label><span class="sr-only">Status</span><select name="status" aria-label="Status"><option value="">Status</option>{% for status in statuses %}<option value="{{ status }}"
+        {% if filters.status == status %}selected{% endif %}>{{ status|replace('_', ' ') |title }}</option>{% endfor %}</select></label>
+        <label><span class="sr-only">Type</span><select name="job_type" aria-label="Type"><option value="">Type</option>{% for job_type in types %}<option value="{{ job_type }}"
+        {% if filters.job_type == job_type %}selected{% endif %}>{{ job_type|replace('_', ' ') |title }}</option>{% endfor %}</select></label>
+        <label><span class="sr-only">Time</span><select name="time" aria-label="Time"><option value="">Any time</option><option value="1h" {% if filters.time == '1h' %}selected{% endif %}>Last hour</option><option value="24h" {% if filters.time == '24h' %}selected{% endif %}>Last 24 hours</option><option value="7d" {% if filters.time == '7d' %}selected{% endif %}>Last 7 days</option><option value="30d" {% if filters.time == '30d' %}selected{% endif %}>Last 30 days</option></select></label>
+        <button class="btn primary" type="submit">Apply</button>
+        {% if request.query_string %}<a class="btn ghost" href="{{ request.path }}">Clear</a>{% endif %}
+    </form>
+{%- endmacro %}
+{% macro job_list(jobs) -%}
+    {% if jobs %}
+        <div class="job-list" data-job-list>
+            <div class="job-list-head" aria-hidden="true"><span>Status</span><span>Job</span><span>Target</span><span>Actor</span><span>Created / duration</span><span>Attempt</span><span>&nbsp;</span></div>
+            {% for job in jobs %}
+                <article class="job-row" data-job-id="{{ job.id }}">
+                    <button id="job-row-{{ job.id }}"
+                            class="job-row-main"
+                            type="button"
+                            data-open-sheet="job-detail-{{ job.id }}"
+                            aria-label="Inspect {{ job.job_type|replace('_', ' ') |title }} job">
+                        <span class="job-state job-state--{{ job.status }}"
+                              data-job-status="{{ job.status }}"><span class="status-dot" aria-hidden="true"></span>{{ job.status|replace('_', ' ') }}</span>
+                        <span class="job-identity"><strong>{{ job.job_type|replace('_', ' ') |title }}</strong><small class="mono">{{ job.id }}</small>{% if job.status in ('running', 'cancel_requested') %}<progress value="{{ job.progress_current }}"
+          max="{{ job.progress_total if job.progress_total else 1 }}">{{ job.progress_current }} / {{ job.progress_total }}</progress>{% endif %}</span>
+                        <span>{{ job.server_id or 'Panel' }}</span>
+                        <span class="mono">{{ job.created_by }}</span>
+                        <span><time datetime="{{ job.created_at }}" data-relative-time>{{ job.created_at }}</time><small data-job-duration
+       data-started="{{ job.started_at or job.created_at }}"
+       data-finished="{{ job.finished_at or '' }}">—</small></span>
+                        <span class="tabular">{{ job.attempt }}{% if job.parent_job_id %}<small>retry</small>{% endif %}</span>
+                    </button>
+                    <div class="menu-wrap job-menu-wrap">
+                        <button class="icon-button"
+                                type="button"
+                                aria-label="More actions for job {{ job.id }}"
+                                aria-controls="job-menu-{{ job.id }}"
+                                aria-expanded="false"
+                                data-menu-button>•••</button>
+                        <div class="resource-menu" id="job-menu-{{ job.id }}" role="menu" hidden>
+                            <button type="button"
+                                    role="menuitem"
+                                    data-open-sheet="job-detail-{{ job.id }}">View details</button>
+                            {% if job.status in ('queued', 'running', 'cancel_requested') %}<button type="button"
+        role="menuitem"
+        data-job-cancel
+        {% if job.status == 'cancel_requested' %}disabled{% endif %}>{{ 'Cancellation pending' if job.status == 'cancel_requested' else 'Request cancellation' }}</button>{% elif job.status in ('failed', 'cancelled', 'interrupted') %}<button type="button"
+        role="menuitem"
+        data-job-retry
+        data-force-required="{{ 'false' if job.replay_safe else 'true' }}">{{ 'Retry job' if job.replay_safe else 'Force retry…' }}</button>{% endif %}
+                            <a role="menuitem" href="{{ url_for('api_job_detail', job_id=job.id) }}">Open JSON</a>
+                        </div>
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+        {% for job in jobs %}
+            {% call sheet('job-detail-' ~ job.id, job.job_type|replace('_', ' ')|title) %}
+                <div class="sheet-status-line"><span class="job-state job-state--{{ job.status }}"
+      data-job-status="{{ job.status }}"><span class="status-dot" aria-hidden="true"></span>{{ job.status|replace('_', ' ') }}</span><time datetime="{{ job.created_at }}" data-relative-time>{{ job.created_at }}</time></div>
+                <p class="sheet-summary" data-job-step>{{ job.last_completed_step or job.error_summary or 'Waiting for the first durable checkpoint.' }}</p>
+                {{ progress(((job.progress_current / job.progress_total) * 100)|round|int if job.progress_total else 0, 'Job progress') }}
+                <dl class="audit-identifiers job-identifiers">
+                    <div><dt>Job ID</dt><dd class="mono">{{ job.id }}</dd></div><div><dt>Server</dt><dd>{{ job.server_id or 'Panel' }}</dd></div><div><dt>Created by</dt><dd class="mono">{{ job.created_by }}</dd></div><div><dt>Attempt</dt><dd>{{ job.attempt }}{% if job.parent_job_id %} · retry of <span class="mono">{{ job.parent_job_id }}</span>{% endif %}</dd></div><div><dt>Created</dt><dd>{{ job.created_at }}</dd></div><div><dt>Started</dt><dd>{{ job.started_at or '—' }}</dd></div><div><dt>Finished</dt><dd>{{ job.finished_at or '—' }}</dd></div><div><dt>Cancellation</dt><dd>{{ 'Requested; waiting for a safe checkpoint' if job.cancel_requested else 'Not requested' }}</dd></div><div><dt>Correlation ID</dt><dd class="mono">{{ job.correlation_id }}</dd></div>
+                </dl>
+                <section class="job-event-section">
+                    <h3>Event sequence</h3>
+                    <ol data-job-events>
+                        <li>Open details to load durable events…</li>
+                    </ol>
+                </section>
+                <details class="payload-disclosure">
+                    <summary>Safe parameters</summary>
+                    <pre data-job-parameters>{{ job.parameters|tojson(indent=2) }}</pre>
+                </details>
+                <details class="payload-disclosure">
+                    <summary>Safe result</summary>
+                    <pre data-job-result>{{ job.result|tojson(indent=2) if job.result is not none else 'Not available.' }}</pre>
+                </details>
+                <details class="payload-disclosure">
+                    <summary>Worker diagnostics</summary>
+                    <dl class="audit-identifiers">
+                        <div>
+                            <dt>Replay policy</dt>
+                            <dd>
+                                {{ 'Normal retry allowed' if job.replay_safe else 'Forced retry only; side effects may already exist' }}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt>Last checkpoint</dt>
+                            <dd>
+                                {{ job.last_completed_step or 'None recorded' }}
+                            </dd>
+                        </div>
+                    </dl>
+                </details>
+            {% endcall %}
+        {% endfor %}
+    {% else %}
+        <div class="empty-state job-empty">
+            <span class="empty-state-icon" aria-hidden="true">◫</span>
+            <h2>No jobs found</h2>
+            <p>Server updates, Workshop syncs, and tool installs will appear here.</p>{% if request.query_string %}<a class="btn ghost" href="{{ request.path }}">Clear filters</a>{% endif %}</div>
+    {% endif %}
+{%- endmacro %}
+{% macro recent_job_list(jobs, server_id) -%}
+    <section class="quick-links recent-jobs">
+        <header>
+            <div>
+                <span class="eyebrow">Durable work</span>
+                <h2>Recent Jobs</h2>
+            </div>
+            <a href="/servers/{{ server_id }}/jobs">View all</a>
+        </header>
+        {% if jobs %}<div class="entity-list">{% for job in jobs %}<a class="entity-row"
+   href="/servers/{{ server_id }}/jobs?q={{ job.id|urlencode }}"><span><strong>{{ job.job_type|replace('_', ' ') |title }}</strong><small>{{ job.last_completed_step or job.error_summary or 'Queued for processing' }}</small></span><span class="recent-job-meta"><span class="job-state job-state--{{ job.status }}">{{ job.status|replace('_', ' ') }}</span><time datetime="{{ job.created_at }}" data-relative-time>{{ job.created_at }}</time></span></a>{% endfor %}</div>{% else %}<div class="empty-state compact-empty"><p>No jobs have run for this server yet.</p></div>{% endif %}
+    </section>
+{%- endmacro %}

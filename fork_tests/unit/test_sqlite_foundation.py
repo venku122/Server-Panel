@@ -30,8 +30,8 @@ def test_fresh_creation_uses_required_pragmas_and_only_schema_metadata(tmp_path:
         assert connection.execute("PRAGMA foreign_keys").fetchone()[0] == 1
         assert connection.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
         assert connection.execute("PRAGMA busy_timeout").fetchone()[0] == 5000
-        assert table_names(connection) == {"audit_events", "schema_migrations"}
-        assert run_migrations(connection) == (1, 2)
+        assert table_names(connection) == {"audit_events", "job_events", "jobs", "schema_migrations"}
+        assert run_migrations(connection) == (1, 2, 3)
     finally:
         connection.close()
 
@@ -73,15 +73,15 @@ def test_repeated_startup_is_idempotent(tmp_path: Path) -> None:
     database_path = tmp_path / "panel.sqlite3"
     first = connect(database_path)
     try:
-        assert run_migrations(first) == (1, 2)
-        assert run_migrations(first) == (1, 2)
-        assert first.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0] == 2
+        assert run_migrations(first) == (1, 2, 3)
+        assert run_migrations(first) == (1, 2, 3)
+        assert first.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0] == 3
     finally:
         first.close()
 
     restarted = connect(database_path)
     try:
-        assert run_migrations(restarted) == (1, 2)
+        assert run_migrations(restarted) == (1, 2, 3)
     finally:
         restarted.close()
 
