@@ -1,7 +1,11 @@
 {% extends "layouts/server.html" %}
 {% block panel_content %}
     <div class="page show" id="page-gallery">
-        <nav class="page-tabs" aria-label="Recording views"><a href="/servers/{{ current_server.id }}/recordings">Recorder</a><a class="active" href="/servers/{{ current_server.id }}/recordings/gallery" aria-current="page">Gallery</a></nav>
+        <nav class="page-tabs" aria-label="Recording views">
+            <a href="/servers/{{ current_server.id }}/recordings">Recorder</a><a class="active"
+   href="/servers/{{ current_server.id }}/recordings/gallery"
+   aria-current="page">Gallery</a>
+        </nav>
         <div class="card">
             <div class="card-h">
                 <div>
