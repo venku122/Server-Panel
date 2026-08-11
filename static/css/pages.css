@@ -87,8 +87,10 @@ th.table-col-actions {
 .recent-job-meta { display: flex; min-width: 150px; align-items: center; justify-content: flex-end; gap: 12px; color: #707070; font-size: 9px; }
 
 @media (max-width: 900px) {
-  .job-toolbar label, .job-toolbar .job-scope-control { flex: none; min-width: 138px; }
-  .job-toolbar .job-search { min-width: min(75vw, 280px); }
+  .job-toolbar { display: grid; width: 100%; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; }
+  .job-toolbar label, .job-toolbar .job-scope-control { min-width: 0; }
+  .job-toolbar .job-search { min-width: 0; grid-column: 1 / -1; }
+  .job-toolbar .btn { width: 100%; }
   .job-list { border: 0; background: transparent; }
   .job-list-head { display: none; }
   .job-row { min-height: 112px; grid-template-columns: minmax(0,1fr) 42px; margin-bottom: 8px; border: 1px solid var(--color-border); border-radius: var(--radius-card); background: #090909; }
