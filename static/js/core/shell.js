@@ -1,12 +1,19 @@
 document.addEventListener("DOMContentLoaded", () => {
   const root = document.documentElement;
+  /** @type {HTMLElement | null} */
   const sidebar = document.querySelector(".sidebar");
   const collapse = document.getElementById("sidebar-collapse");
+  /** @type {HTMLElement | null} */
   const resize = document.querySelector("[data-sidebar-resize]");
+  /** @type {HTMLElement | null} */
   const find = document.getElementById("find-palette");
-  const findInput = document.getElementById("find-input");
+  /** @type {HTMLInputElement | null} */
+  const findInput = /** @type {HTMLInputElement | null} */ (document.getElementById("find-input"));
+  /** @type {HTMLElement | null} */
   const findResults = document.getElementById("find-results");
+  /** @type {HTMLElement | null} */
   const backdrop = document.querySelector("[data-overlay-backdrop]");
+  /** @type {HTMLElement | null} */
   let restoreFocus = null;
   let results = [];
   let selected = 0;
@@ -26,10 +33,12 @@ document.addEventListener("DOMContentLoaded", () => {
   resize?.addEventListener("pointerdown", (event) => {
     if (!sidebar || document.body.classList.contains("sidebar-collapsed")) return;
     resize.setPointerCapture(event.pointerId);
+    /** @param {PointerEvent} moveEvent */
     const onMove = (moveEvent) => {
       const width = Math.max(208, Math.min(320, moveEvent.clientX));
       root.style.setProperty("--sidebar-width", `${width}px`);
     };
+    /** @param {PointerEvent} upEvent */
     const onUp = (upEvent) => {
       resize.releasePointerCapture(upEvent.pointerId);
       resize.removeEventListener("pointermove", onMove);
@@ -67,9 +76,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }).join("");
   };
 
+  /** @param {HTMLElement | null} trigger */
   const openFind = (trigger) => {
     if (!find || !findInput) return;
-    restoreFocus = trigger || document.activeElement;
+    restoreFocus = trigger || /** @type {HTMLElement | null} */ (document.activeElement);
     find.hidden = false;
     if (backdrop) backdrop.hidden = false;
     document.body.classList.add("overlay-open");
@@ -78,7 +88,7 @@ document.addEventListener("DOMContentLoaded", () => {
     findInput.focus();
   };
 
-  document.querySelectorAll("[data-open-find]").forEach((button) => button.addEventListener("click", () => openFind(button)));
+  document.querySelectorAll("[data-open-find]").forEach((button) => button.addEventListener("click", () => openFind(/** @type {HTMLElement} */ (button))));
   backdrop?.addEventListener("click", closeFind);
   findInput?.addEventListener("input", () => { selected = 0; drawResults(findInput.value); });
   findInput?.addEventListener("keydown", (event) => {
@@ -92,7 +102,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   find?.addEventListener("keydown", (event) => {
     if (event.key !== "Tab") return;
-    const focusable = [...find.querySelectorAll("input, a[href], button:not([disabled])")];
+    const focusable = /** @type {HTMLElement[]} */ ([...find.querySelectorAll("input, a[href], button:not([disabled])")]);
     if (!focusable.length) return;
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
@@ -102,12 +112,13 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("keydown", (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
       event.preventDefault();
-      find?.hidden ? openFind(document.activeElement) : closeFind();
+      find?.hidden ? openFind(/** @type {HTMLElement | null} */ (document.activeElement)) : closeFind();
     } else if (event.key === "Escape") {
       if (find && !find.hidden) closeFind();
       else {
+        /** @type {HTMLElement | null} */
         const expanded = document.querySelector('[data-menu-button][aria-expanded="true"]');
-        document.querySelectorAll(".resource-menu").forEach((node) => { node.hidden = true; });
+        document.querySelectorAll(".resource-menu").forEach((node) => { /** @type {HTMLElement} */ (node).hidden = true; });
         document.querySelectorAll("[data-menu-button]").forEach((node) => node.setAttribute("aria-expanded", "false"));
         expanded?.focus();
       }
@@ -119,24 +130,25 @@ document.addEventListener("DOMContentLoaded", () => {
       event.stopPropagation();
       const menu = document.getElementById(button.getAttribute("aria-controls"));
       const expanded = button.getAttribute("aria-expanded") === "true";
-      document.querySelectorAll(".resource-menu").forEach((node) => { node.hidden = true; });
+      document.querySelectorAll(".resource-menu").forEach((node) => { /** @type {HTMLElement} */ (node).hidden = true; });
       document.querySelectorAll("[data-menu-button]").forEach((node) => node.setAttribute("aria-expanded", "false"));
-      if (menu && !expanded) { menu.hidden = false; button.setAttribute("aria-expanded", "true"); menu.querySelector("a,button")?.focus(); }
+      if (menu && !expanded) { menu.hidden = false; button.setAttribute("aria-expanded", "true"); /** @type {HTMLElement | null} */ (menu.querySelector("a,button"))?.focus(); }
     });
   });
   document.addEventListener("click", () => {
-    document.querySelectorAll(".resource-menu").forEach((node) => { node.hidden = true; });
+    document.querySelectorAll(".resource-menu").forEach((node) => { /** @type {HTMLElement} */ (node).hidden = true; });
     document.querySelectorAll("[data-menu-button]").forEach((node) => node.setAttribute("aria-expanded", "false"));
   });
 
-  document.querySelectorAll(".page-tabs").forEach((tablist) => {
-    const tabs = [...tablist.querySelectorAll("a[href]")];
+  document.querySelectorAll(".page-tabs").forEach((tablistNode) => {
+    const tablist = /** @type {HTMLElement} */ (tablistNode);
+    const tabs = /** @type {HTMLElement[]} */ ([...tablist.querySelectorAll("a[href]")]);
     tablist.setAttribute("role", "tablist");
     tabs.forEach((tab) => tab.setAttribute("role", "tab"));
     tablist.addEventListener("keydown", (event) => {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
       event.preventDefault();
-      const current = Math.max(0, tabs.indexOf(document.activeElement));
+      const current = Math.max(0, tabs.indexOf(/** @type {HTMLElement} */ (document.activeElement)));
       const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (current + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
       tabs[next]?.focus();
     });
