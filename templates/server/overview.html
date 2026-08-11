@@ -1,5 +1,6 @@
 {% extends "layouts/server.html" %}
 {% from "components/timeline.html" import recent_activity_list %}
+{% from "components/jobs.html" import recent_job_list %}
 {% block panel_content %}
     <div class="page show overview-page" id="page-dashboard">
         {% if current_server.stale %}<div class="note note--warning"><strong>Live status is unavailable.</strong><span>Showing the most recent cached server identity. Operations may fail until the node reconnects.</span></div>{% endif %}
@@ -102,6 +103,7 @@
             </section>
         </div>
         {{ recent_activity_list(recent_activity, current_server.id) }}
+        {{ recent_job_list(recent_jobs, current_server.id) }}
         <section class="quick-links">
             <header>
                 <div>
