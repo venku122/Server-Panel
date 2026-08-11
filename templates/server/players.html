@@ -19,7 +19,7 @@
                 </div>
                 <button class="btn" id="bans-refresh-players" type="button">Refresh</button>
             </header>
-            <div class="player-list-head" aria-hidden="true"><span>Player</span><span>Steam ID</span><span>State</span><span></span></div>
+            <div class="player-list-head" aria-hidden="true"><span>Player</span><span>Steam ID</span><span>State</span><span class="sr-only">Actions</span></div>
             <div id="bans-player-pills" class="player-entity-list" aria-live="polite"></div>
             <div id="bans-player-status" class="section-footer muted small">Loading players…</div>
         </section>
@@ -27,35 +27,44 @@
             <summary><span><strong>Direct Steam ID actions</strong><small>Kick, ban, or remove an existing restriction</small></span><span aria-hidden="true">⌄</span></summary>
             <div class="player-action-grid">
                 <form class="compact-action" id="kick-player-form">
-                    <label for="kick-steam-id">Kick player</label><input id="kick-steam-id"
-       type="text"
-       name="steam_id"
-       placeholder="Steam ID"
-       required><button class="btn danger" type="submit">Kick…</button>
+                    <label for="kick-steam-id">Kick player</label>
+                    <input id="kick-steam-id"
+                           type="text"
+                           name="steam_id"
+                           placeholder="Steam ID"
+                           required>
+                    <button class="btn danger" type="submit">Kick…</button>
                 </form>
                 <form class="compact-action" id="ban-player-form">
-                    <label for="ban-steam-id">Ban player</label><input id="ban-steam-id"
-       type="text"
-       name="steam_id"
-       placeholder="Steam ID"
-       required><input id="ban-reason"
-       type="text"
-       name="reason"
-       placeholder="Optional reason"><button class="btn danger" type="submit">Ban…</button>
+                    <label for="ban-steam-id">Ban player</label>
+                    <input id="ban-steam-id"
+                           type="text"
+                           name="steam_id"
+                           placeholder="Steam ID"
+                           required>
+                    <input id="ban-reason"
+                           type="text"
+                           name="reason"
+                           placeholder="Optional reason">
+                    <button class="btn danger" type="submit">Ban…</button>
                 </form>
                 <form class="compact-action" id="unkick-player-form">
-                    <label for="unkick-steam-id">Remove kick</label><input id="unkick-steam-id"
-       type="text"
-       name="steam_id"
-       placeholder="Steam ID"
-       required><button class="btn" type="submit">Unkick</button>
+                    <label for="unkick-steam-id">Remove kick</label>
+                    <input id="unkick-steam-id"
+                           type="text"
+                           name="steam_id"
+                           placeholder="Steam ID"
+                           required>
+                    <button class="btn" type="submit">Unkick</button>
                 </form>
                 <form class="compact-action" id="unban-player-form">
-                    <label for="unban-steam-id">Remove ban</label><input id="unban-steam-id"
-       type="text"
-       name="steam_id"
-       placeholder="Steam ID"
-       required><button class="btn" type="submit">Unban</button>
+                    <label for="unban-steam-id">Remove ban</label>
+                    <input id="unban-steam-id"
+                           type="text"
+                           name="steam_id"
+                           placeholder="Steam ID"
+                           required>
+                    <button class="btn" type="submit">Unban</button>
                 </form>
             </div>
         </details>
@@ -65,7 +74,9 @@
                 <p>Server-wide list operations apply immediately after confirmation where required.</p>
             </div>
             <div class="btns">
-                <button class="btn" data-command="clear-kicked-players">Clear kicked players</button><button class="btn" data-command="banlist-reload">Reload banlist</button><button class="btn danger" data-command="banlist-clear">Clear banlist…</button>
+                <button class="btn" data-command="clear-kicked-players">Clear kicked players</button>
+                <button class="btn" data-command="banlist-reload">Reload banlist</button>
+                <button class="btn danger" data-command="banlist-clear">Clear banlist…</button>
             </div>
         </section>
     </div>
