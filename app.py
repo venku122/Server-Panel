@@ -1950,7 +1950,7 @@ SERVER_PAGE_REGISTRY = {
             "settings-history",
             "History",
             "/settings/history",
-            None,
+            "configuration-history",
             group="settings",
             sibling_group="server-settings",
             compatibility_paths=("/configuration-history",),
@@ -2388,6 +2388,7 @@ def _render_server_registry_page(server_id: str, page_key: str):
         "recordings": "noblackbox",
         "recordings-gallery": "gallery",
         "settings": "settings",
+        "settings-history": "configuration-history",
         "activity": "activity",
         "jobs": "jobs",
     }
@@ -2435,6 +2436,12 @@ def server_recordings_gallery_page(server_id: str):
 @requires_login()
 def server_settings_page(server_id: str):
     return _render_server_registry_page(server_id, "settings")
+
+
+@app.get("/servers/<server_id>/settings/history")
+@requires_login()
+def server_settings_history_page(server_id: str):
+    return _render_server_registry_page(server_id, "settings-history")
 
 
 @app.get("/servers/<server_id>/<section>")
