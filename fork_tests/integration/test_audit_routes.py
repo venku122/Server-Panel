@@ -178,4 +178,4 @@ def test_activity_exposes_jsonl_mirror_degradation_to_admin(client, panel_module
     assert response.status_code == 200
     assert "SQLite history is intact" in html
     assert "Compatibility mirror degraded." in html
-    assert "2 mirror operation(s) failed" in html
+    assert "2 JSONL mirror operation(s) failed" in html
