@@ -20,6 +20,13 @@ from typing import Callable, Iterable
 ROOT = Path(__file__).resolve().parents[2]
 TOOLS = ROOT / "fork_tools"
 NODE_BIN = TOOLS / "node_modules" / ".bin"
+REVIEW_ONLY_PREFIXES = (
+    ".github/",
+    "artifacts/",
+    "fork_tests/",
+    "fork_tools/",
+    "scripts/fork/",
+)
 
 
 def run(command: list[str], *, cwd: Path = ROOT) -> subprocess.CompletedProcess[str]:
@@ -60,6 +67,45 @@ def extract_ref(ref: str, target: Path) -> None:
     ).stdout
     with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as bundle:
         bundle.extractall(target)
+
+
+def git_ref_sha(ref: str) -> str:
+    return require(run(["git", "rev-parse", "--verify", f"{ref}^{{commit}}"]), f"resolve {ref}").strip()
+
+
+def require_stacked_feature(base_ref: str, feature_ref: str) -> None:
+    result = run(["git", "merge-base", "--is-ancestor", base_ref, feature_ref])
+    if result.returncode:
+        raise RuntimeError(f"Feature ref {feature_ref} is not stacked directly on an ancestor {base_ref}")
+
+
+def require_review_production_identity(feature_ref: str) -> None:
+    changed = require(run(["git", "diff", "--name-only", feature_ref, "HEAD"]), "review production identity")
+    unexpected = [path for path in changed.splitlines() if path and not path.startswith(REVIEW_ONLY_PREFIXES)]
+    if unexpected:
+        raise RuntimeError(
+            "Review HEAD contains production changes absent from the feature ref\n"
+            + "\n".join(f"- {path}" for path in unexpected)
+        )
+
+
+def changed_existing_paths(base_ref: str, feature_ref: str, suffixes: tuple[str, ...]) -> list[str]:
+    output = require(
+        run(["git", "diff", "--name-only", "--diff-filter=ACMR", f"{base_ref}...{feature_ref}"]),
+        "changed production path lookup",
+    )
+    return sorted(path for path in output.splitlines() if path.endswith(suffixes) and (ROOT / path).is_file())
+
+
+def path_exists_at_ref(ref: str, path: str) -> bool:
+    return run(["git", "cat-file", "-e", f"{ref}:{path}"]).returncode == 0
+
+
+def resolve_repo_path(value: Path, *, label: str) -> Path:
+    resolved = (value if value.is_absolute() else ROOT / value).resolve()
+    if resolved != ROOT and ROOT not in resolved.parents:
+        raise RuntimeError(f"{label} must stay within the repository: {value}")
+    return resolved
 
 
 def changed_lines(base_ref: str, feature_ref: str, path: str) -> set[int]:
@@ -151,6 +197,33 @@ def eslint_diagnostics(repo: Path) -> list[str]:
     return [f"{item.get('ruleId')}:{item['message']}" for item in payload[0].get("messages", [])]
 
 
+def eslint_path_diagnostics(repo: Path, paths: list[str]) -> list[str]:
+    result = run(
+        [
+            str(NODE_BIN / "eslint"),
+            "--config",
+            str(TOOLS / "eslint.config.mjs"),
+            "--no-ignore",
+            "--format",
+            "json",
+            *paths,
+        ],
+        cwd=repo,
+    )
+    payload = json.loads(result.stdout or "[]")
+    diagnostics: list[str] = []
+    for file_result in payload:
+        source = Path(file_result["filePath"])
+        try:
+            relative = source.resolve().relative_to(repo.resolve()).as_posix()
+        except ValueError:
+            relative = source.name
+        diagnostics.extend(
+            f"{relative}:{item.get('ruleId')}:{item['message']}" for item in file_result.get("messages", [])
+        )
+    return diagnostics
+
+
 def typescript_diagnostics(repo: Path) -> list[str]:
     result = run(
         [
@@ -193,6 +266,32 @@ def stylelint_diagnostics(repo: Path) -> list[str]:
     return diagnostics
 
 
+def stylelint_path_diagnostics(repo: Path, paths: list[str]) -> list[str]:
+    result = run(
+        [
+            str(NODE_BIN / "stylelint"),
+            "--config",
+            str(TOOLS / "stylelint.config.mjs"),
+            "--formatter",
+            "json",
+            *paths,
+        ],
+        cwd=repo,
+    )
+    payload = json.loads(result.stdout or "[]")
+    diagnostics: list[str] = []
+    for file_result in payload:
+        source = Path(file_result["source"])
+        try:
+            relative = source.resolve().relative_to(repo.resolve()).as_posix()
+        except ValueError:
+            relative = source.name
+        for warning in file_result.get("warnings", []):
+            message = re.sub(r"\d+", "<n>", warning["text"])
+            diagnostics.append(f"{relative}:{warning['rule']}:{message}")
+    return diagnostics
+
+
 def djlint_diagnostics(repo: Path) -> list[str]:
     result = run(
         [
@@ -223,34 +322,260 @@ def ratchet(label: str, checker: Callable[[Path], list[str]], baseline: Path) ->
     return {"baseline": len(old), "current": len(current), "removed": len(multiset_added(old, current))}
 
 
-def check_screenshots() -> dict[str, int]:
-    manifest_path = ROOT / "artifacts" / "pr1" / "manifest.json"
+def check_changed_frontend(base_ref: str, feature_ref: str, baseline: Path) -> dict[str, object]:
+    templates = changed_existing_paths(base_ref, feature_ref, (".html", ".jinja", ".jinja2", ".j2"))
+    stylesheets = changed_existing_paths(base_ref, feature_ref, (".css",))
+    scripts = changed_existing_paths(base_ref, feature_ref, (".js", ".mjs", ".cjs"))
+    new_stylesheets = [path for path in stylesheets if not path_exists_at_ref(base_ref, path)]
+    legacy_stylesheets = [path for path in stylesheets if path not in new_stylesheets]
+    new_scripts = [path for path in scripts if not path_exists_at_ref(base_ref, path)]
+    legacy_scripts = [path for path in scripts if path not in new_scripts]
+
+    if templates:
+        require(
+            run(
+                [
+                    sys.executable,
+                    "-m",
+                    "djlint",
+                    "--configuration",
+                    str(TOOLS / "djlint.toml"),
+                    *templates,
+                    "--check",
+                    "--lint",
+                ]
+            ),
+            "changed Jinja template format/lint",
+        )
+        inline_styles = [
+            path
+            for path in templates
+            if re.search(r"\sstyle\s*=", (ROOT / path).read_text(encoding="utf-8"), re.IGNORECASE)
+        ]
+        if inline_styles:
+            raise RuntimeError(
+                "Changed templates contain inline style attributes\n" + "\n".join(f"- {path}" for path in inline_styles)
+            )
+
+    if new_stylesheets:
+        require(
+            run(
+                [
+                    str(NODE_BIN / "stylelint"),
+                    "--config",
+                    str(TOOLS / "stylelint.config.mjs"),
+                    *new_stylesheets,
+                ]
+            ),
+            "new CSS lint",
+        )
+
+    if new_scripts:
+        require(
+            run(
+                [
+                    str(NODE_BIN / "eslint"),
+                    "--config",
+                    str(TOOLS / "eslint.config.mjs"),
+                    "--no-ignore",
+                    *new_scripts,
+                ]
+            ),
+            "new JavaScript lint",
+        )
+    for path in scripts:
+        require(run(["node", "--check", path]), f"JavaScript syntax for {path}")
+    if new_scripts:
+        require(
+            run(
+                [
+                    str(NODE_BIN / "tsc"),
+                    "--allowJs",
+                    "--checkJs",
+                    "--noEmit",
+                    "--target",
+                    "ES2022",
+                    "--module",
+                    "ES2022",
+                    "--moduleResolution",
+                    "node",
+                    "--lib",
+                    "ES2022,DOM,DOM.Iterable",
+                    "--skipLibCheck",
+                    *new_scripts,
+                ]
+            ),
+            "new JavaScript module type check",
+        )
+
+    legacy_style_ratchet = (
+        ratchet(
+            "Changed legacy CSS",
+            lambda repo: stylelint_path_diagnostics(repo, legacy_stylesheets),
+            baseline,
+        )
+        if legacy_stylesheets
+        else {"baseline": 0, "current": 0, "removed": 0}
+    )
+    legacy_script_ratchet = (
+        ratchet(
+            "Changed legacy JavaScript",
+            lambda repo: eslint_path_diagnostics(repo, legacy_scripts),
+            baseline,
+        )
+        if legacy_scripts
+        else {"baseline": 0, "current": 0, "removed": 0}
+    )
+
+    return {
+        "templates": len(templates),
+        "stylesheets": len(stylesheets),
+        "new_stylesheets": len(new_stylesheets),
+        "legacy_stylesheet_lint": legacy_style_ratchet,
+        "scripts": len(scripts),
+        "new_script_typechecks": len(new_scripts),
+        "legacy_script_lint": legacy_script_ratchet,
+    }
+
+
+def added_lines(base_ref: str, feature_ref: str, path: str) -> list[str]:
+    diff = require(
+        run(["git", "diff", "--unified=0", f"{base_ref}...{feature_ref}", "--", path]),
+        f"added-line lookup for {path}",
+    )
+    return [
+        line[1:].strip()
+        for line in diff.splitlines()
+        if line.startswith("+") and not line.startswith("+++") and line[1:].strip()
+    ]
+
+
+def check_template_architecture(base_ref: str, feature_ref: str) -> dict[str, int]:
+    matrix_path = TOOLS / "validation" / "pr02-route-parity.json"
+    matrix = json.loads(matrix_path.read_text(encoding="utf-8"))
+    routes = matrix.get("routes", [])
+    required_fields = {
+        "name",
+        "path",
+        "role",
+        "template",
+        "context",
+        "js_ids",
+        "empty_state",
+        "local_behavior",
+        "remote_behavior",
+        "response_diagnostics",
+    }
+    if len(routes) != 16:
+        raise RuntimeError("PR2 route parity matrix must cover exactly 16 source-backed routes")
+
+    app_script = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
+    critical_ids: set[str] = set()
+    for route in routes:
+        missing_fields = sorted(required_fields - set(route))
+        if missing_fields:
+            raise RuntimeError(f"Route parity entry {route.get('name', '<unnamed>')} is missing: {missing_fields}")
+        template = ROOT / str(route["template"])
+        if not template.is_file():
+            raise RuntimeError(f"Route parity template does not exist: {route['template']}")
+        source = template.read_text(encoding="utf-8")
+        if re.search(r"\sstyle\s*=", source, re.IGNORECASE):
+            raise RuntimeError(f"Converted template contains an inline style: {route['template']}")
+        for dom_id in route["js_ids"]:
+            if not re.search(rf'\bid=["\']{re.escape(dom_id)}["\']', source):
+                raise RuntimeError(f"Critical DOM id {dom_id!r} is missing from {route['template']}")
+            if dom_id not in app_script:
+                raise RuntimeError(f"Critical DOM id {dom_id!r} is not referenced by static/app.js")
+            critical_ids.add(dom_id)
+
+    allowlist_path = TOOLS / "validation" / "legacy-css-allowlist.txt"
+    allowed = {
+        line.strip()
+        for line in allowlist_path.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+    legacy_additions = [
+        line
+        for line in added_lines(base_ref, feature_ref, "static/style.css")
+        if not line.startswith("/*") and line not in allowed
+    ]
+    if legacy_additions:
+        preview = "\n".join(f"- {line}" for line in legacy_additions[:20])
+        raise RuntimeError(f"Legacy static/style.css received unallowlisted additions\n{preview}")
+
+    return {"routes": len(routes), "critical_js_ids": len(critical_ids), "legacy_css_additions": 0}
+
+
+def check_screenshots(
+    evidence_dir: Path,
+    *,
+    base_ref: str,
+    feature_ref: str,
+    browser_results: Path,
+    expected_assertions: list[str],
+    expected_viewports: list[str],
+) -> dict[str, int]:
+    evidence_root = resolve_repo_path(evidence_dir, label="evidence directory")
+    manifest_path = evidence_root / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest_base = manifest.get("base", {})
+    if manifest_base.get("sha") != git_ref_sha(base_ref):
+        raise RuntimeError("Screenshot manifest base SHA does not match the configured production base")
+    manifest_feature = manifest.get("feature", {})
+    if manifest_feature and manifest_feature.get("sha") != git_ref_sha(feature_ref):
+        raise RuntimeError("Screenshot manifest feature SHA does not match the configured production feature")
+    if not manifest_feature and evidence_root.name != "pr1":
+        raise RuntimeError("Screenshot manifest must record the configured production feature SHA")
+
     captures = manifest.get("captures", [])
-    if len(captures) < 6:
-        raise RuntimeError("Screenshot manifest must contain desktop and iPhone before/after evidence")
+    if not captures:
+        raise RuntimeError("Screenshot manifest contains no captures")
     for capture in captures:
-        path = ROOT / capture["path"]
+        path = resolve_repo_path(Path(capture["path"]), label="screenshot path")
+        if path != evidence_root and evidence_root not in path.parents:
+            raise RuntimeError(f"Screenshot path is outside the configured evidence directory: {capture['path']}")
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         if digest != capture["sha256"]:
             raise RuntimeError(f"Screenshot hash mismatch: {capture['path']}")
 
-    validation = json.loads(
-        (ROOT / "artifacts" / "pr1" / "after" / "validation-results.json").read_text(encoding="utf-8")
-    )
+    validation_path = resolve_repo_path(evidence_root / browser_results, label="browser results")
+    if validation_path != evidence_root and evidence_root not in validation_path.parents:
+        raise RuntimeError("Browser results must stay within the configured evidence directory")
+    validation = json.loads(validation_path.read_text(encoding="utf-8"))
     if validation.get("consoleErrors") or validation.get("pageErrors"):
         raise RuntimeError("Browser evidence contains unexpected console or page errors")
-    if len(validation.get("assertions", [])) != 8:
-        raise RuntimeError("Browser evidence assertion count changed")
+    assertions = validation.get("assertions", [])
+    if not assertions:
+        raise RuntimeError("Browser evidence contains no assertions")
+    assertion_ids = {assertion.get("id") if isinstance(assertion, dict) else assertion for assertion in assertions}
+    failed = [
+        assertion.get("id", "unnamed")
+        for assertion in assertions
+        if isinstance(assertion, dict) and assertion.get("passed") is False
+    ]
+    if failed:
+        raise RuntimeError("Browser evidence contains failed assertions: " + ", ".join(failed))
+    missing_assertions = sorted(set(expected_assertions) - assertion_ids)
+    if missing_assertions:
+        raise RuntimeError("Browser evidence is missing assertions: " + ", ".join(missing_assertions))
     if any(capture.get("horizontalOverflow") for capture in validation.get("captures", [])):
         raise RuntimeError("Browser evidence contains horizontal overflow")
-    return {"captures": len(captures), "browser_assertions": len(validation["assertions"])}
+    captured_viewports = {capture.get("viewport") for capture in captures}
+    missing_viewports = sorted(set(expected_viewports) - captured_viewports)
+    if missing_viewports:
+        raise RuntimeError("Screenshot manifest is missing viewports: " + ", ".join(missing_viewports))
+    return {"captures": len(captures), "browser_assertions": len(assertions)}
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run the complete fork PR validation gate.")
     parser.add_argument("--base-ref", default="upstream/main")
     parser.add_argument("--feature-ref", default="origin/feature/01-server-scope")
+    parser.add_argument("--evidence-dir", type=Path, default=Path("artifacts/pr1"))
+    parser.add_argument("--browser-results", type=Path, default=Path("after/validation-results.json"))
+    parser.add_argument("--capture-script", type=Path, default=Path("scripts/fork/capture-pr1.cjs"))
+    parser.add_argument("--expected-browser-assertion", action="append", default=[])
+    parser.add_argument("--expected-viewport", action="append", default=[])
     parser.add_argument("--allow-dirty", action="store_true")
     parser.add_argument("--require-screenshots", action="store_true")
     parser.add_argument("--output", type=Path)
@@ -261,6 +586,14 @@ def main() -> int:
         status = require(run(["git", "status", "--porcelain"]), "git status")
         if status:
             raise RuntimeError("Full PR gate requires a clean worktree")
+
+    require_stacked_feature(args.base_ref, args.feature_ref)
+    require_review_production_identity(args.feature_ref)
+    results["stack"] = {
+        "base": git_ref_sha(args.base_ref),
+        "feature": git_ref_sha(args.feature_ref),
+        "review_production_identity": "pass",
+    }
 
     require(run(["git", "diff", "--check", f"{args.base_ref}...{args.feature_ref}"]), "diff hygiene")
     require(
@@ -276,7 +609,7 @@ def main() -> int:
         ),
         "upstream diff safety",
     )
-
+    results["template_architecture"] = check_template_architecture(args.base_ref, args.feature_ref)
     changed_app_lines = changed_lines(args.base_ref, args.feature_ref, "app.py")
     format_overlap = formatting_touches_changed_lines(ROOT / "app.py", changed_app_lines)
     if format_overlap:
@@ -286,6 +619,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="server-panel-base-") as temp:
         baseline = Path(temp)
         extract_ref(args.base_ref, baseline)
+        results["changed_frontend"] = check_changed_frontend(args.base_ref, args.feature_ref, baseline)
         results["ruff"] = ratchet("Ruff", ruff_diagnostics, baseline)
         results["mypy"] = ratchet("Mypy", mypy_diagnostics, baseline)
         results["djlint_legacy"] = ratchet("djLint legacy template", djlint_diagnostics, baseline)
@@ -330,23 +664,10 @@ def main() -> int:
         "Mypy fork-code type check",
     )
     results["fork_code"] = {"mypy": "pass", "ruff_format": "pass", "ruff_lint": "pass"}
-    require(
-        run(
-            [
-                sys.executable,
-                "-m",
-                "djlint",
-                "--configuration",
-                str(TOOLS / "djlint.toml"),
-                "templates/servers.html",
-                "--check",
-                "--lint",
-            ]
-        ),
-        "new server template format/lint",
-    )
     require(run(["node", "--check", "static/app.js"]), "JavaScript syntax")
-    require(run(["node", "--check", "scripts/fork/capture-pr1.cjs"]), "screenshot automation syntax")
+    capture_script = resolve_repo_path(args.capture_script, label="capture script")
+    capture_relative = str(capture_script.relative_to(ROOT))
+    require(run(["node", "--check", capture_relative]), "screenshot automation syntax")
     require(
         run(
             [
@@ -354,7 +675,7 @@ def main() -> int:
                 "--config",
                 str(TOOLS / "eslint.config.mjs"),
                 "--no-ignore",
-                "scripts/fork/capture-pr1.cjs",
+                capture_relative,
             ]
         ),
         "screenshot automation lint",
@@ -385,7 +706,14 @@ def main() -> int:
     results["secret_scan"] = "pass"
 
     if args.require_screenshots:
-        results["screenshots"] = check_screenshots()
+        results["screenshots"] = check_screenshots(
+            args.evidence_dir,
+            base_ref=args.base_ref,
+            feature_ref=args.feature_ref,
+            browser_results=args.browser_results,
+            expected_assertions=args.expected_browser_assertion,
+            expected_viewports=args.expected_viewport,
+        )
 
     if args.output:
         output = args.output if args.output.is_absolute() else ROOT / args.output

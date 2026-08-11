@@ -2,10 +2,14 @@ name: Fork validation
 
 on:
   pull_request:
-    branches: [fork-integration]
+    branches: [fork-integration, "review/**"]
   push:
     branches: [fork-integration]
   workflow_dispatch:
+
+concurrency:
+  group: fork-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -13,15 +17,18 @@ permissions:
 jobs:
   full-gate:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Fetch public base and production branch
+      - name: Fetch public base and stacked production branches
         run: |
           git remote add upstream https://github.com/Talon-One-Fighter-Squadron/Server-Panel.git
           git fetch upstream main
-          git fetch origin feature/01-server-scope:refs/remotes/origin/feature/01-server-scope
+          git fetch origin \
+            feature/01-server-scope:refs/remotes/origin/feature/01-server-scope \
+            feature/02-jinja-components:refs/remotes/origin/feature/02-jinja-components
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -39,6 +46,19 @@ jobs:
       - name: Run complete fork PR gate
         run: >-
           python scripts/fork/validate-pr.py
-          --base-ref upstream/main
-          --feature-ref origin/feature/01-server-scope
+          --base-ref origin/feature/01-server-scope
+          --feature-ref origin/feature/02-jinja-components
+          --evidence-dir artifacts/pr2
+          --browser-results after/validation-results.json
+          --capture-script scripts/fork/capture-pr2.cjs
+          --expected-browser-assertion global-shell-renders
+          --expected-browser-assertion server-shell-renders
+          --expected-browser-assertion component-styles-load
+          --expected-browser-assertion keyboard-server-card
+          --expected-browser-assertion desktop-global-no-overflow
+          --expected-browser-assertion desktop-server-no-overflow
+          --expected-browser-assertion iphone-global-no-overflow
+          --expected-browser-assertion iphone-server-no-overflow
+          --expected-viewport 1200x800
+          --expected-viewport 390x844
           --require-screenshots
