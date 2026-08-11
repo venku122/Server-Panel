@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+import json
 from pathlib import Path
 
 
@@ -83,6 +84,32 @@ if (target.textContent !== before || diagnostics.records().length !== 20) {
   throw new Error("background refresh replaced or evicted foreground history");
 }
 if (target.textContent.includes("visible-")) throw new Error("rendered diagnostics leaked a secret");
+"""
+    subprocess.run(["node", "-e", script], cwd=ROOT, check=True)
+
+
+def test_client_diagnostics_pass_shared_redaction_vectors() -> None:
+    vectors_path = ROOT / "fork_tools/validation/redaction-vectors.json"
+    vectors = json.loads(vectors_path.read_text(encoding="utf-8"))
+    assert len(vectors) >= 8
+    script = r"""
+const fs = require("fs");
+global.window = {};
+global.document = {getElementById: () => null};
+eval(fs.readFileSync("static/js/core/diagnostics.js", "utf8"));
+const vectors = JSON.parse(fs.readFileSync("fork_tools/validation/redaction-vectors.json", "utf8"));
+for (const vector of vectors) {
+  const value = vector.repeat
+    ? String(vector.repeat.text).repeat(Number(vector.repeat.count)) + String(vector.suffix || "")
+    : vector.value;
+  const serialized = JSON.stringify(window.NO_PANEL_DIAGNOSTICS.redact(value));
+  for (const forbidden of vector.forbidden) {
+    if (serialized.includes(forbidden)) throw new Error(`${vector.id} leaked ${forbidden}`);
+  }
+  if (vector.expect_truncated && !serialized.includes("… [truncated]")) {
+    throw new Error(`${vector.id} was not truncated`);
+  }
+}
 """
     subprocess.run(["node", "-e", script], cwd=ROOT, check=True)
 

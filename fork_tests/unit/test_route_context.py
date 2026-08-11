@@ -45,6 +45,14 @@ def test_route_maps_keep_global_and_server_sections_disjoint(panel_module) -> No
             "subtitle": "Browse NoBlackBox recordings",
             "show_response": True,
         },
+        "activity": {
+            "template": "server/activity.html",
+            "active_page": "activity",
+            "title": "Activity",
+            "subtitle": "Structured actions and outcomes for this server",
+            "show_response": False,
+            "admin_only": True,
+        },
     }
     assert panel_module.GLOBAL_PANEL_PAGES == {
         "deployment": {
@@ -53,6 +61,14 @@ def test_route_maps_keep_global_and_server_sections_disjoint(panel_module) -> No
             "title": "Deployment",
             "subtitle": "Deploy and remove server instances",
             "show_response": True,
+        },
+        "activity": {
+            "template": "global/activity.html",
+            "active_page": "activity",
+            "title": "Activity",
+            "subtitle": "Structured panel and server actions",
+            "show_response": False,
+            "admin_only": True,
         },
         "ports": {
             "template": "global/ports.html",
@@ -90,7 +106,11 @@ def test_route_maps_keep_global_and_server_sections_disjoint(panel_module) -> No
             "show_response": True,
         },
     }
-    assert set(panel_module.SERVER_SECTION_PAGES).isdisjoint(panel_module.GLOBAL_PANEL_PAGES)
+    assert set(panel_module.SERVER_SECTION_PAGES) & set(panel_module.GLOBAL_PANEL_PAGES) == {"activity"}
+    assert (
+        panel_module.SERVER_SECTION_PAGES["activity"]["template"]
+        != panel_module.GLOBAL_PANEL_PAGES["activity"]["template"]
+    )
 
 
 def test_unknown_server_section_returns_404(client) -> None:
