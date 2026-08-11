@@ -54,7 +54,7 @@ body{
   padding:14px;
 }
 
-.brand{display:flex; gap:10px; align-items:center; padding:6px 6px 10px}
+.brand{display:flex; gap:10px; align-items:center; padding:6px 6px 10px; text-decoration:none; color:inherit}
 .brand-mark{
   width:42px; height:42px;
   border-radius:14px;
@@ -80,6 +80,7 @@ body{
   display:flex;
   align-items:center;
   gap:10px;
+  text-decoration:none;
 }
 .nav-item:hover{border-color:var(--border2); background:#151a28}
 .nav-item.active{
@@ -94,6 +95,15 @@ body{
 .nav-item.active .dot{background:rgb(from var(--accent) r g b / 0.9)}
 
 .sidebar-foot{margin-top:auto; display:flex; flex-direction:column; gap:10px; padding:8px 6px 0}
+.scope-label,.scope-kicker{
+  color:var(--muted);
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.scope-back-link{display:inline-block; margin-top:8px; color:#c9c5ff; font-size:12px; font-weight:700; text-decoration:none}
+.scope-back-link:hover{text-decoration:underline}
 .select label{display:block; font-size:12px; color:var(--muted); margin-bottom:6px}
 select{
   width:100%;
@@ -141,6 +151,12 @@ code{color:#d6ddff}
   color:var(--muted);
   font-weight:600;
 }
+.breadcrumb{display:flex; gap:8px; align-items:center; margin-bottom:8px; color:var(--muted); font-size:12px; font-weight:700}
+.breadcrumb a{color:#c9c5ff; text-decoration:none}
+.breadcrumb a:hover{text-decoration:underline}
+.scope-meta{color:var(--muted)}
+.page-status{margin:12px 0 0}
+.page-status[hidden]{display:none}
 .pill{
   padding:8px 12px;
   border-radius:999px;
@@ -156,7 +172,7 @@ code{color:#d6ddff}
   gap:14px;
   padding-top:14px;
   min-height:0;
-  height:100%;
+  flex:1;
   align-items:start;
 }
 .col{min-height:0; overflow:auto; padding-right:6px}
@@ -242,6 +258,51 @@ code{color:#d6ddff}
 .btn.warn{background:rgba(214,162,58,.16); border-color:rgba(214,162,58,.45)}
 .btn.danger{background:rgba(212,83,99,.16); border-color:rgba(212,83,99,.45)}
 .btn.tiny{padding:8px 10px; font-size:12px; border-radius:14px}
+
+.global-main{overflow:auto}
+.servers-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:14px;
+  padding-top:14px;
+}
+.server-card{
+  display:flex;
+  flex-direction:column;
+  min-height:210px;
+  padding:18px;
+  color:var(--text);
+  text-decoration:none;
+  background:rgba(11,13,19,.75);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  box-shadow:0 10px 30px rgba(0,0,0,.25);
+}
+.server-card:hover{border-color:var(--border2); background:rgba(18,22,36,.9)}
+.server-card:focus-visible{outline:3px solid var(--accent); outline-offset:3px}
+.server-card-heading{display:flex; justify-content:space-between; gap:12px; align-items:flex-start}
+.server-card h2{margin:0; font-size:18px; line-height:1.35; overflow-wrap:anywhere}
+.server-state{flex:none; padding:5px 8px; border-radius:999px; color:#f0c46b; background:rgba(214,162,58,.14); border:1px solid rgba(214,162,58,.4); font-size:11px; font-weight:800; text-transform:uppercase}
+.server-state.running{color:#78d8b1; background:rgba(42,167,118,.14); border-color:rgba(42,167,118,.4)}
+.server-card-meta{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:24px 0 0}
+.server-card-meta div{min-width:0}
+.server-card-meta dt{color:var(--muted); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em}
+.server-card-meta dd{margin:5px 0 0; font-size:13px; font-weight:700; overflow-wrap:anywhere}
+.server-card-action{margin-top:auto; padding-top:20px; color:#c9c5ff; font-weight:800}
+.empty-state{margin-top:14px; max-width:620px}
+.empty-state h2{margin-top:0}
+.page-error{margin-top:14px}
+.danger-zone{border-color:rgba(212,83,99,.4)}
+@media (max-width: 760px){
+  html,body{height:auto; min-height:100%}
+  body{overflow:auto}
+  .shell{display:block; height:auto; min-height:100vh; padding:8px}
+  .sidebar{width:100%; margin-bottom:8px}
+  .main{width:100%; min-height:70vh; padding:14px; overflow:visible}
+  .topbar{align-items:flex-start; flex-direction:column}
+  .servers-grid{grid-template-columns:1fr}
+  .server-card-meta{grid-template-columns:1fr}
+}
 
 .form{display:flex; flex-direction:column; gap:10px}
 .field label{display:block; color:var(--muted); font-size:12px; font-weight:700; margin-bottom:6px}

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="description"
+              content="Choose a Nuclear Option dedicated server and enter its URL-scoped control panel." />
+        <title>Servers • Nuclear Option Server Panel</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap"
+              rel="stylesheet">
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    </head>
+    <body>
+        <div class="bg"></div>
+        <div class="shell global-shell">
+            <aside class="sidebar">
+                <a class="brand"
+                   href="{{ url_for("servers_index") }}"
+                   aria-label="Nuclear Option Server Panel — all servers">
+                    <div class="brand-mark" aria-hidden="true">
+                        <svg viewBox="0 0 64 64" fill="none">
+                            <path d="M31.7 10c-5.6 0-10.2 4.6-10.2 10.2v4.8c0 5.6 4.6 10.2 10.2 10.2s10.2-4.6 10.2-10.2v-4.8C41.9 14.6 37.3 10 31.7 10Z" stroke="currentColor" stroke-width="3" opacity=".9" />
+                            <path d="M20 35c-7 3-9 12-4 17m28-17c7 3 9 12 4 17M16 26c-6-2-10-8-8-14m40 14c6-2 10-8 8-14" stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity=".55" />
+                        </svg>
+                    </div>
+                    <div class="brand-text">
+                        <div class="brand-title">Nuclear Option</div>
+                        <div class="brand-sub">Server Panel</div>
+                    </div>
+                </a>
+                <nav class="nav" aria-label="Global navigation">
+                    <a class="nav-item active" href="{{ url_for("servers_index") }}"><span class="dot"></span> Servers</a>
+                    <a class="nav-item" href="{{ url_for("deployment_page") }}"><span class="dot"></span> Deployment</a>
+                    <a class="nav-item" href="{{ url_for("settings_ports_page") }}"><span class="dot"></span> Ports</a>
+                    <a class="nav-item" href="{{ url_for("settings_cluster_page") }}"><span class="dot"></span> Cluster Setup</a>
+                    <a class="nav-item" href="{{ url_for("settings_users_page") }}"><span class="dot"></span> Panel Users</a>
+                    <a class="nav-item" href="{{ url_for("settings_discord_page") }}"><span class="dot"></span> Discord Bot</a>
+                    <a class="nav-item" href="{{ url_for("settings_about_page") }}"><span class="dot"></span> About</a>
+                </nav>
+                <div class="sidebar-foot">
+                    <div class="scope-label">Panel-wide view</div>
+                    <div class="hint">Logged in as <span class="mono">{{ current_user }} ({{ current_role }})</span> • <a class="link" href="{{ url_for("logout") }}">Logout</a></div>
+                </div>
+            </aside>
+            <main class="main global-main" id="main-content">
+                <header class="topbar">
+                    <div class="title">
+                        <div class="scope-kicker">Global</div>
+                        <h1>Servers</h1>
+                        <p>Select a server to enter its scoped controls.</p>
+                    </div>
+                    <a class="btn primary" href="{{ url_for("deployment_page") }}">Deploy server</a>
+                </header>
+                {% if page_error %}
+                    <div class="notice notice-warn page-error" role="alert">
+                        <strong>Server page unavailable.</strong> {{ page_error }}
+                    </div>
+                {% endif %}
+                {% for warning in server_view_warnings %}
+                    <div class="notice notice-warn server-view-warning" role="status">{{ warning }}</div>
+                {% endfor %}
+                {% if servers %}
+                    <section class="servers-grid" aria-label="Managed servers">
+                        {% for server in servers %}
+                            <a class="server-card"
+                               href="{{ url_for('server_overview', server_id=server.id) }}">
+                                <div class="server-card-heading">
+                                    <h2>{{ server.name }}</h2>
+                                    <span class="server-state{% if server.running and not server.stale %} running{% endif %}">{% if server.stale %}Unavailable (cached){% elif server.running %}Running{% else %}Stopped{% endif %}</span>
+                                </div>
+                                <dl class="server-card-meta">
+                                    <div>
+                                        <dt>Location</dt>
+                                        <dd>
+                                            {{ server.location|default("local") |title }}
+                                        </dd>
+                                    </div>
+                                    <div>
+                                        <dt>Node</dt>
+                                        <dd>
+                                            {{ server.node_label|default(server.node_name|default(server.node_id|default('This node'))) }}
+                                        </dd>
+                                    </div>
+                                </dl>
+                                <span class="server-card-action">Open server →</span>
+                            </a>
+                        {% endfor %}
+                    </section>
+                {% else %}
+                    <section class="card empty-state">
+                        <h2>No servers configured</h2>
+                        <p class="muted">Deploy your first server to create a dedicated server-scoped workspace.</p>
+                        <a class="btn primary" href="{{ url_for("deployment_page") }}">Deploy server</a>
+                    </section>
+                {% endif %}
+            </main>
+        </div>
+    </body>
+</html>

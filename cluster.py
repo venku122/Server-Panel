@@ -59,7 +59,7 @@ def verify(secret: str, ts: str, method: str, path: str, body_bytes: bytes, sign
     return hmac.compare_digest(expected, signature)
 
 
-def http_post_json(url: str, payload: dict, headers: Optional[dict] = None, timeout: int = 8) -> dict:
+def http_post_json(url: str, payload: dict, headers: Optional[dict] = None, timeout: float = 8) -> dict:
     body = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(url, data=body, method="POST")
     req.add_header("Content-Type", "application/json")

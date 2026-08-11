@@ -7,22 +7,27 @@ const pageSubtitle = document.getElementById("page-subtitle");
 const responseArea = document.getElementById("response-area");
 const meta = document.getElementById("cmd-meta");
 const pill = document.getElementById("pill");
+const pageStatus = document.getElementById("page-status");
 const portSelect = document.getElementById("server-port"); // legacy (removed from UI)
 const serverSelector = document.getElementById("server-selector");
 const serverSelectorHint = document.getElementById("server-selector-hint");
 const copyBtn = document.getElementById("copy-btn");
+/**
+ * @typedef {Object} PanelContext
+ * @property {"global"|"server"} [scope]
+ * @property {string|null} [serverId]
+ * @property {string} [activePage]
+ * @property {string} [serversPath]
+ */
+/** @type {PanelContext} */
+const panelContext = /** @type {Window & typeof globalThis & {NO_PANEL_CONTEXT?: PanelContext}} */ (window).NO_PANEL_CONTEXT || {};
 
 // -----------------------------
 // Multi-server selection state
 // -----------------------------
 let serversCache = [];
-let currentServerId = null;
+let currentServerId = panelContext.scope === "server" ? panelContext.serverId : null;
 
-function getSelectedServer(){
-  const sid = String(currentServerId || "");
-  if (!sid) return null;
-  return (serversCache || []).find(s => String(s.id || "") === sid) || null;
-}
 function isSelectedServerRemote(){
   const s = getSelectedServer();
   return !!(s && String(s.location || "").toLowerCase() === "remote");
@@ -49,17 +54,20 @@ function escapeAttr(s){
 }
 
 function getSelectedServer(){
-  return serversCache.find(s => s.id === currentServerId) || null;
+  return serversCache.find(s => String(s.id) === String(currentServerId)) || null;
 }
 
 function setSelectedServer(id){
-  currentServerId = id || null;
-  try{ localStorage.setItem("nocp_server_id", currentServerId || ""); }catch{}
-  renderAllServerPills();
+  const targetId = String(id || "").trim();
+  if (!targetId) return;
+  if (panelContext.scope === "server" && targetId === String(currentServerId || "")) {
+    return;
+  }
+  window.location.assign(`/servers/${encodeURIComponent(targetId)}`);
 }
 
 function withServerId(url){
-  if (!currentServerId) return url;
+  if (panelContext.scope !== "server" || !currentServerId) return url;
 
   // Never attach server_id to panel-global endpoints.
   // These must behave the same regardless of the selected server pill.
@@ -86,6 +94,15 @@ function withServerId(url){
 
   const sep = String(url).includes("?") ? "&" : "?";
   return `${url}${sep}server_id=${encodeURIComponent(currentServerId)}`;
+}
+
+function setPageStatus(message, level="status"){
+  if (!pageStatus) return;
+  const text = String(message || "").trim();
+  pageStatus.hidden = !text;
+  pageStatus.textContent = text;
+  pageStatus.classList.toggle("notice-warn", level === "error");
+  pageStatus.setAttribute("role", level === "error" ? "alert" : "status");
 }
 
 // -----------------------------
@@ -442,6 +459,7 @@ async function sendCommand(endpoint, body){
     if (pill) pill.textContent = "Ready";
     setMeta(endpoint.split("/").pop(), "blocked");
     if (responseArea) responseArea.textContent = msg;
+    setPageStatus(msg, "error");
     return {success:false, error: msg};
   }
 
@@ -451,12 +469,14 @@ async function sendCommand(endpoint, body){
     if (pill) pill.textContent = "Ready";
     setMeta(endpoint.split("/").pop(), "blocked");
     if (responseArea) responseArea.textContent = msg;
+    setPageStatus(msg, "error");
     return {success:false, error: msg};
   }
 
   const cmdName = endpoint.split("/").pop();
 
   if (pill) pill.textContent = "Working…";
+  setPageStatus("");
   setMeta(cmdName, `${escapeHtml(s.name)} • port ${port}`);
 
   if (responseArea){
@@ -481,11 +501,18 @@ async function sendCommand(endpoint, body){
     if (responseArea){
       responseArea.textContent = pretty(data);
     }
+    setPageStatus(
+      data.success
+        ? `${cmdName} completed for ${s.name}.`
+        : `${cmdName} failed for ${s.name}: ${data.error || "Unknown error"}`,
+      data.success ? "status" : "error",
+    );
     return data;
   }catch(err){
     if (pill) pill.textContent = "Error";
     setMeta(cmdName, "error");
     if (responseArea) responseArea.textContent = String(err);
+    setPageStatus(`${cmdName} failed for ${s.name}: ${String(err)}`, "error");
     return {success:false, error:String(err)};
   }
 }
@@ -498,12 +525,14 @@ async function sendLocal(endpoint, body){
     if (pill) pill.textContent = "Ready";
     setMeta(endpoint.split("/").pop(), "blocked");
     if (responseArea) responseArea.textContent = msg;
+    setPageStatus(msg, "error");
     return {success:false, error: msg};
   }
 
   const cmdName = endpoint.split("/").pop();
 
   if (pill) pill.textContent = "Working…";
+  setPageStatus("");
   setMeta(cmdName, `${escapeHtml(s.name)}`);
   if (responseArea){
     responseArea.textContent = `Server: ${s.name}\nLoading…`;
@@ -526,11 +555,18 @@ async function sendLocal(endpoint, body){
     if (responseArea){
       responseArea.textContent = pretty(data);
     }
+    setPageStatus(
+      data.success
+        ? `${cmdName} completed for ${s.name}.`
+        : `${cmdName} failed for ${s.name}: ${data.error || "Unknown error"}`,
+      data.success ? "status" : "error",
+    );
     return data;
   }catch(err){
     if (pill) pill.textContent = "Error";
     setMeta(cmdName, "error");
     if (responseArea) responseArea.textContent = String(err);
+    setPageStatus(`${cmdName} failed for ${s.name}: ${String(err)}`, "error");
     return {success:false, error:String(err)};
   }
 }
@@ -1637,8 +1673,9 @@ function renderServerPillsInto(container){
   if (!container) return;
   container.innerHTML = "";
   serversCache.forEach(s => {
-    const pillEl = document.createElement("div");
+    const pillEl = document.createElement("a");
     pillEl.className = `server-pill ${s.running ? "running" : "stopped"} ${s.id === currentServerId ? "active" : ""}`;
+    pillEl.href = `/servers/${encodeURIComponent(s.id)}`;
     const loc = String(s.location || (s.node_id ? "remote" : "local")).toLowerCase();
     const isRemote = (loc === "remote");
     const badgeText = isRemote ? "REMOTE" : "LOCAL";
@@ -1646,19 +1683,6 @@ function renderServerPillsInto(container){
     const nodeHint = isRemote ? (s.node_label || s.node_name || s.node_id || "remote node") : "this node";
     pillEl.title = `${badgeText} • ${nodeHint}`;
     pillEl.innerHTML = `<span class="dot"></span><span class="txt">${escapeHtml(s.name)}</span><span class="${badgeClass}">${badgeText}</span>`;
-    pillEl.addEventListener("click", async () => {
-      currentServerId = s.id;
-      try{ localStorage.setItem("nocp_server_id", currentServerId || ""); }catch{}
-      renderAllServerPills();
-      // Clear any prior restart notices when switching servers
-      showSettingsNotice("");
-      // reload server-specific UIs so they swap paths/settings immediately
-      await loadStartupSettingsIntoUI();
-      await loadDedicatedConfigIntoUI();
-      await loadPasswordIntoUI();
-      await loadMissionSlotsIntoUI();
-      await loadMotdIntoUI();
-    });
     container.appendChild(pillEl);
   });
 }
@@ -1669,7 +1693,7 @@ function renderAllServerPills(){
     renderServerPillsInto(serverSelector);
     if (serverSelectorHint){
       serverSelectorHint.textContent = serversCache.length
-        ? "Click a server to make all tabs target it."
+        ? "Choose a server to enter its URL-scoped controls."
         : "No servers yet. Create one in Server Management to begin.";
     }
   }
@@ -1692,25 +1716,26 @@ async function loadServers(){
     console.warn("[servers] list:failed", e);
     // Keep the current cache if the response wasn't JSON (e.g. login redirect)
     renderAllServerPills();
+    setPageStatus("The server list could not be refreshed. Retry this page.", "error");
     return;
   }
 
   if (!res.ok || !j || j.success === false){
     console.warn("[servers] list:bad_response", res?.status, j);
     renderAllServerPills();
+    setPageStatus(`The server list could not be refreshed: ${j?.error || res?.status || "unknown error"}.`, "error");
     return;
   }
 
   serversCache = (j.servers || []);
-  // Restore prior selection if possible
-  if (!currentServerId){
-    try{
-      const saved = (localStorage.getItem("nocp_server_id") || "").trim();
-      if (saved && serversCache.find(s => s.id === saved)) currentServerId = saved;
-    }catch{}
+  if (panelContext.scope === "server") {
+    currentServerId = panelContext.serverId;
+    if (!serversCache.find(s => String(s.id) === String(currentServerId))) {
+      setPageStatus(`The URL target ${currentServerId} is no longer available. Return to Servers and choose another target.`, "error");
+    }
+  } else {
+    currentServerId = null;
   }
-  if (!currentServerId && serversCache.length) setSelectedServer(serversCache[0].id);
-  if (currentServerId && !serversCache.find(s => s.id === currentServerId) && serversCache.length) setSelectedServer(serversCache[0].id);
   renderAllServerPills();
 }
 
@@ -1721,10 +1746,13 @@ async function refreshServersSilent(){
     const j = await res.json();
     const incoming = (j.servers || []);
     serversCache = incoming;
-    // keep selection stable
-    if (currentServerId && !serversCache.find(s => s.id === currentServerId)){
-      currentServerId = serversCache.length ? serversCache[0].id : null;
-      if (currentServerId) localStorage.setItem("nocp_server_id", currentServerId);
+    if (panelContext.scope === "server") {
+      currentServerId = panelContext.serverId;
+      if (!serversCache.find(s => String(s.id) === String(currentServerId))) {
+        setPageStatus(`The URL target ${currentServerId} is no longer available. Return to Servers and choose another target.`, "error");
+      }
+    } else {
+      currentServerId = null;
     }
     renderAllServerPills();
   }catch{
@@ -1883,8 +1911,7 @@ async function deleteSelectedServer(){
   }
   setSmStatus(`Deleted: ${j.removed.name}`);
   currentServerId = null;
-  await loadServers();
-  await initPortsUI();
+  window.location.assign(panelContext.serversPath || "/servers");
 }
 
 function wireServerManagementUI(){
@@ -2601,7 +2628,12 @@ function wireDiscordUI(){
 // Boot
 // -----------------------------
 document.addEventListener("DOMContentLoaded", async () => {
-  setActivePage("dashboard");
+  setActivePage(panelContext.activePage || "dashboard");
+
+  const serverSwitcher = /** @type {HTMLSelectElement|null} */ (document.getElementById("server-switcher"));
+  serverSwitcher?.addEventListener("change", () => {
+    if (serverSwitcher.value) window.location.assign(serverSwitcher.value);
+  });
 
   // Load current user/role first so we can gate UI + API behavior
   let role = "moderator";

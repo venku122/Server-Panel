@@ -5,6 +5,7 @@ import sys
 import subprocess
 import base64
 import importlib.util
+from concurrent.futures import ThreadPoolExecutor, wait
 
 # pip package -> import module mapping (when they differ)
 PIP_TO_IMPORT = {
@@ -58,7 +59,7 @@ import uuid
 import traceback
 from pathlib import Path
 from functools import wraps
-from typing import Optional, Tuple
+from typing import NamedTuple, Optional, Tuple
 
 
 # =============================
@@ -371,7 +372,7 @@ def _fw_cleanup_stale_panel_rules() -> tuple[int, int, list[str]]:
 
 import psutil
 import socket
-from flask import Flask, jsonify, request, Response, render_template, session, redirect, url_for, abort
+from flask import Flask, jsonify, request, Response, render_template, session, redirect, url_for, abort, g
 
 # Cluster (LAN)
 from cluster import ClusterDiscovery, ClusterState, DISCOVERY_PORT, best_effort_local_ip, http_post_json
@@ -577,7 +578,7 @@ def _member_base_url(member: dict) -> str | None:
     except Exception:
         return None
 
-def _cluster_signed_post_to_member(member: dict, path: str, payload: dict, timeout: int = 20) -> dict:
+def _cluster_signed_post_to_member(member: dict, path: str, payload: dict, timeout: float = 20) -> dict:
     """POST JSON to a cluster member with HMAC headers."""
     base = _member_base_url(member)
     if not base:
@@ -714,8 +715,20 @@ def get_server_by_id(server_id: Optional[str]) -> dict:
 # remote servers. The UI still has those server_ids selected, so remote actions
 # should fall back to the last known mapping.
 _SERVERS_VIEW_CACHE: dict[str, dict] = {}
+_SERVERS_VIEW_CACHE_UPDATED_AT: dict[str, float] = {}
+_SERVERS_VIEW_CACHE_MAX_ITEMS = 512
 
 
+def _bounded_float_config(name: str, default: float, minimum: float, maximum: float) -> float:
+    try:
+        value = float(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, min(maximum, value))
+
+
+SERVER_ROUTE_REMOTE_TIMEOUT_SEC = _bounded_float_config("NO_PANEL_ROUTE_REMOTE_TIMEOUT_SEC", 1.5, 0.25, 3.0)
+SERVER_VIEW_STALE_MAX_AGE_SEC = _bounded_float_config("NO_PANEL_SERVER_VIEW_STALE_MAX_AGE_SEC", 300.0, 5.0, 3600.0)
 
 
 def _find_server_by_id(server_id: Optional[str]) -> Optional[dict]:
@@ -727,11 +740,44 @@ def _find_server_by_id(server_id: Optional[str]) -> Optional[dict]:
 
 def _cache_servers_view(items: list[dict]) -> None:
     """Cache servers by id for remote proxy lookups."""
-    global _SERVERS_VIEW_CACHE
+    now = time.monotonic()
     for s in items or []:
         sid = str(s.get("id") or "").strip()
-        if sid:
-            _SERVERS_VIEW_CACHE[sid] = s
+        if sid and not s.get("stale"):
+            _SERVERS_VIEW_CACHE[sid] = dict(s)
+            _SERVERS_VIEW_CACHE_UPDATED_AT[sid] = now
+
+    overflow = len(_SERVERS_VIEW_CACHE) - _SERVERS_VIEW_CACHE_MAX_ITEMS
+    if overflow > 0:
+        oldest = sorted(
+            _SERVERS_VIEW_CACHE,
+            key=lambda key: _SERVERS_VIEW_CACHE_UPDATED_AT.get(key, 0.0),
+        )[:overflow]
+        for sid in oldest:
+            _SERVERS_VIEW_CACHE.pop(sid, None)
+            _SERVERS_VIEW_CACHE_UPDATED_AT.pop(sid, None)
+
+
+def _cached_remote_servers_for_member(node_id: str) -> list[dict]:
+    now = time.monotonic()
+    cached: list[dict] = []
+    for sid, server in list(_SERVERS_VIEW_CACHE.items()):
+        if str(server.get("location") or "") != "remote":
+            continue
+        if str(server.get("node_id") or "") != node_id:
+            continue
+        age = max(0.0, now - _SERVERS_VIEW_CACHE_UPDATED_AT.get(sid, 0.0))
+        if age > SERVER_VIEW_STALE_MAX_AGE_SEC:
+            continue
+        item = dict(server)
+        item.update(
+            stale=True,
+            available=False,
+            availability="unavailable",
+            cache_age_seconds=round(age, 1),
+        )
+        cached.append(item)
+    return cached
 
 def _path_is_within(child_path: Optional[str], parent_dir: Optional[str]) -> bool:
     """Return True only when child_path is inside parent_dir (not just string-prefix matching)."""
@@ -1715,12 +1761,418 @@ def _wait_for_file(path: Path, timeout_sec: int = 30) -> bool:
 # =============================
 # Routes
 # =============================
+class PageSpec(NamedTuple):
+    """Stable navigation metadata shared by routes, scope switching, and Find."""
+
+    key: str
+    label: str
+    path: str
+    active_page: Optional[str]
+    role: Optional[str] = None
+    group: str = "primary"
+    sibling_group: Optional[str] = None
+    global_peer: Optional[str] = None
+    compatibility_paths: tuple[str, ...] = ()
+
+
+GLOBAL_PAGE_REGISTRY = {
+    page.key: page
+    for page in (
+        PageSpec("servers", "Servers", "/servers", "servers"),
+        # Activity and Jobs are activated by their owning downstream PRs. Their
+        # route metadata lives here so scope switching never relies on client state.
+        PageSpec("activity", "Activity", "/activity", None, "admin"),
+        PageSpec("jobs", "Jobs", "/jobs", None, "admin"),
+        PageSpec("deployment", "Deployment", "/deployment", "manage", "admin"),
+        PageSpec("settings", "Settings", "/settings", "ports", "admin", "settings"),
+        PageSpec(
+            "settings-ports",
+            "Ports",
+            "/settings/ports",
+            "ports",
+            "admin",
+            "settings",
+            "global-settings",
+            compatibility_paths=("/ports",),
+        ),
+        PageSpec(
+            "settings-cluster",
+            "Cluster",
+            "/settings/cluster",
+            "cluster",
+            "admin",
+            "settings",
+            "global-settings",
+            compatibility_paths=("/cluster",),
+        ),
+        PageSpec(
+            "settings-users",
+            "Panel Users",
+            "/settings/users",
+            "users",
+            "admin",
+            "settings",
+            "global-settings",
+            compatibility_paths=("/users",),
+        ),
+        PageSpec(
+            "settings-discord",
+            "Discord",
+            "/settings/discord",
+            "discord",
+            "admin",
+            "settings",
+            "global-settings",
+            compatibility_paths=("/integrations/discord",),
+        ),
+        PageSpec(
+            "settings-about",
+            "About",
+            "/settings/about",
+            "about",
+            None,
+            "settings",
+            "global-settings",
+            compatibility_paths=("/about",),
+        ),
+    )
+}
+
+SERVER_PAGE_REGISTRY = {
+    page.key: page
+    for page in (
+        PageSpec("overview", "Overview", "", "dashboard"),
+        PageSpec("operations", "Operations", "/operations", "control"),
+        PageSpec("players", "Players", "/players", "bans", sibling_group="players"),
+        PageSpec(
+            "moderation",
+            "Moderation",
+            "/players/moderation",
+            "moderation",
+            sibling_group="players",
+            compatibility_paths=("/moderation",),
+        ),
+        PageSpec("workshop", "Workshop", "/workshop", None),
+        PageSpec("activity", "Activity", "/activity", None, "admin", global_peer="activity"),
+        PageSpec("jobs", "Jobs", "/jobs", None, "admin", global_peer="jobs"),
+        PageSpec(
+            "recordings",
+            "Recorder",
+            "/recordings",
+            "noblackbox",
+            group="tools",
+            sibling_group="recordings",
+            compatibility_paths=("/noblackbox",),
+        ),
+        PageSpec(
+            "recordings-gallery",
+            "Gallery",
+            "/recordings/gallery",
+            "gallery",
+            group="tools",
+            sibling_group="recordings",
+            compatibility_paths=("/gallery",),
+        ),
+        PageSpec(
+            "settings",
+            "General / Gameplay",
+            "/settings",
+            "server",
+            group="settings",
+            sibling_group="server-settings",
+        ),
+        PageSpec(
+            "settings-history",
+            "History",
+            "/settings/history",
+            None,
+            group="settings",
+            sibling_group="server-settings",
+            compatibility_paths=("/configuration-history",),
+        ),
+    )
+}
+
+# Temporary compatibility for downstream code while each feature registers its
+# canonical PageSpec. These maps are deliberately derived, not a second source
+# of navigation truth.
+SERVER_SECTION_PAGES = {
+    spec.path.removeprefix("/"): spec.active_page
+    for spec in SERVER_PAGE_REGISTRY.values()
+    if spec.active_page is not None and spec.path.count("/") == 1 and spec.path
+}
+GLOBAL_PANEL_PAGES = {
+    spec.path.removeprefix("/"): spec.active_page
+    for spec in GLOBAL_PAGE_REGISTRY.values()
+    if spec.active_page is not None and spec.key not in {"servers", "settings"}
+}
+GLOBAL_PANEL_ROLES = {
+    spec.path.removeprefix("/"): spec.role for spec in GLOBAL_PAGE_REGISTRY.values() if spec.active_page is not None
+}
+
+
+def _redirect_preserving_query(target: str):
+    query = request.query_string.decode("latin-1")
+    return redirect(f"{target}?{query}" if query else target, code=308)
+
+
+def _server_page_url(server_id: str, page_key: str) -> str:
+    page = SERVER_PAGE_REGISTRY.get(page_key) or SERVER_PAGE_REGISTRY["overview"]
+    return f"/servers/{server_id}{page.path}"
+
+
+def _panel_servers_for_routes() -> list[dict]:
+    warnings: list[str] = []
+    servers = _build_servers_view(remote_timeout=SERVER_ROUTE_REMOTE_TIMEOUT_SEC, warnings=warnings) or []
+    _cache_servers_view(servers)
+    g.server_view_warnings = warnings
+    return servers
+
+
+def _render_global_servers(error: Optional[str] = None, status: int = 200):
+    warnings: list[str] = []
+    try:
+        servers = _panel_servers_for_routes()
+        warnings = list(getattr(g, "server_view_warnings", []))
+    except Exception as exc:
+        servers = _local_servers_view()
+        warnings = [f"Remote server status is unavailable: {exc}"]
+        error = error or "The complete server list could not be loaded. Local servers remain available."
+        status = 503
+    return (
+        render_template(
+            "servers.html",
+            servers=servers,
+            server_view_warnings=warnings,
+            page_error=error,
+            current_user=session.get("username"),
+            current_role=session.get("role"),
+        ),
+        status,
+    )
+
+
+def _render_panel_shell(
+    active_page: str,
+    *,
+    server_id: Optional[str] = None,
+    server_page_key: Optional[str] = None,
+):
+    servers = _panel_servers_for_routes()
+    server_view_warnings = list(getattr(g, "server_view_warnings", []))
+    current_server = None
+    page_scope = "global"
+    if server_id is not None:
+        page_scope = "server"
+        current_server = next(
+            (server for server in servers if str(server.get("id") or "") == str(server_id)),
+            None,
+        )
+        if current_server is None:
+            return _render_global_servers(
+                f'Server "{server_id}" was not found. Choose an available server below.',
+                404,
+            )
+
+    ports = load_ports()
+    allowed_ports = [port["port"] for port in ports]
+    return render_template(
+        "index.html",
+        ports=ports,
+        allowed_ports=allowed_ports,
+        active_page=active_page,
+        page_scope=page_scope,
+        current_server=current_server,
+        server_page_key=server_page_key,
+        server_switch_path=(
+            SERVER_PAGE_REGISTRY.get(server_page_key or "overview", SERVER_PAGE_REGISTRY["overview"]).path
+            if server_id is not None
+            else ""
+        ),
+        global_page_registry=GLOBAL_PAGE_REGISTRY,
+        server_page_registry=SERVER_PAGE_REGISTRY,
+        servers=servers,
+        server_view_warnings=server_view_warnings,
+    )
+
+
 @app.get("/")
 @requires_login()
 def index():
-    ports = load_ports()
-    allowed_ports = [p["port"] for p in ports]
-    return render_template("index.html", ports=ports, allowed_ports=allowed_ports)
+    return redirect(url_for("servers_index"))
+
+
+@app.get("/servers")
+@requires_login()
+def servers_index():
+    return _render_global_servers()
+
+
+@app.get("/servers/<server_id>")
+@requires_login()
+def server_overview(server_id: str):
+    return _render_panel_shell("dashboard", server_id=server_id, server_page_key="overview")
+
+
+def _render_server_registry_page(server_id: str, page_key: str):
+    page = SERVER_PAGE_REGISTRY.get(page_key)
+    if page is None or page.active_page is None:
+        return abort(404)
+    if page.role == "admin" and session.get("role") != "admin":
+        return Response("Admin access required.", 403)
+    return _render_panel_shell(
+        page.active_page,
+        server_id=server_id,
+        server_page_key=page.key,
+    )
+
+
+@app.get("/servers/<server_id>/operations")
+@requires_login()
+def server_operations_page(server_id: str):
+    return _render_server_registry_page(server_id, "operations")
+
+
+@app.get("/servers/<server_id>/players")
+@requires_login()
+def server_players_page(server_id: str):
+    return _render_server_registry_page(server_id, "players")
+
+
+@app.get("/servers/<server_id>/players/moderation")
+@requires_login()
+def server_moderation_page(server_id: str):
+    return _render_server_registry_page(server_id, "moderation")
+
+
+@app.get("/servers/<server_id>/recordings")
+@requires_login()
+def server_recordings_page(server_id: str):
+    return _render_server_registry_page(server_id, "recordings")
+
+
+@app.get("/servers/<server_id>/recordings/gallery")
+@requires_login()
+def server_recordings_gallery_page(server_id: str):
+    return _render_server_registry_page(server_id, "recordings-gallery")
+
+
+@app.get("/servers/<server_id>/settings")
+@requires_login()
+def server_settings_page(server_id: str):
+    return _render_server_registry_page(server_id, "settings")
+
+
+@app.get("/servers/<server_id>/<section>")
+@requires_login()
+def server_section(server_id: str, section: str):
+    aliases = {
+        "operations": "operations",
+        "players": "players",
+        "moderation": "moderation",
+        "settings": "settings",
+        "noblackbox": "recordings",
+        "gallery": "recordings-gallery",
+        "configuration-history": "settings-history",
+    }
+    page_key = aliases.get(section)
+    if page_key is None:
+        return abort(404)
+    canonical = _server_page_url(server_id, page_key)
+    if request.path != canonical:
+        return _redirect_preserving_query(canonical)
+    return _render_server_registry_page(server_id, page_key)
+
+
+def _render_global_panel_page(page_key: str):
+    page = GLOBAL_PAGE_REGISTRY.get(page_key)
+    if page is None or page.active_page is None:
+        return abort(404)
+    if page.role == "admin" and session.get("role") != "admin":
+        return Response("Admin access required.", 403)
+    return _render_panel_shell(page.active_page)
+
+
+@app.get("/deployment")
+@requires_login()
+def deployment_page():
+    return _render_global_panel_page("deployment")
+
+
+@app.get("/settings")
+@requires_login()
+def settings_index():
+    if session.get("role") != "admin":
+        return Response("Admin access required.", 403)
+    return _redirect_preserving_query(url_for("settings_ports_page"))
+
+
+@app.get("/settings/ports")
+@requires_login()
+def settings_ports_page():
+    return _render_global_panel_page("settings-ports")
+
+
+@app.get("/ports")
+@requires_login()
+def ports_page():
+    if session.get("role") != "admin":
+        return Response("Admin access required.", 403)
+    return _redirect_preserving_query(url_for("settings_ports_page"))
+
+
+@app.get("/settings/users")
+@requires_login()
+def settings_users_page():
+    return _render_global_panel_page("settings-users")
+
+
+@app.get("/users")
+@requires_login()
+def users_page():
+    if session.get("role") != "admin":
+        return Response("Admin access required.", 403)
+    return _redirect_preserving_query(url_for("settings_users_page"))
+
+
+@app.get("/settings/cluster")
+@requires_login()
+def settings_cluster_page():
+    return _render_global_panel_page("settings-cluster")
+
+
+@app.get("/cluster")
+@requires_login()
+def cluster_page():
+    if session.get("role") != "admin":
+        return Response("Admin access required.", 403)
+    return _redirect_preserving_query(url_for("settings_cluster_page"))
+
+
+@app.get("/settings/discord")
+@requires_login()
+def settings_discord_page():
+    return _render_global_panel_page("settings-discord")
+
+
+@app.get("/integrations/discord")
+@requires_login()
+def discord_page():
+    if session.get("role") != "admin":
+        return Response("Admin access required.", 403)
+    return _redirect_preserving_query(url_for("settings_discord_page"))
+
+
+@app.get("/settings/about")
+@requires_login()
+def settings_about_page():
+    return _render_global_panel_page("settings-about")
+
+
+@app.get("/about")
+@requires_login()
+def about_page():
+    return _redirect_preserving_query(url_for("settings_about_page"))
 
 
 # ----- Ports API (Ports tab: Game/Query editor) -----
@@ -2770,46 +3222,104 @@ def api_list_servers():
     return jsonify({"success": True, "servers": servers})
 
 
-def _build_servers_view() -> list[dict]:
+def _local_servers_view() -> list[dict]:
+    """Build the local part of the server view without cluster network I/O."""
+    local: list[dict] = []
+    this_nid = _this_node_id() if cluster_state.is_enabled() else ""
+    for server in load_servers():
+        server_dir = _server_install_dir_for(server)
+        sid = str(server.get("id") or "")
+        if not sid:
+            continue
+        local.append(
+            {
+                "id": sid,
+                "name": server.get("name"),
+                "install_dir": server.get("install_dir"),
+                "remote_commands_port": server.get("remote_commands_port"),
+                "running": _is_server_running(server_dir),
+                "node_id": str(server.get("node_id") or this_nid or ""),
+                "location": "local",
+                "stale": False,
+                "available": True,
+                "availability": "available",
+            }
+        )
+    return local
+
+
+def _build_servers_view(
+    *,
+    remote_timeout: Optional[float] = None,
+    warnings: Optional[list[str]] = None,
+) -> list[dict]:
     """Build the unified server list used for pills.
 
     Local servers are always included. If this node is the coordinator, it will
     also include member-local servers via signed cluster calls.
     """
-    out_map: dict[str, dict] = {}
-    this_nid = _this_node_id() if cluster_state.is_enabled() else ""
-
-    for s in load_servers():
-        server_dir = _server_install_dir_for(s)
-        sid = str(s.get("id") or "")
-        if not sid:
-            continue
-        out_map[sid] = {
-            "id": sid,
-            "name": s.get("name"),
-            "install_dir": s.get("install_dir"),
-            "remote_commands_port": s.get("remote_commands_port"),
-            "running": _is_server_running(server_dir),
-            "node_id": str(s.get("node_id") or this_nid or ""),
-            "location": "local",
-        }
+    out_map = {str(server["id"]): server for server in _local_servers_view()}
 
     if cluster_state.is_enabled() and cluster_state.is_coordinator():
-        try:
-            for mem in list(cluster_state.state.get("members", [])):
-                nid = str(mem.get("node_id") or "")
-                resp = _cluster_signed_post_to_member(mem, "/api/cluster/servers/list_local", {}, timeout=10)
-                if not isinstance(resp, dict) or not resp.get("success"):
-                    continue
-                for srv in resp.get("servers", []) or []:
-                    sid = str(srv.get("id") or "")
+        members = list(cluster_state.state.get("members", []))
+        timeout = 10.0 if remote_timeout is None else max(0.1, float(remote_timeout))
+        executor = ThreadPoolExecutor(max_workers=max(1, min(8, len(members))))
+        requests = [
+            (
+                member,
+                executor.submit(
+                    _cluster_signed_post_to_member,
+                    member,
+                    "/api/cluster/servers/list_local",
+                    {},
+                    timeout,
+                ),
+            )
+            for member in members
+        ]
+        done, pending = wait(
+            [future for _member, future in requests],
+            timeout=timeout + 0.1,
+        )
+        for future in pending:
+            future.cancel()
+
+        for member, future in requests:
+            nid = str(member.get("node_id") or "")
+            label = str(member.get("node_name") or member.get("name") or nid or "remote member")
+            response: dict = {}
+            if future in done:
+                try:
+                    candidate = future.result()
+                    if isinstance(candidate, dict):
+                        response = candidate
+                except Exception as exc:
+                    response = {"success": False, "error": str(exc)}
+
+            if response.get("success"):
+                for remote in response.get("servers", []) or []:
+                    if not isinstance(remote, dict):
+                        continue
+                    sid = str(remote.get("id") or "")
                     if not sid:
                         continue
-                    srv["node_id"] = str(srv.get("node_id") or nid)
-                    srv["location"] = "remote"
-                    out_map[sid] = srv
-        except Exception:
-            pass
+                    item = dict(remote)
+                    item.update(
+                        node_id=str(item.get("node_id") or nid),
+                        location="remote",
+                        stale=False,
+                        available=True,
+                        availability="available",
+                    )
+                    out_map[sid] = item
+                continue
+
+            if warnings is not None:
+                warnings.append(f"{label} is unavailable; cached server state may be shown.")
+            for cached in _cached_remote_servers_for_member(nid):
+                out_map[str(cached["id"])] = cached
+
+        executor.shutdown(wait=False, cancel_futures=True)
 
     return list(out_map.values())
 

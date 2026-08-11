@@ -1,0 +1,17 @@
+{
+  "name": "server-panel-fork-validation",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "lint:js": "eslint --config eslint.config.mjs --no-ignore ../static/app.js ../scripts/fork/capture-pr1.cjs",
+    "lint:css": "stylelint --config stylelint.config.mjs ../static/style.css",
+    "typecheck:js": "tsc --project tsconfig.checkjs.json --noEmit"
+  },
+  "devDependencies": {
+    "eslint": "9.39.1",
+    "playwright": "1.61.1",
+    "stylelint": "16.23.1",
+    "typescript": "5.9.3"
+  }
+}

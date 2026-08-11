@@ -1,0 +1,5 @@
+[tool.djlint]
+profile = "jinja"
+indent = 4
+max_line_length = 140
+preserve_blank_lines = true
