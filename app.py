@@ -54,7 +54,6 @@ import zipfile
 import io
 import threading
 import urllib.request
-import urllib.parse
 import secrets
 import uuid
 import traceback
@@ -2268,7 +2267,8 @@ def _render_panel_shell(
                 {
                     "label": chip_labels[key],
                     "value": value,
-                    "remove_url": request.path + (f"?{urllib.parse.urlencode(remaining)}" if remaining else ""),
+                    "remove_url": request.path
+                    + (f"?{importlib.import_module('urllib.parse').urlencode(remaining)}" if remaining else ""),
                 }
             )
 
