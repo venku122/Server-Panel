@@ -52,7 +52,7 @@ def test_workshop_page_and_local_index(client, panel_module, monkeypatch: pytest
     response = client.get("/api/servers/alpha-operations/workshop?q=falcon")
 
     assert page.status_code == 200
-    assert b"Preview rotation change" in page.data
+    assert b"Add to Rotation" in page.data
     payload = response.get_json()
     assert [item["id"] for item in payload["items"]] == ["111"]
     assert payload["capabilities"]["rotation_mutation"] is True
