@@ -107,10 +107,37 @@ def _durable_jobs(connection: sqlite3.Connection) -> None:
     connection.execute("CREATE INDEX job_events_job_idx ON job_events (job_id, sequence)")
 
 
+def _configuration_versions(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        CREATE TABLE config_versions (
+            id TEXT PRIMARY KEY,
+            resource_type TEXT NOT NULL,
+            resource_id TEXT NOT NULL,
+            server_id TEXT NOT NULL,
+            version_number INTEGER NOT NULL CHECK (version_number >= 1),
+            content_json TEXT NOT NULL,
+            content_hash TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            change_summary TEXT NOT NULL,
+            restored_from_version_id TEXT REFERENCES config_versions(id),
+            restart_required INTEGER NOT NULL DEFAULT 0 CHECK (restart_required IN (0, 1)),
+            UNIQUE (resource_type, resource_id, version_number)
+        )
+        """
+    )
+    connection.execute(
+        "CREATE INDEX config_versions_resource_idx ON config_versions (resource_type, resource_id, version_number DESC)"
+    )
+    connection.execute("CREATE INDEX config_versions_server_idx ON config_versions (server_id, created_at DESC)")
+
+
 MIGRATIONS = (
     Migration(1, "sqlite_storage_foundation", _storage_foundation),
     Migration(2, "audit_timeline", _audit_timeline),
     Migration(3, "durable_jobs", _durable_jobs),
+    Migration(4, "configuration_versions", _configuration_versions),
 )
 
 

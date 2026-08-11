@@ -966,6 +966,8 @@ JOB_REPLAY_POLICIES = {
     "moderation_install": False,
     "workshop_sync": False,
 }
+_config_version_storage = importlib.import_module("server_panel.storage.config_versions")
+CONFIG_VERSION_SERVICE = _config_version_storage.ConfigVersionService(PANEL_DATABASE_PATH)
 
 DEFAULT_BOOTSTRAP_USERNAME = getattr(config, "USERNAME", "admin")
 DEFAULT_BOOTSTRAP_PASSWORD = getattr(config, "PASSWORD", "changeme")
@@ -1534,7 +1536,11 @@ def _read_json_file(p: Path) -> dict:
     return json.loads(p.read_text(encoding="utf-8"))
 
 def _write_json_file(p: Path, data: dict) -> None:
-    p.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    _config_version_storage.atomic_replace_bytes(
+        p,
+        (json.dumps(data, indent=2) + "\n").encode("utf-8"),
+    )
+
 
 def _parse_bat_settings(bat_text: str) -> dict:
     fps_m = re.search(r"(?i)\-limitframerate\s+(\d+)", bat_text)
@@ -1589,6 +1595,16 @@ def _set_bat_remote_port(bat_text: str, port: int) -> tuple[str, bool, Optional[
             return "\n".join(lines) + ("\n" if bat_text.endswith("\n") else ""), True, old
 
     return bat_text, False, old
+
+
+def _remove_bat_fps(bat_text: str) -> tuple[str, bool]:
+    updated = re.sub(r"(?i)\s*\-limitframerate(?:\s+\S+)?", "", bat_text)
+    return updated, updated != bat_text
+
+
+def _remove_bat_remote_port(bat_text: str) -> tuple[str, bool]:
+    updated = re.sub(r"(?i)\s*\-ServerRemoteCommands(?:\s+\S+)?", "", bat_text)
+    return updated, updated != bat_text
 
 
 def _write_start_bat_settings(bat_path: str, fps: Optional[int] = None, remote_port: Optional[int] = None) -> None:
@@ -1933,7 +1949,7 @@ SERVER_PAGE_REGISTRY = {
             "settings-history",
             "History",
             "/settings/history",
-            None,
+            "configuration-history",
             group="settings",
             sibling_group="server-settings",
             compatibility_paths=("/configuration-history",),
@@ -2005,6 +2021,14 @@ SERVER_SECTION_PAGES = {
         "active_page": "jobs",
         "title": "Jobs",
         "subtitle": "Durable work and step history for this server",
+        "show_response": False,
+        "admin_only": True,
+    },
+    "configuration-history": {
+        "template": "server/configuration_history.html",
+        "active_page": "configuration-history",
+        "title": "Configuration history",
+        "subtitle": "Version history and restore — not a full backup",
         "show_response": False,
         "admin_only": True,
     },
@@ -2288,6 +2312,9 @@ def _render_panel_shell(
         )
     elif page["active_page"] == "dashboard" and server_id is not None:
         recent_jobs = JOB_SERVICE.list(server_id=server_id, limit=5)
+    config_versions = []
+    if page["active_page"] == "configuration-history" and server_id:
+        config_versions = _config_versions_for_server(server_id)
     return render_template(
         page["template"],
         ports=ports,
@@ -2324,6 +2351,7 @@ def _render_panel_shell(
         job_statuses=("queued", "running", "cancel_requested", "succeeded", "failed", "cancelled", "interrupted"),
         job_types=("server_update", "workshop_sync", "noblackbox_install", "moderation_install"),
         job_worker_status=JOB_WORKER.status() if JOB_WORKER is not None else {"alive": False},
+        config_versions=config_versions,
     )
 
 
@@ -2362,6 +2390,7 @@ def _render_server_registry_page(server_id: str, page_key: str):
         "recordings": "noblackbox",
         "recordings-gallery": "gallery",
         "settings": "settings",
+        "settings-history": "configuration-history",
         "activity": "activity",
         "jobs": "jobs",
     }
@@ -2409,6 +2438,12 @@ def server_recordings_gallery_page(server_id: str):
 @requires_login()
 def server_settings_page(server_id: str):
     return _render_server_registry_page(server_id, "settings")
+
+
+@app.get("/servers/<server_id>/settings/history")
+@requires_login()
+def server_settings_history_page(server_id: str):
+    return _render_server_registry_page(server_id, "settings-history")
 
 
 @app.get("/servers/<server_id>/<section>")
@@ -2747,11 +2782,455 @@ def api_cluster_job_cancel():
     return jsonify({"success": True, "job": job.to_dict()})
 
 
+def _config_actor(explicit: Optional[str] = None) -> str:
+    if explicit:
+        return str(explicit)
+    if has_request_context():
+        return str(session.get("username") or "system")
+    return "system"
+
+
+def _config_correlation(explicit: Optional[str] = None) -> str:
+    if explicit:
+        return str(explicit)
+    if has_request_context():
+        return str(getattr(g, "correlation_id", None) or uuid.uuid4())
+    return str(uuid.uuid4())
+
+
+def _config_mutation_failure(error: Exception):
+    partial = isinstance(error, _config_version_storage.PartialMutationFailure)
+    return (
+        jsonify(
+            {
+                "success": False,
+                "error": str(error),
+                "partial_failure": partial,
+                "files_restored": not partial,
+                "rollback_failures": list(getattr(error, "rollback_failures", [])),
+            }
+        ),
+        500,
+    )
+
+
+def _record_config_version(
+    resource_type: str,
+    server_id: str,
+    content,
+    *,
+    actor: Optional[str] = None,
+    correlation_id: Optional[str] = None,
+    change_summary: str,
+    restored_from_version_id: Optional[str] = None,
+    restart_required: bool = False,
+    force: bool = False,
+) -> dict:
+    version, created = CONFIG_VERSION_SERVICE.save(
+        resource_type=resource_type,
+        resource_id=server_id,
+        server_id=server_id,
+        content=content,
+        created_by=_config_actor(actor),
+        change_summary=change_summary,
+        restored_from_version_id=restored_from_version_id,
+        restart_required=restart_required,
+        force=force,
+    )
+    if created:
+        AUDIT_SERVICE.record(
+            actor=_config_actor(actor),
+            action="config.version.restored" if restored_from_version_id else "config.version.created",
+            correlation_id=_config_correlation(correlation_id),
+            scope_type="server",
+            server_id=server_id,
+            target_type="config_version",
+            target_id=version.id,
+            summary=change_summary,
+            request_payload={
+                "resource_type": resource_type,
+                "version_number": version.version_number,
+                "restored_from_version_id": restored_from_version_id,
+                "restart_required": restart_required,
+            },
+        )
+    return {"created": created, "version": version.to_dict(include_content=False)}
+
+
+def _record_config_change(
+    resource_type: str,
+    server_id: str,
+    previous_content,
+    content,
+    *,
+    actor: Optional[str] = None,
+    correlation_id: Optional[str] = None,
+    change_summary: str,
+    restart_required: bool = False,
+) -> dict:
+    version, created, baseline = CONFIG_VERSION_SERVICE.save_change(
+        resource_type=resource_type,
+        resource_id=server_id,
+        server_id=server_id,
+        previous_content=previous_content,
+        content=content,
+        created_by=_config_actor(actor),
+        change_summary=change_summary,
+        restart_required=restart_required,
+    )
+    for recorded, action, summary in (
+        (baseline, "config.version.baseline", "Captured baseline before first managed mutation"),
+        (version if created else None, "config.version.created", change_summary),
+    ):
+        if recorded is None:
+            continue
+        AUDIT_SERVICE.record(
+            actor=_config_actor(actor),
+            action=action,
+            correlation_id=_config_correlation(correlation_id),
+            scope_type="server",
+            server_id=server_id,
+            target_type="config_version",
+            target_id=recorded.id,
+            summary=summary,
+            request_payload={
+                "resource_type": resource_type,
+                "version_number": recorded.version_number,
+                "baseline": recorded is baseline,
+                "restart_required": restart_required,
+            },
+        )
+    return {
+        "created": created,
+        "baseline": baseline.to_dict(include_content=False) if baseline is not None else None,
+        "version": version.to_dict(include_content=False) if version is not None else None,
+    }
+
+
+def _startup_settings_snapshot(server_id: str) -> dict:
+    bat_path = _bat_path(server_id)
+    bat_exists = bat_path.exists()
+    bat_text = bat_path.read_text(encoding="utf-8", errors="ignore") if bat_exists else ""
+    settings: dict = _parse_bat_settings(bat_text)
+    config_path = _config_path(server_id)
+    max_players_present = False
+    if config_path.exists():
+        dedicated = _read_json_file(config_path)
+        if isinstance(dedicated, dict) and "MaxPlayers" in dedicated:
+            max_players_present = True
+            settings["max_players"] = dedicated.get("MaxPlayers")
+    server = _find_server_by_id(server_id)
+    metadata_port_present = bool(server and "remote_commands_port" in server)
+    if server and server.get("remote_commands_port") is not None:
+        settings["remote_commands_port"] = server.get("remote_commands_port")
+    return {
+        "fps": settings.get("fps"),
+        "max_players": settings.get("max_players"),
+        "remote_commands_port": settings.get("remote_commands_port"),
+        "bat_exists": bat_exists,
+        "bat_text": bat_text,
+        "max_players_present": max_players_present,
+        "metadata_remote_commands_port_present": metadata_port_present,
+    }
+
+
+def _config_versions_for_server(server_id: str) -> list[dict]:
+    proxy = _proxy_server_op_if_remote(
+        server_id,
+        "/api/cluster/config-versions/list",
+        {"server_id": server_id},
+    )
+    if proxy is not None:
+        payload, code = proxy
+        if code != 200 or not payload.get("success"):
+            return [
+                {
+                    "invalid": True,
+                    "remote_error": True,
+                    "status": code,
+                    "error": str(payload.get("error") or "Remote configuration history is unavailable."),
+                }
+            ]
+        versions = payload.get("versions")
+        if not isinstance(versions, list):
+            return [
+                {
+                    "invalid": True,
+                    "remote_error": True,
+                    "status": 502,
+                    "error": "Remote configuration history returned an invalid response.",
+                }
+            ]
+        return versions
+    versions = CONFIG_VERSION_SERVICE.list(server_id=server_id, limit=200)
+    return [version for version in versions if isinstance(version, dict)]
+
+
+def _restore_config_version_local(
+    version_id: str,
+    *,
+    expected_server_id: str,
+    actor: Optional[str] = None,
+    correlation_id: Optional[str] = None,
+) -> dict:
+    version = CONFIG_VERSION_SERVICE.get(version_id)
+    if version is None:
+        raise KeyError("Configuration version not found")
+    if version.server_id != expected_server_id:
+        raise ValueError("Configuration version does not belong to the selected server.")
+    content = version.content
+    summary = f"Restored {version.resource_type.replace('_', ' ')} from v{version.version_number}"
+    restart_required = bool(version.restart_required)
+    replacements: dict[Path, bytes] = {}
+    snapshot = content
+
+    if version.resource_type == "dedicated_server_config":
+        if not isinstance(content, dict):
+            raise ValueError("Dedicated server configuration history is invalid.")
+        target = content.get("config") if "config" in content else content
+        if not isinstance(target, dict):
+            raise ValueError("Dedicated server configuration history is invalid.")
+        config_path = _config_path(version.server_id)
+        replacements[config_path] = (json.dumps(target, indent=2) + "\n").encode("utf-8")
+        snapshot = target
+    elif version.resource_type == "startup_settings":
+        if not isinstance(content, dict):
+            raise ValueError("Startup settings history is invalid.")
+        bat_path = _bat_path(version.server_id)
+        old_text = bat_path.read_text(encoding="utf-8", errors="ignore")
+        new_text = old_text
+        if content.get("fps") is None:
+            new_text, changed = _remove_bat_fps(new_text)
+            restart_required = restart_required or changed
+        else:
+            new_text, changed = _set_bat_fps(new_text, int(content["fps"]))
+            restart_required = restart_required or changed
+        if content.get("remote_commands_port") is None:
+            new_text, changed = _remove_bat_remote_port(new_text)
+            restart_required = restart_required or changed
+        else:
+            new_port = int(content["remote_commands_port"])
+            new_text, changed, _old_port = _set_bat_remote_port(new_text, new_port)
+            restart_required = restart_required or changed
+        config_path = _config_path(version.server_id)
+        previous_dedicated = _read_json_file(config_path) if config_path.exists() else {}
+        if not isinstance(previous_dedicated, dict):
+            previous_dedicated = {}
+        dedicated = dict(previous_dedicated)
+        max_players_present = bool(content.get("max_players_present", content.get("max_players") is not None))
+        if max_players_present:
+            dedicated["MaxPlayers"] = int(content["max_players"])
+        else:
+            dedicated.pop("MaxPlayers", None)
+        servers = load_servers()
+        metadata_port_present = bool(
+            content.get(
+                "metadata_remote_commands_port_present",
+                content.get("remote_commands_port") is not None,
+            )
+        )
+        for entry in servers:
+            if not isinstance(entry, dict) or str(entry.get("id") or "") != version.server_id:
+                continue
+            if metadata_port_present:
+                entry["remote_commands_port"] = int(content["remote_commands_port"])
+            else:
+                entry.pop("remote_commands_port", None)
+        disk_servers = [
+            encrypt_fields(entry, _server_secret_fields(), BASE_DIR) if isinstance(entry, dict) else entry
+            for entry in servers
+        ]
+        if new_text != old_text:
+            replacements[bat_path] = new_text.encode("utf-8")
+        if dedicated != previous_dedicated:
+            replacements[config_path] = (json.dumps(dedicated, indent=2) + "\n").encode("utf-8")
+        replacements[_servers_file_path()] = (json.dumps({"servers": disk_servers}, indent=2) + "\n").encode("utf-8")
+        snapshot = {
+            "fps": content.get("fps"),
+            "max_players": content.get("max_players") if max_players_present else None,
+            "remote_commands_port": content.get("remote_commands_port") if metadata_port_present else None,
+            "bat_exists": True,
+            "bat_text": new_text,
+            "max_players_present": max_players_present,
+            "metadata_remote_commands_port_present": metadata_port_present,
+        }
+    elif version.resource_type == "noblackbox_config":
+        if not isinstance(content, dict) or not isinstance(content.get("text"), str):
+            raise ValueError("NoBlackBox configuration history is invalid.")
+        server = _find_server_by_id(version.server_id)
+        if server is None:
+            raise KeyError("Server not found")
+        _plugin_dir, cfg_path = _nobb_get_paths(server)
+        replacements[cfg_path] = content["text"].encode("utf-8")
+        if "settings" in content:
+            settings_state = _nobb_settings_load()
+            if content.get("settings") is None:
+                settings_state.pop(version.server_id, None)
+            else:
+                settings_state[version.server_id] = content["settings"]
+            replacements[NOBB_SETTINGS_PATH] = (json.dumps(settings_state, indent=2) + "\n").encode("utf-8")
+        snapshot = {"exists": True, "text": content["text"], "settings": content.get("settings")}
+    else:
+        raise ValueError("Unsupported configuration resource.")
+
+    def persist_restore():
+        result = _record_config_version(
+            version.resource_type,
+            version.server_id,
+            snapshot,
+            actor=actor,
+            correlation_id=correlation_id,
+            change_summary=summary,
+            restored_from_version_id=version.id,
+            restart_required=restart_required,
+            force=True,
+        )
+        if version.resource_type == "startup_settings" and dedicated != previous_dedicated:
+            _record_config_change(
+                "dedicated_server_config",
+                version.server_id,
+                previous_dedicated,
+                dedicated,
+                actor=actor,
+                correlation_id=correlation_id,
+                change_summary="Updated MaxPlayers during startup-settings restore",
+            )
+        return result
+
+    result = _config_version_storage.apply_compensating_file_mutation(replacements, persist_restore)
+    return {"success": True, "restart_required": restart_required, **result}
+
+
+@app.get("/api/config-versions")
+@requires_login("admin")
+def api_config_versions_list():
+    server_id = str(request.args.get("server_id") or _get_request_server_id() or "").strip()
+    resource_type = str(request.args.get("resource_type") or "").strip() or None
+    proxy = _proxy_server_op_if_remote(
+        server_id,
+        "/api/cluster/config-versions/list",
+        {"server_id": server_id, "resource_type": resource_type},
+    )
+    if proxy is not None:
+        payload, code = proxy
+        return jsonify(payload), code
+    try:
+        versions = CONFIG_VERSION_SERVICE.list(server_id=server_id, resource_type=resource_type, limit=200)
+    except ValueError as error:
+        return jsonify({"success": False, "error": str(error)}), 400
+    return jsonify({"success": True, "versions": versions})
+
+
+@app.get("/api/config-versions/<version_id>/diff")
+@requires_login("admin")
+def api_config_version_diff(version_id: str):
+    server_id = str(request.args.get("server_id") or "").strip()
+    if server_id:
+        proxy = _proxy_server_op_if_remote(
+            server_id,
+            "/api/cluster/config-versions/diff",
+            {"server_id": server_id, "version_id": version_id},
+        )
+        if proxy is not None:
+            payload, code = proxy
+            return jsonify(payload), code
+    try:
+        return jsonify({"success": True, "diff": CONFIG_VERSION_SERVICE.diff(version_id)})
+    except KeyError:
+        return jsonify({"success": False, "error": "Configuration version not found"}), 404
+
+
+@app.post("/api/config-versions/<version_id>/restore")
+@requires_login("admin")
+def api_config_version_restore(version_id: str):
+    data = request.get_json(silent=True) or {}
+    server_id = str(data.get("server_id") or _get_request_server_id() or "").strip()
+    proxy = _proxy_server_op_if_remote(
+        server_id,
+        "/api/cluster/config-versions/restore",
+        {
+            "server_id": server_id,
+            "version_id": version_id,
+            "created_by": _config_actor(),
+            "correlation_id": _config_correlation(),
+        },
+    )
+    if proxy is not None:
+        payload, code = proxy
+        return jsonify(payload), code
+    try:
+        result = _restore_config_version_local(
+            version_id,
+            expected_server_id=server_id,
+            actor=_config_actor(),
+            correlation_id=_config_correlation(),
+        )
+        return jsonify(result)
+    except KeyError as error:
+        return jsonify({"success": False, "error": str(error)}), 404
+    except ValueError as error:
+        return jsonify({"success": False, "error": str(error)}), 400
+    except Exception as error:
+        return _config_mutation_failure(error)
+
+
+@app.post("/api/cluster/config-versions/list")
+@requires_cluster_member_request
+def api_cluster_config_versions_list():
+    data = request.get_json(silent=True) or {}
+    server_id = str(data.get("server_id") or "").strip()
+    resource_type = str(data.get("resource_type") or "").strip() or None
+    try:
+        versions = CONFIG_VERSION_SERVICE.list(server_id=server_id, resource_type=resource_type, limit=200)
+    except ValueError as error:
+        return jsonify({"success": False, "error": str(error)}), 400
+    return jsonify({"success": True, "versions": versions})
+
+
+@app.post("/api/cluster/config-versions/diff")
+@requires_cluster_member_request
+def api_cluster_config_version_diff():
+    data = request.get_json(silent=True) or {}
+    try:
+        diff = CONFIG_VERSION_SERVICE.diff(str(data.get("version_id") or ""))
+        return jsonify({"success": True, "diff": diff})
+    except KeyError:
+        return jsonify({"success": False, "error": "Configuration version not found"}), 404
+
+
+@app.post("/api/cluster/config-versions/restore")
+@requires_cluster_member_request
+def api_cluster_config_version_restore():
+    data = request.get_json(silent=True) or {}
+    try:
+        result = _restore_config_version_local(
+            str(data.get("version_id") or ""),
+            expected_server_id=str(data.get("server_id") or ""),
+            actor=str(data.get("created_by") or "cluster-coordinator"),
+            correlation_id=str(data.get("correlation_id") or uuid.uuid4()),
+        )
+        return jsonify(result)
+    except KeyError as error:
+        return jsonify({"success": False, "error": str(error)}), 404
+    except ValueError as error:
+        return jsonify({"success": False, "error": str(error)}), 400
+    except Exception as error:
+        return _config_mutation_failure(error)
+
+
 # ----- Ports API (Ports tab: Game/Query editor) -----
 @app.get("/api/whoami")
 @requires_login()
 def api_whoami():
-    return jsonify({"success": True, "username": session.get("username"), "role": session.get("role"), "is_local": (request.remote_addr in ("127.0.0.1","::1")), "ip": _client_ip()})
+    return jsonify(
+        {
+            "success": True,
+            "username": session.get("username"),
+            "role": session.get("role"),
+            "is_local": (request.remote_addr in ("127.0.0.1", "::1")),
+            "ip": _client_ip(),
+        }
+    )
 
 
 @app.get("/api/ports")
@@ -3590,28 +4069,66 @@ def api_noblackbox_set_config():
         mem = _find_member_by_node_id(nid) if nid else None
         if not mem:
             return jsonify({"success": False, "error": "Remote server owner not found."}), 400
-        resp = _cluster_signed_post_to_member(mem, "/api/cluster/noblackbox/config_set", {"server_id": sid, "values": data.get("values") or {}}, timeout=35)
+        resp = _cluster_signed_post_to_member(
+            mem,
+            "/api/cluster/noblackbox/config_set",
+            {
+                "server_id": sid,
+                "values": data.get("values") or {},
+                "created_by": _config_actor(),
+                "correlation_id": _config_correlation(),
+            },
+            timeout=35,
+        )
         return jsonify(resp)
 
     values = data.get("values") or {}
-    cfg_text = _nobb_load_cfg(server)
+    old_cfg_text = _nobb_load_cfg(server)
+    cfg_text = old_cfg_text
     # Only set the keys provided
     for k, v in values.items():
         key = str(k).strip()
         if not key:
             continue
         if key == "OutputPath":
-            v = _nobb_autoscope_output_path(server, requested_path=str(v), persist=False) or _nobb_normalize_path(str(v))
+            v = _nobb_autoscope_output_path(server, requested_path=str(v), persist=False) or _nobb_normalize_path(
+                str(v)
+            )
         # Booleans are lower-case true/false
         if isinstance(v, bool):
             v = "true" if v else "false"
         cfg_text = _nobb_set_kv(cfg_text, key, str(v))
-    _nobb_save_cfg(server, cfg_text)
+    _plugin_dir, cfg_path = _nobb_get_paths(server)
+    settings_state = _nobb_settings_load()
+    settings_before = json.loads(json.dumps(settings_state))
+    desired = settings_state.get(sid, {}) if isinstance(settings_state.get(sid), dict) else {}
+    desired.update(values)
+    settings_state[sid] = desired
+
+    def persist_version():
+        return _record_config_change(
+            "noblackbox_config",
+            sid,
+            {"exists": cfg_path.exists(), "text": old_cfg_text, "settings": settings_before.get(sid)},
+            {"exists": True, "text": cfg_text, "settings": desired},
+            actor=_config_actor(),
+            correlation_id=_config_correlation(),
+            change_summary="Saved NoBlackBox configuration",
+            restart_required=_is_server_running(_server_install_dir_for(server)),
+        )
+
     try:
-        _nobb_settings_merge(sid, values)
-    except Exception:
-        pass
-    return jsonify({"success": True})
+        version = _config_version_storage.apply_compensating_file_mutation(
+            {
+                cfg_path: cfg_text.encode("utf-8"),
+                NOBB_SETTINGS_PATH: (json.dumps(settings_state, indent=2) + "\n").encode("utf-8"),
+            },
+            persist_version,
+        )
+    except Exception as error:
+        return _config_mutation_failure(error)
+    return jsonify({"success": True, "config_version": version})
+
 
 @app.post("/api/noblackbox/install")
 @requires_login("admin")
@@ -3629,6 +4146,7 @@ def api_noblackbox_install():
         progress_total=3,
     )
     return jsonify({"success": True, "started": True, "job": job.to_dict()}), 202
+
 
 @app.post("/api/noblackbox/uninstall")
 @requires_login("admin")
@@ -3702,6 +4220,7 @@ def api_cluster_noblackbox_config():
     cfg_text = _nobb_load_cfg(server)
     return jsonify({"success": True, "config_text": cfg_text, "config": _nobb_cfg_to_dict(cfg_text)})
 
+
 @app.post("/api/cluster/noblackbox/config_set")
 @requires_cluster_member_request
 def api_cluster_noblackbox_config_set():
@@ -3711,18 +4230,50 @@ def api_cluster_noblackbox_config_set():
     server = _find_server_in_unified_view(sid)
     if not server:
         return jsonify({"success": False, "error": "Server not found"}), 404
-    cfg_text = _nobb_load_cfg(server)
+    old_cfg_text = _nobb_load_cfg(server)
+    cfg_text = old_cfg_text
     for k, v in values.items():
         key = str(k).strip()
         if not key:
             continue
         if key == "OutputPath":
-            v = _nobb_autoscope_output_path(server, requested_path=str(v), persist=False) or _nobb_normalize_path(str(v))
+            v = _nobb_autoscope_output_path(server, requested_path=str(v), persist=False) or _nobb_normalize_path(
+                str(v)
+            )
         if isinstance(v, bool):
             v = "true" if v else "false"
         cfg_text = _nobb_set_kv(cfg_text, key, str(v))
-    _nobb_save_cfg(server, cfg_text)
-    return jsonify({"success": True})
+    _plugin_dir, cfg_path = _nobb_get_paths(server)
+    settings_state = _nobb_settings_load()
+    settings_before = json.loads(json.dumps(settings_state))
+    desired = settings_state.get(sid, {}) if isinstance(settings_state.get(sid), dict) else {}
+    desired.update(values)
+    settings_state[sid] = desired
+
+    def persist_version():
+        return _record_config_change(
+            "noblackbox_config",
+            sid,
+            {"exists": cfg_path.exists(), "text": old_cfg_text, "settings": settings_before.get(sid)},
+            {"exists": True, "text": cfg_text, "settings": desired},
+            actor=str(data.get("created_by") or "cluster-coordinator"),
+            correlation_id=str(data.get("correlation_id") or uuid.uuid4()),
+            change_summary="Saved NoBlackBox configuration",
+            restart_required=_is_server_running(_server_install_dir_for(server)),
+        )
+
+    try:
+        version = _config_version_storage.apply_compensating_file_mutation(
+            {
+                cfg_path: cfg_text.encode("utf-8"),
+                NOBB_SETTINGS_PATH: (json.dumps(settings_state, indent=2) + "\n").encode("utf-8"),
+            },
+            persist_version,
+        )
+    except Exception as error:
+        return _config_mutation_failure(error)
+    return jsonify({"success": True, "config_version": version})
+
 
 @app.post("/api/cluster/noblackbox/install")
 @requires_cluster_member_request
@@ -3741,6 +4292,7 @@ def api_cluster_noblackbox_install():
         correlation_id=str(data.get("correlation_id") or uuid.uuid4()),
     )
     return jsonify({"success": True, "started": True, "job": job.to_dict()}), 202
+
 
 @app.post("/api/cluster/noblackbox/uninstall")
 @requires_cluster_member_request
@@ -4124,13 +4676,42 @@ def _dedicated_config_get_local(sid: str) -> dict:
     return {"success": True, "exists": True, "path": str(p), "config": data}
 
 
-def _dedicated_config_save_local(sid: str, cfg) -> dict:
+def _dedicated_config_save_local(
+    sid: str,
+    cfg,
+    *,
+    actor: Optional[str] = None,
+    correlation_id: Optional[str] = None,
+    change_summary: str = "Saved DedicatedServerConfig.json",
+) -> dict:
     """Local-only helper for writing DedicatedServerConfig.json."""
     p = _config_path(sid)
     if not isinstance(cfg, dict):
         return {"success": False, "error": "config must be a JSON object"}
-    _write_json_file(p, cfg)
-    return {"success": True, "path": str(p)}
+    previous = _read_json_file(p) if p.exists() else {}
+    if not isinstance(previous, dict):
+        previous = {}
+    if _config_version_storage.canonical_content(previous)[2] == _config_version_storage.canonical_content(cfg)[2]:
+        return {"success": True, "path": str(p), "config_version": {"created": False, "version": None}}
+
+    def persist_version():
+        return _record_config_change(
+            "dedicated_server_config",
+            sid,
+            previous,
+            cfg,
+            actor=actor,
+            correlation_id=correlation_id,
+            change_summary=change_summary,
+        )
+
+    version = _config_version_storage.apply_compensating_file_mutation(
+        {p: (json.dumps(cfg, indent=2) + "\n").encode("utf-8")},
+        persist_version,
+    )
+    return {"success": True, "path": str(p), "config_version": version}
+
+
 @app.get("/api/dedicated-config")
 @requires_login("admin")
 def api_get_dedicated_config():
@@ -4155,11 +4736,24 @@ def save_dedicated_config():
     data = request.get_json(force=True, silent=True) or {}
     try:
         sid = data.get("server_id") or _get_request_server_id()
-        proxy = _proxy_server_op_if_remote(str(sid), "/api/cluster/servers/save_dedicated_config", {"config": data.get("config")})
+        proxy = _proxy_server_op_if_remote(
+            str(sid),
+            "/api/cluster/servers/save_dedicated_config",
+            {
+                "config": data.get("config"),
+                "created_by": _config_actor(),
+                "correlation_id": _config_correlation(),
+            },
+        )
         if proxy is not None:
             resp, code = proxy
             return jsonify(resp), code
-        res = _dedicated_config_save_local(str(sid), data.get("config"))
+        res = _dedicated_config_save_local(
+            str(sid),
+            data.get("config"),
+            actor=_config_actor(),
+            correlation_id=_config_correlation(),
+        )
         if not res.get("success"):
             return jsonify(res), 400
         return jsonify(res)
@@ -4210,7 +4804,16 @@ def api_set_startup_settings():
     payload = request.get_json(force=True, silent=True) or {}
     try:
         sid = payload.get("server_id") or _get_request_server_id()
-        proxy = _proxy_server_op_if_remote(str(sid), "/api/cluster/servers/set_startup_settings", {"server_id": str(sid), "settings": payload.get("settings") or {}})
+        proxy = _proxy_server_op_if_remote(
+            str(sid),
+            "/api/cluster/servers/set_startup_settings",
+            {
+                "server_id": str(sid),
+                "settings": payload.get("settings") or {},
+                "created_by": _config_actor(),
+                "correlation_id": _config_correlation(),
+            },
+        )
         if proxy is not None:
             resp, code = proxy
             return jsonify(resp), code
@@ -4227,9 +4830,11 @@ def api_set_startup_settings():
     if not isinstance(settings, dict):
         return jsonify({"success": False, "error": "settings must be an object"}), 400
 
+    sid = str(sid)
     bp = _bat_path(sid)
     old_text = bp.read_text(encoding="utf-8", errors="ignore")
     new_text = old_text
+    previous_snapshot = _startup_settings_snapshot(sid)
 
     restart_required = False
 
@@ -4245,28 +4850,36 @@ def api_set_startup_settings():
         ui_old_port = None
 
     # ---------- FPS ----------
-    if "fps" in settings and settings["fps"] is not None:
-        fps = int(settings["fps"])
-        new_text, changed = _set_bat_fps(new_text, fps)
+    if "fps" in settings:
+        if settings["fps"] is None:
+            new_text, changed = _remove_bat_fps(new_text)
+        else:
+            new_text, changed = _set_bat_fps(new_text, int(settings["fps"]))
         restart_required = restart_required or changed
 
     # ---------- Max Players (DedicatedServerConfig.json) ----------
-    if "max_players" in settings and settings["max_players"] is not None:
-        try:
-            mp = int(settings["max_players"])
-            cfg_path = _config_path(sid)
-            cfg = _read_json_file(cfg_path) if cfg_path.exists() else {}
-            if not isinstance(cfg, dict):
-                cfg = {}
-            cfg["MaxPlayers"] = mp
-            _write_json_file(cfg_path, cfg)
-        except Exception as e:
-            return jsonify({"success": False, "error": f"Failed to write MaxPlayers: {e}"}), 500
+    cfg_path = _config_path(sid)
+    previous_dedicated = _read_json_file(cfg_path) if cfg_path.exists() else {}
+    if not isinstance(previous_dedicated, dict):
+        previous_dedicated = {}
+    dedicated = dict(previous_dedicated)
+    if "max_players" in settings:
+        if settings["max_players"] is None:
+            dedicated.pop("MaxPlayers", None)
+        else:
+            dedicated["MaxPlayers"] = int(settings["max_players"])
 
     # ---------- Remote command port ----------
-    if "remote_commands_port" in settings and settings["remote_commands_port"] is not None:
-        new_port = int(settings["remote_commands_port"])
-        new_text, changed, bat_detected_old = _set_bat_remote_port(new_text, new_port)
+    servers = load_servers()
+    new_port = None
+    ref_old = None
+    if "remote_commands_port" in settings:
+        if settings["remote_commands_port"] is None:
+            new_text, changed = _remove_bat_remote_port(new_text)
+            bat_detected_old = bat_old_port
+        else:
+            new_port = int(settings["remote_commands_port"])
+            new_text, changed, bat_detected_old = _set_bat_remote_port(new_text, new_port)
         restart_required = restart_required or changed
 
         # Determine which port to sync FROM (priority: UI → BAT → parsed)
@@ -4278,30 +4891,90 @@ def api_set_startup_settings():
             else bat_old_port
         )
 
-        if ref_old is not None and ref_old != new_port:
-            _sync_ports_tab_for_server(str(server.get("id") or sid), str(server.get("name") or f"Server {new_port}"), ref_old, new_port)
+        if server.get("id"):
+            for server_entry in servers:
+                if server_entry.get("id") == server.get("id"):
+                    if new_port is None:
+                        server_entry.pop("remote_commands_port", None)
+                    else:
+                        server_entry["remote_commands_port"] = new_port
 
-        # Persist the new remote port for this server instance
-        try:
-            if server.get("id"):
-                servers = load_servers()
-                for s in servers:
-                    if s.get("id") == server.get("id"):
-                        s["remote_commands_port"] = new_port
-                save_servers(servers)
-        except Exception:
-            pass
-
-    # ---------- Write BAT if changed ----------
+    actor = str(payload.get("created_by") or _config_actor())
+    correlation_id = str(payload.get("correlation_id") or _config_correlation())
+    disk_servers = [
+        encrypt_fields(entry, _server_secret_fields(), BASE_DIR) if isinstance(entry, dict) else entry
+        for entry in servers
+    ]
+    replacements: dict[Path, bytes] = {}
     if new_text != old_text:
-        bp.write_text(new_text, encoding="utf-8")
+        replacements[bp] = new_text.encode("utf-8")
+    if dedicated != previous_dedicated:
+        replacements[cfg_path] = (json.dumps(dedicated, indent=2) + "\n").encode("utf-8")
+    if "remote_commands_port" in settings:
+        replacements[_servers_file_path()] = (json.dumps({"servers": disk_servers}, indent=2) + "\n").encode("utf-8")
 
-    return jsonify({"success": True, "restart_required": restart_required})
+    proposed_snapshot = {
+        "fps": _parse_bat_settings(new_text).get("fps"),
+        "max_players": dedicated.get("MaxPlayers"),
+        "remote_commands_port": new_port
+        if "remote_commands_port" in settings
+        else previous_snapshot.get("remote_commands_port"),
+        "bat_exists": True,
+        "bat_text": new_text,
+        "max_players_present": "MaxPlayers" in dedicated,
+        "metadata_remote_commands_port_present": any(
+            entry.get("id") == server.get("id") and "remote_commands_port" in entry
+            for entry in servers
+            if isinstance(entry, dict)
+        ),
+    }
+
+    def persist_versions():
+        version_result = _record_config_change(
+            "startup_settings",
+            sid,
+            previous_snapshot,
+            proposed_snapshot,
+            actor=actor,
+            correlation_id=correlation_id,
+            change_summary="Saved parsed startup settings",
+            restart_required=restart_required,
+        )
+        if dedicated != previous_dedicated:
+            _record_config_change(
+                "dedicated_server_config",
+                sid,
+                previous_dedicated,
+                dedicated,
+                actor=actor,
+                correlation_id=correlation_id,
+                change_summary="Updated MaxPlayers from startup settings",
+            )
+        return version_result
+
+    if replacements:
+        try:
+            version = _config_version_storage.apply_compensating_file_mutation(replacements, persist_versions)
+        except Exception as error:
+            return _config_mutation_failure(error)
+    else:
+        version = {"created": False, "baseline": None, "version": None}
+
+    if ref_old is not None and new_port is not None and ref_old != new_port:
+        _sync_ports_tab_for_server(
+            str(server.get("id") or sid),
+            str(server.get("name") or f"Server {new_port}"),
+            ref_old,
+            new_port,
+        )
+
+    return jsonify({"success": True, "restart_required": restart_required, "config_version": version})
 
 
 # =============================
 # MOTD (Message of the Day)
 # =============================
+
 
 @app.get("/api/server-motd")
 @requires_login("admin")
@@ -7560,7 +8233,12 @@ def api_cluster_servers_save_dedicated_config():
 
     # Do not call the normal /api/dedicated-config POST handler here because it is
     # wrapped with requires_login() and may redirect to /login for cluster traffic.
-    res = _dedicated_config_save_local(sid, data.get("config"))
+    res = _dedicated_config_save_local(
+        sid,
+        data.get("config"),
+        actor=str(data.get("created_by") or "cluster-coordinator"),
+        correlation_id=str(data.get("correlation_id") or uuid.uuid4()),
+    )
     if not res.get("success"):
         return jsonify(res), 400
     return jsonify(res)

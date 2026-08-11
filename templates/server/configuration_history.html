@@ -1,0 +1,68 @@
+{% extends "layouts/server.html" %}
+{% from "components/primitives.html" import sheet %}
+{% block panel_content %}
+    <nav class="page-tabs" aria-label="Server settings views">
+        <a href="/servers/{{ current_server.id }}/settings">General / Gameplay</a><a class="active"
+   href="/servers/{{ current_server.id }}/settings/history"
+   aria-current="page">History</a>
+    </nav>
+    <div class="note" role="note">
+        <strong>Version history, not a backup.</strong><span>Each managed save records normalized configuration content. Restoring creates a new version and preserves the existing timeline.</span>
+    </div>
+    {% if config_versions %}
+        <div class="config-history-table" data-config-history>
+            <div class="config-history-head" aria-hidden="true"><span>Resource</span><span>Version</span><span>Change</span><span>Actor</span><span>Created</span><span>Restart</span></div>
+            {% for version in config_versions %}
+                {% if version.invalid %}
+                    <div class="note note--warning config-history-error"><strong>History unavailable.</strong><span>{{ version.error }}{% if version.status %} · HTTP {{ version.status }}{% endif %}</span></div>
+                {% else %}
+                    <button id="config-version-row-{{ version.id }}"
+                            class="config-version-row"
+                            type="button"
+                            data-version-id="{{ version.id }}"
+                            data-open-sheet="config-version-detail-{{ version.id }}"
+                            aria-label="Inspect {{ version.resource_type|replace('_', ' ') }} version {{ version.version_number }}">
+                        <span><strong>{{ version.resource_type|replace('_', ' ') |title }}</strong><small class="mono">{{ version.resource_id }}</small></span>
+                        <span class="mono">v{{ version.version_number }}</span>
+                        <span>{{ version.change_summary }}</span>
+                        <span class="mono">{{ version.created_by }}</span>
+                        <span><time datetime="{{ version.created_at }}" data-relative-time>{{ version.created_at }}</time></span>
+                        <span>{% if version.restart_required %}<span class="status-badge status-badge--warning"><span class="status-dot" aria-hidden="true"></span>Required</span>{% else %}<span class="muted">No</span>{% endif %}</span>
+                    </button>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% for version in config_versions if not version.invalid %}
+            {% call sheet('config-version-detail-' ~ version.id, 'Configuration v' ~ version.version_number) %}
+                <div class="sheet-status-line"><span>{{ version.resource_type|replace('_', ' ') |title }}</span><time datetime="{{ version.created_at }}" data-relative-time>{{ version.created_at }}</time></div>
+                <p class="sheet-summary">{{ version.change_summary }}</p>
+                <dl class="audit-identifiers">
+                    <div><dt>Version ID</dt><dd class="mono">{{ version.id }}</dd></div><div><dt>Resource</dt><dd>{{ version.resource_type|replace('_', ' ') |title }}</dd></div><div><dt>Resource ID</dt><dd class="mono">{{ version.resource_id }}</dd></div><div><dt>Created by</dt><dd class="mono">{{ version.created_by }}</dd></div><div><dt>Created</dt><dd>{{ version.created_at }}</dd></div><div><dt>Restart</dt><dd>{{ 'Required' if version.restart_required else 'Not required' }}</dd></div>{% if version.restored_from_version_id %}<div><dt>Restored from</dt><dd class="mono">{{ version.restored_from_version_id }}</dd></div>{% endif %}
+                </dl>
+                <section class="config-diff-section">
+                    <header>
+                        <h3>Changes from previous</h3>
+                        <button class="btn ghost" type="button" data-version-diff>Refresh diff</button>
+                    </header>
+                    <pre data-version-diff-output>Open details to load the normalized diff…</pre>
+                </section>
+                <div class="sheet-danger-action">
+                    <div>
+                        <strong>Restore this version</strong>
+                        <p>Writes this historical content as the new current configuration. Existing versions remain intact.</p>
+                    </div>
+                    <button class="btn danger" type="button" data-version-restore>Restore as new version…</button>
+                </div>
+            {% endcall %}
+        {% endfor %}
+    {% else %}
+        <div class="empty-state config-history-empty">
+            <span class="empty-state-icon" aria-hidden="true">↺</span>
+            <h2>No configuration versions yet</h2>
+            <p>Managed changes to dedicated config, startup settings, and recorder settings will appear here.</p>
+        </div>
+    {% endif %}
+{% endblock %}
+{% block panel_scripts %}
+    <script defer src="{{ url_for('static', filename='js/config-history.js') }}"></script>
+{% endblock %}
