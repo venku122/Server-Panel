@@ -1,6 +1,7 @@
 {% extends "layouts/server.html" %}
 {% block panel_content %}
     <section class="page show" id="page-noblackbox" data-page="noblackbox">
+        <nav class="page-tabs" aria-label="Recording views"><a class="active" href="/servers/{{ current_server.id }}/recordings" aria-current="page">Recorder</a><a href="/servers/{{ current_server.id }}/recordings/gallery">Gallery</a></nav>
         <div class="card">
             <div class="nobb-row">
                 <div>
