@@ -26,7 +26,8 @@
                     <p id="mod-install-paths">Plugin, configuration, and state paths will appear after the status check.</p>
                 </div>
                 <div class="btns">
-                    <button class="btn" id="mod-refresh-status-btn" type="button">Refresh status</button><button class="btn primary" id="mod-install-btn" type="button">Install / Repair…</button>
+                    <button class="btn" id="mod-refresh-status-btn" type="button">Refresh status</button>
+                    <button class="btn primary" id="mod-install-btn" type="button">Install / Repair…</button>
                 </div>
             </div>
             <div id="mod-install-progress-meter" hidden>{{ progress(0, 'Install progress') }}</div>
@@ -46,26 +47,32 @@
                     <p>Changes affect automatic enforcement and notification behavior.</p>
                 </div>
                 <div class="btns">
-                    <button class="btn" id="mod-load-btn" type="button">Discard changes</button><button class="btn primary" id="mod-save-btn" type="button">Save settings</button>
+                    <button class="btn" id="mod-load-btn" type="button">Discard changes</button>
+                    <button class="btn primary" id="mod-save-btn" type="button">Save settings</button>
                 </div>
             </header>
             <div class="setting-list">
                 <label class="setting-row">
-                    <span><strong>Automatic kick</strong><small>Kick players when a configured friendly-fire tolerance is exceeded.</small></span><input type="checkbox" id="mod-enable-autokick">
+                    <span><strong>Automatic kick</strong><small>Kick players when a configured friendly-fire tolerance is exceeded.</small></span>
+                    <input type="checkbox" id="mod-enable-autokick">
                 </label>
                 <label class="setting-row">
-                    <span><strong>Discord notifications</strong><small>Send friendly-fire events through the panel bot.</small></span><input type="checkbox" id="mod-bot-notify">
+                    <span><strong>Discord notifications</strong><small>Send friendly-fire events through the panel bot.</small></span>
+                    <input type="checkbox" id="mod-bot-notify">
                 </label>
             </div>
             <div class="tolerance-grid">
                 <label>
-                    <span>Aircraft tolerance</span><input id="mod-aircraft-tol" type="number" min="-1">
+                    <span>Aircraft tolerance</span>
+                    <input id="mod-aircraft-tol" type="number" min="-1">
                 </label>
                 <label>
-                    <span>Vehicle tolerance</span><input id="mod-vehicle-tol" type="number" min="-1">
+                    <span>Vehicle tolerance</span>
+                    <input id="mod-vehicle-tol" type="number" min="-1">
                 </label>
                 <label>
-                    <span>Ship tolerance</span><input id="mod-ship-tol" type="number" min="-1">
+                    <span>Ship tolerance</span>
+                    <input id="mod-ship-tol" type="number" min="-1">
                 </label>
             </div>
             <div class="note" role="note"><strong>Operational records remain active.</strong><span>The backend continues to track incidents and tickets for enforcement and bot messages. The standalone ticket console is intentionally not exposed here.</span></div>
