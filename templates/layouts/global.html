@@ -61,28 +61,28 @@
         {% if active_page in ('ports', 'cluster', 'users', 'discord', 'about') %}</div>{% endif %}
     </main>
     </div>
-    {{ global_bottom_navigation(active_page) }}
-    <aside class="mobile-drawer"
-           id="more-drawer"
-           role="dialog"
-           aria-modal="true"
-           aria-labelledby="more-drawer-title"
-           hidden>
-        <header>
-            <div>
-                <span class="eyebrow">Panel</span>
-                <h2 id="more-drawer-title">More</h2>
-            </div>
-            <button class="icon-button"
-                    type="button"
-                    data-close-drawer
-                    aria-label="Close More">×</button>
-        </header>
-        <nav class="drawer-nav" aria-label="More panel navigation">
-            <a href="/deployment">Deployment</a><a href="/settings">Settings</a><a href="{{ url_for('logout') }}">Log out {{ current_user or '' }}</a>
-        </nav>
+{{ global_bottom_navigation(active_page) }}
+<aside class="mobile-drawer"
+       id="more-drawer"
+       role="dialog"
+       aria-modal="true"
+       aria-labelledby="more-drawer-title"
+       hidden>
+    <header>
+        <div>
+            <span class="eyebrow">Panel</span>
+            <h2 id="more-drawer-title">More</h2>
+        </div>
+        <button class="icon-button"
+                type="button"
+                data-close-drawer
+                aria-label="Close More">×</button>
+    </header>
+    <nav class="drawer-nav" aria-label="More panel navigation">
+        <a href="/deployment">Deployment</a><a href="/settings">Settings</a><a href="{{ url_for("logout") }}">Log out {{ current_user or '' }}</a>
+    </nav>
     </aside>
-    {% include "components/shell_overlays.html" %}
+{% include "components/shell_overlays.html" %}
 {% endblock %}
 {% block scripts %}
     <script defer src="{{ url_for('static', filename='js/core/navigation.js') }}"></script>
