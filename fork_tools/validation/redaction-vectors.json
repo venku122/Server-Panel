@@ -1,0 +1,45 @@
+[
+  {
+    "id": "complete-private-key",
+    "value": "before -----BEGIN PRIVATE KEY-----\nkey-material-one\n-----END PRIVATE KEY----- after",
+    "forbidden": ["key-material-one"]
+  },
+  {
+    "id": "long-rsa-private-key",
+    "repeat": {"text": "x", "count": 4500},
+    "suffix": "-----BEGIN RSA PRIVATE KEY-----\nkey-material-two\n-----END RSA PRIVATE KEY-----",
+    "forbidden": ["key-material-two"]
+  },
+  {
+    "id": "incomplete-ec-private-key",
+    "value": "before -----BEGIN EC PRIVATE KEY-----\nkey-material-three without an end marker",
+    "forbidden": ["key-material-three"]
+  },
+  {
+    "id": "multiple-openssh-and-generic-keys",
+    "value": "-----BEGIN OPENSSH PRIVATE KEY-----\nkey-material-four\n-----END OPENSSH PRIVATE KEY----- middle -----BEGIN PRIVATE KEY-----\nkey-material-five\n-----END PRIVATE KEY-----",
+    "forbidden": ["key-material-four", "key-material-five"]
+  },
+  {
+    "id": "bearer-token",
+    "value": "Authorization: Bearer visible-bearer-token",
+    "forbidden": ["visible-bearer-token"]
+  },
+  {
+    "id": "query-secrets",
+    "value": "/api/action?access_token=visible-access-token&signature=visible-signature",
+    "forbidden": ["visible-access-token", "visible-signature"]
+  },
+  {
+    "id": "nested-sensitive-key",
+    "value": {"nested": {"password": "visible-password", "ordinary": "retained"}},
+    "forbidden": ["visible-password"]
+  },
+  {
+    "id": "ordinary-long-string",
+    "repeat": {"text": "z", "count": 4501},
+    "suffix": "",
+    "forbidden": [],
+    "expect_truncated": true
+  }
+]

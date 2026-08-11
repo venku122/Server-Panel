@@ -5,6 +5,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const legacyBackdrop = document.querySelector(".sidebar-backdrop");
   let activeDrawer = null;
   let drawerTrigger = null;
+  let activeSheet = null;
+  let sheetTrigger = null;
 
   const focusableIn = (element) => [...element.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')];
 
@@ -77,21 +79,53 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("[data-sidebar-close]").forEach((button) => button.addEventListener("click", () => closeSidebar()));
   serverSwitcher?.addEventListener("change", () => { if (serverSwitcher.value) window.location.assign(serverSwitcher.value); });
 
+  const closeSheet = ({ restoreFocus = true } = {}) => {
+    if (!activeSheet) return;
+    activeSheet.hidden = true;
+    document.body.classList.remove("sheet-open");
+    if (!activeDrawer && document.getElementById("find-palette")?.hidden) document.querySelector("[data-overlay-backdrop]")?.setAttribute("hidden", "");
+    const trigger = sheetTrigger;
+    activeSheet = null;
+    sheetTrigger = null;
+    if (restoreFocus) trigger?.focus();
+  };
+
+  const openSheet = (trigger) => {
+    const sheet = document.getElementById(trigger.dataset.openSheet);
+    if (!sheet) return;
+    if (activeSheet) closeSheet({ restoreFocus: false });
+    // The backdrop is a body-level sibling. Promote the active sheet to that
+    // same overlay layer so ancestor stacking contexts cannot place it behind
+    // the backdrop or block its controls.
+    if (sheet.parentElement !== document.body) document.body.append(sheet);
+    activeSheet = sheet;
+    sheetTrigger = trigger;
+    sheet.hidden = false;
+    document.body.classList.add("sheet-open");
+    document.querySelector("[data-overlay-backdrop]")?.removeAttribute("hidden");
+    (focusableIn(sheet)[0] || sheet).focus();
+  };
+
   document.querySelectorAll("[data-open-sheet]").forEach((trigger) => {
-    trigger.addEventListener("click", () => {
-      const sheet = document.getElementById(trigger.dataset.openSheet);
-      if (!sheet) return;
-      sheet.hidden = false;
-      sheet.dataset.restoreFocus = trigger.id || "";
-      document.body.classList.add("sheet-open");
-      sheet.querySelector("button, a[href]")?.focus();
+    trigger.addEventListener("click", () => openSheet(trigger));
+    trigger.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      openSheet(trigger);
     });
   });
-  document.querySelectorAll("[data-close-sheet]").forEach((button) => button.addEventListener("click", () => {
-    const sheet = button.closest(".detail-sheet");
-    if (!sheet) return;
-    sheet.hidden = true;
-    document.body.classList.remove("sheet-open");
-    if (sheet.dataset.restoreFocus) document.getElementById(sheet.dataset.restoreFocus)?.focus();
-  }));
+  document.querySelectorAll("[data-close-sheet]").forEach((button) => button.addEventListener("click", () => closeSheet()));
+  document.querySelector("[data-overlay-backdrop]")?.addEventListener("click", () => closeSheet());
+  document.querySelectorAll(".detail-sheet").forEach((sheet) => {
+    sheet.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") { event.preventDefault(); closeSheet(); return; }
+      if (event.key !== "Tab") return;
+      const items = focusableIn(sheet);
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    });
+  });
 });

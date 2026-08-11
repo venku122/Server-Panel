@@ -14,7 +14,7 @@
 {% macro sheet(sheet_id, title) -%}<aside class="detail-sheet"
        id="{{ sheet_id }}"
        role="dialog"
-       aria-modal="false"
+       aria-modal="true"
        aria-labelledby="{{ sheet_id }}-title"
        hidden><header><h2 id="{{ sheet_id }}-title">{{ title }}</h2>
 <button class="icon-button"

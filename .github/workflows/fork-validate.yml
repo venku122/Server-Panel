@@ -30,7 +30,8 @@ jobs:
             feature/01-server-scope:refs/remotes/origin/feature/01-server-scope \
             feature/02-jinja-components:refs/remotes/origin/feature/02-jinja-components \
             feature/03-mobile-confirm-diagnostics:refs/remotes/origin/feature/03-mobile-confirm-diagnostics \
-            feature/04-sqlite-foundation:refs/remotes/origin/feature/04-sqlite-foundation
+            feature/04-sqlite-foundation:refs/remotes/origin/feature/04-sqlite-foundation \
+            feature/05-audit-timeline:refs/remotes/origin/feature/05-audit-timeline
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -48,6 +49,6 @@ jobs:
       - name: Run complete fork PR gate
         run: >-
           python scripts/fork/validate-pr.py
-          --base-ref origin/feature/03-mobile-confirm-diagnostics
-          --feature-ref origin/feature/04-sqlite-foundation
+          --base-ref origin/feature/04-sqlite-foundation
+          --feature-ref origin/feature/05-audit-timeline
           --capture-script scripts/fork/capture-pr3.cjs

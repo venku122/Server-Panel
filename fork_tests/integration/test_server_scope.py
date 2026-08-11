@@ -36,6 +36,7 @@ def test_each_server_route_derives_context_from_url(client) -> None:
         "/servers/alpha-operations/settings": "server",
         "/servers/alpha-operations/recordings": "noblackbox",
         "/servers/alpha-operations/recordings/gallery": "gallery",
+        "/servers/alpha-operations/activity": "activity",
     }
     for route, page in routes.items():
         response = client.get(route)
@@ -56,6 +57,7 @@ def test_global_routes_never_inherit_a_server_target(client) -> None:
         "/settings/cluster": "cluster",
         "/settings/discord": "discord",
         "/settings/about": "about",
+        "/activity": "activity",
     }
     for route, page in routes.items():
         response = client.get(route)

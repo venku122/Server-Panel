@@ -28,6 +28,8 @@
         <link rel="stylesheet"
               href="{{ url_for('static', filename='css/components/status.css') }}">
         <link rel="stylesheet"
+              href="{{ url_for('static', filename='css/components/timeline.css') }}">
+        <link rel="stylesheet"
               href="{{ url_for('static', filename='css/components/dialog.css') }}">
         <link rel="stylesheet"
               href="{{ url_for('static', filename='css/pages.css') }}">
@@ -46,6 +48,8 @@
              hidden></div>
         {% block body %}{% endblock %}
         <script defer src="{{ url_for('static', filename='js/core/shell.js') }}"></script>
+        <script defer
+                src="{{ url_for('static', filename='js/components/timeline.js') }}"></script>
         {% include "components/dialog.html" %}
         <script defer src="{{ url_for('static', filename='js/core/status.js') }}"></script>
         <script defer src="{{ url_for('static', filename='js/core/dialog.js') }}"></script>
