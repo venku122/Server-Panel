@@ -33,32 +33,32 @@
           <a class="nav-item{% if active_page == 'dashboard' %} active{% endif %}" data-page="dashboard" href="{{ url_for('server_overview', server_id=current_server.id) }}">
             <span class="dot"></span> Overview
           </a>
-          <a class="nav-item{% if active_page == 'control' %} active{% endif %}" data-page="control" href="{{ url_for('server_section', server_id=current_server.id, section='operations') }}">
+          <a class="nav-item{% if active_page == 'control' %} active{% endif %}" data-page="control" href="{{ url_for('server_operations_page', server_id=current_server.id) }}">
             <span class="dot"></span> Operations
           </a>
-          <a class="nav-item{% if active_page == 'bans' %} active{% endif %}" data-page="bans" href="{{ url_for('server_section', server_id=current_server.id, section='players') }}">
+          <a class="nav-item{% if active_page == 'bans' %} active{% endif %}" data-page="bans" href="{{ url_for('server_players_page', server_id=current_server.id) }}">
             <span class="dot"></span> Players
           </a>
-          <a class="nav-item{% if active_page == 'moderation' %} active{% endif %}" data-page="moderation" href="{{ url_for('server_section', server_id=current_server.id, section='moderation') }}">
+          <a class="nav-item{% if active_page == 'moderation' %} active{% endif %}" data-page="moderation" href="{{ url_for('server_moderation_page', server_id=current_server.id) }}">
             <span class="dot"></span> Moderation
           </a>
-          <a class="nav-item{% if active_page == 'server' %} active{% endif %}" data-page="server" href="{{ url_for('server_section', server_id=current_server.id, section='settings') }}">
+          <a class="nav-item{% if active_page == 'server' %} active{% endif %}" data-page="server" href="{{ url_for('server_settings_page', server_id=current_server.id) }}">
             <span class="dot"></span> Settings
           </a>
-          <a class="nav-item{% if active_page == 'noblackbox' %} active{% endif %}" data-page="noblackbox" href="{{ url_for('server_section', server_id=current_server.id, section='noblackbox') }}">
+          <a class="nav-item{% if active_page == 'noblackbox' %} active{% endif %}" data-page="noblackbox" href="{{ url_for('server_recordings_page', server_id=current_server.id) }}">
             <span class="dot"></span> NoBlackBox
           </a>
-          <a class="nav-item{% if active_page == 'gallery' %} active{% endif %}" data-page="gallery" href="{{ url_for('server_section', server_id=current_server.id, section='gallery') }}">
+          <a class="nav-item{% if active_page == 'gallery' %} active{% endif %}" data-page="gallery" href="{{ url_for('server_recordings_gallery_page', server_id=current_server.id) }}">
             <span class="dot"></span> Gallery
           </a>
         {% else %}
           <a class="nav-item" href="{{ url_for('servers_index') }}"><span class="dot"></span> Servers</a>
           <a class="nav-item{% if active_page == 'manage' %} active{% endif %}" data-page="manage" href="{{ url_for("deployment_page") }}"><span class="dot"></span> Deployment</a>
-          <a class="nav-item{% if active_page == 'ports' %} active{% endif %}" data-page="ports" href="{{ url_for("ports_page") }}"><span class="dot"></span> Ports</a>
-          <a class="nav-item{% if active_page == 'cluster' %} active{% endif %}" data-page="cluster" href="{{ url_for("cluster_page") }}"><span class="dot"></span> Cluster Setup</a>
-          <a class="nav-item{% if active_page == 'users' %} active{% endif %}" data-page="users" href="{{ url_for("users_page") }}"><span class="dot"></span> Panel Users</a>
-          <a class="nav-item{% if active_page == 'discord' %} active{% endif %}" data-page="discord" href="{{ url_for("discord_page") }}"><span class="dot"></span> Discord Bot</a>
-          <a class="nav-item{% if active_page == 'about' %} active{% endif %}" data-page="about" href="{{ url_for("about_page") }}"><span class="dot"></span> About</a>
+          <a class="nav-item{% if active_page == 'ports' %} active{% endif %}" data-page="ports" href="{{ url_for("settings_ports_page") }}"><span class="dot"></span> Ports</a>
+          <a class="nav-item{% if active_page == 'cluster' %} active{% endif %}" data-page="cluster" href="{{ url_for("settings_cluster_page") }}"><span class="dot"></span> Cluster Setup</a>
+          <a class="nav-item{% if active_page == 'users' %} active{% endif %}" data-page="users" href="{{ url_for("settings_users_page") }}"><span class="dot"></span> Panel Users</a>
+          <a class="nav-item{% if active_page == 'discord' %} active{% endif %}" data-page="discord" href="{{ url_for("settings_discord_page") }}"><span class="dot"></span> Discord Bot</a>
+          <a class="nav-item{% if active_page == 'about' %} active{% endif %}" data-page="about" href="{{ url_for("settings_about_page") }}"><span class="dot"></span> About</a>
         {% endif %}
       </nav>
 
@@ -68,11 +68,7 @@
             <label for="server-switcher">Switch server</label>
             <select id="server-switcher">
               {% for server in servers %}
-                {% if server_section %}
-                  <option value="{{ url_for('server_section', server_id=server.id, section=server_section) }}"{% if server.id == current_server.id %} selected{% endif %}>{{ server.name }}</option>
-                {% else %}
-                  <option value="{{ url_for('server_overview', server_id=server.id) }}"{% if server.id == current_server.id %} selected{% endif %}>{{ server.name }}</option>
-                {% endif %}
+                <option value="/servers/{{ server.id }}{{ server_switch_path }}"{% if server.id == current_server.id %} selected{% endif %}>{{ server.name }}</option>
               {% endfor %}
             </select>
             <a class="scope-back-link" href="{{ url_for('servers_index') }}">← All servers</a>

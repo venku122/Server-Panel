@@ -59,7 +59,7 @@ import uuid
 import traceback
 from pathlib import Path
 from functools import wraps
-from typing import Optional, Tuple
+from typing import NamedTuple, Optional, Tuple
 
 
 # =============================
@@ -1761,32 +1761,166 @@ def _wait_for_file(path: Path, timeout_sec: int = 30) -> bool:
 # =============================
 # Routes
 # =============================
+class PageSpec(NamedTuple):
+    """Stable navigation metadata shared by routes, scope switching, and Find."""
+
+    key: str
+    label: str
+    path: str
+    active_page: Optional[str]
+    role: Optional[str] = None
+    group: str = "primary"
+    sibling_group: Optional[str] = None
+    global_peer: Optional[str] = None
+    compatibility_paths: tuple[str, ...] = ()
+
+
+GLOBAL_PAGE_REGISTRY = {
+    page.key: page
+    for page in (
+        PageSpec("servers", "Servers", "/servers", "servers"),
+        # Activity and Jobs are activated by their owning downstream PRs. Their
+        # route metadata lives here so scope switching never relies on client state.
+        PageSpec("activity", "Activity", "/activity", None, "admin"),
+        PageSpec("jobs", "Jobs", "/jobs", None, "admin"),
+        PageSpec("deployment", "Deployment", "/deployment", "manage", "admin"),
+        PageSpec("settings", "Settings", "/settings", "ports", "admin", "settings"),
+        PageSpec(
+            "settings-ports",
+            "Ports",
+            "/settings/ports",
+            "ports",
+            "admin",
+            "settings",
+            "global-settings",
+            compatibility_paths=("/ports",),
+        ),
+        PageSpec(
+            "settings-cluster",
+            "Cluster",
+            "/settings/cluster",
+            "cluster",
+            "admin",
+            "settings",
+            "global-settings",
+            compatibility_paths=("/cluster",),
+        ),
+        PageSpec(
+            "settings-users",
+            "Panel Users",
+            "/settings/users",
+            "users",
+            "admin",
+            "settings",
+            "global-settings",
+            compatibility_paths=("/users",),
+        ),
+        PageSpec(
+            "settings-discord",
+            "Discord",
+            "/settings/discord",
+            "discord",
+            "admin",
+            "settings",
+            "global-settings",
+            compatibility_paths=("/integrations/discord",),
+        ),
+        PageSpec(
+            "settings-about",
+            "About",
+            "/settings/about",
+            "about",
+            None,
+            "settings",
+            "global-settings",
+            compatibility_paths=("/about",),
+        ),
+    )
+}
+
+SERVER_PAGE_REGISTRY = {
+    page.key: page
+    for page in (
+        PageSpec("overview", "Overview", "", "dashboard"),
+        PageSpec("operations", "Operations", "/operations", "control"),
+        PageSpec("players", "Players", "/players", "bans", sibling_group="players"),
+        PageSpec(
+            "moderation",
+            "Moderation",
+            "/players/moderation",
+            "moderation",
+            sibling_group="players",
+            compatibility_paths=("/moderation",),
+        ),
+        PageSpec("workshop", "Workshop", "/workshop", None),
+        PageSpec("activity", "Activity", "/activity", None, "admin", global_peer="activity"),
+        PageSpec("jobs", "Jobs", "/jobs", None, "admin", global_peer="jobs"),
+        PageSpec(
+            "recordings",
+            "Recorder",
+            "/recordings",
+            "noblackbox",
+            group="tools",
+            sibling_group="recordings",
+            compatibility_paths=("/noblackbox",),
+        ),
+        PageSpec(
+            "recordings-gallery",
+            "Gallery",
+            "/recordings/gallery",
+            "gallery",
+            group="tools",
+            sibling_group="recordings",
+            compatibility_paths=("/gallery",),
+        ),
+        PageSpec(
+            "settings",
+            "General / Gameplay",
+            "/settings",
+            "server",
+            group="settings",
+            sibling_group="server-settings",
+        ),
+        PageSpec(
+            "settings-history",
+            "History",
+            "/settings/history",
+            None,
+            group="settings",
+            sibling_group="server-settings",
+            compatibility_paths=("/configuration-history",),
+        ),
+    )
+}
+
+# Temporary compatibility for downstream code while each feature registers its
+# canonical PageSpec. These maps are deliberately derived, not a second source
+# of navigation truth.
 SERVER_SECTION_PAGES = {
-    "operations": "control",
-    "players": "bans",
-    "moderation": "moderation",
-    "settings": "server",
-    "noblackbox": "noblackbox",
-    "gallery": "gallery",
+    spec.path.removeprefix("/"): spec.active_page
+    for spec in SERVER_PAGE_REGISTRY.values()
+    if spec.active_page is not None and spec.path.count("/") == 1 and spec.path
 }
-
 GLOBAL_PANEL_PAGES = {
-    "deployment": "manage",
-    "ports": "ports",
-    "users": "users",
-    "cluster": "cluster",
-    "integrations/discord": "discord",
-    "about": "about",
+    spec.path.removeprefix("/"): spec.active_page
+    for spec in GLOBAL_PAGE_REGISTRY.values()
+    if spec.active_page is not None and spec.key not in {"servers", "settings"}
+}
+GLOBAL_PANEL_ROLES = {
+    spec.path.removeprefix("/"): spec.role
+    for spec in GLOBAL_PAGE_REGISTRY.values()
+    if spec.active_page is not None
 }
 
-GLOBAL_PANEL_ROLES = {
-    "deployment": "admin",
-    "ports": "admin",
-    "users": "admin",
-    "cluster": "admin",
-    "integrations/discord": "admin",
-    "about": None,
-}
+
+def _redirect_preserving_query(target: str):
+    query = request.query_string.decode("latin-1")
+    return redirect(f"{target}?{query}" if query else target, code=308)
+
+
+def _server_page_url(server_id: str, page_key: str) -> str:
+    page = SERVER_PAGE_REGISTRY.get(page_key) or SERVER_PAGE_REGISTRY["overview"]
+    return f"/servers/{server_id}{page.path}"
 
 
 def _panel_servers_for_routes() -> list[dict]:
@@ -1824,7 +1958,7 @@ def _render_panel_shell(
     active_page: str,
     *,
     server_id: Optional[str] = None,
-    server_section: Optional[str] = None,
+    server_page_key: Optional[str] = None,
 ):
     servers = _panel_servers_for_routes()
     server_view_warnings = list(getattr(g, "server_view_warnings", []))
@@ -1851,7 +1985,14 @@ def _render_panel_shell(
         active_page=active_page,
         page_scope=page_scope,
         current_server=current_server,
-        server_section=server_section,
+        server_page_key=server_page_key,
+        server_switch_path=(
+            SERVER_PAGE_REGISTRY.get(server_page_key, SERVER_PAGE_REGISTRY["overview"]).path
+            if server_id is not None
+            else ""
+        ),
+        global_page_registry=GLOBAL_PAGE_REGISTRY,
+        server_page_registry=SERVER_PAGE_REGISTRY,
         servers=servers,
         server_view_warnings=server_view_warnings,
     )
@@ -1872,29 +2013,86 @@ def servers_index():
 @app.get("/servers/<server_id>")
 @requires_login()
 def server_overview(server_id: str):
-    return _render_panel_shell("dashboard", server_id=server_id)
+    return _render_panel_shell("dashboard", server_id=server_id, server_page_key="overview")
+
+
+def _render_server_registry_page(server_id: str, page_key: str):
+    page = SERVER_PAGE_REGISTRY.get(page_key)
+    if page is None or page.active_page is None:
+        return abort(404)
+    if page.role == "admin" and session.get("role") != "admin":
+        return Response("Admin access required.", 403)
+    return _render_panel_shell(
+        page.active_page,
+        server_id=server_id,
+        server_page_key=page.key,
+    )
+
+
+@app.get("/servers/<server_id>/operations")
+@requires_login()
+def server_operations_page(server_id: str):
+    return _render_server_registry_page(server_id, "operations")
+
+
+@app.get("/servers/<server_id>/players")
+@requires_login()
+def server_players_page(server_id: str):
+    return _render_server_registry_page(server_id, "players")
+
+
+@app.get("/servers/<server_id>/players/moderation")
+@requires_login()
+def server_moderation_page(server_id: str):
+    return _render_server_registry_page(server_id, "moderation")
+
+
+@app.get("/servers/<server_id>/recordings")
+@requires_login()
+def server_recordings_page(server_id: str):
+    return _render_server_registry_page(server_id, "recordings")
+
+
+@app.get("/servers/<server_id>/recordings/gallery")
+@requires_login()
+def server_recordings_gallery_page(server_id: str):
+    return _render_server_registry_page(server_id, "recordings-gallery")
+
+
+@app.get("/servers/<server_id>/settings")
+@requires_login()
+def server_settings_page(server_id: str):
+    return _render_server_registry_page(server_id, "settings")
 
 
 @app.get("/servers/<server_id>/<section>")
 @requires_login()
 def server_section(server_id: str, section: str):
-    active_page = SERVER_SECTION_PAGES.get(section)
-    if active_page is None:
+    aliases = {
+        "operations": "operations",
+        "players": "players",
+        "moderation": "moderation",
+        "settings": "settings",
+        "noblackbox": "recordings",
+        "gallery": "recordings-gallery",
+        "configuration-history": "settings-history",
+    }
+    page_key = aliases.get(section)
+    if page_key is None:
         return abort(404)
-    return _render_panel_shell(
-        active_page,
-        server_id=server_id,
-        server_section=section,
-    )
+    canonical = _server_page_url(server_id, page_key)
+    if request.path != canonical:
+        return _redirect_preserving_query(canonical)
+    return _render_server_registry_page(server_id, page_key)
 
 
-def _render_global_panel_page(route_key: str):
-    active_page = GLOBAL_PANEL_PAGES.get(route_key)
-    if active_page is None:
+def _render_global_panel_page(page_key: str):
+    page = GLOBAL_PAGE_REGISTRY.get(page_key)
+    if page is None or page.active_page is None:
         return abort(404)
-    if GLOBAL_PANEL_ROLES.get(route_key) == "admin" and session.get("role") != "admin":
+    if page.role == "admin" and session.get("role") != "admin":
         return Response("Admin access required.", 403)
-    return _render_panel_shell(active_page)
+    return _render_panel_shell(page.active_page)
 
 
 @app.get("/deployment")
@@ -1903,34 +2101,80 @@ def deployment_page():
     return _render_global_panel_page("deployment")
 
 
+@app.get("/settings")
+@requires_login()
+def settings_index():
+    if session.get("role") != "admin":
+        return Response("Admin access required.", 403)
+    return _redirect_preserving_query(url_for("settings_ports_page"))
+
+
+@app.get("/settings/ports")
+@requires_login()
+def settings_ports_page():
+    return _render_global_panel_page("settings-ports")
+
+
 @app.get("/ports")
 @requires_login()
 def ports_page():
-    return _render_global_panel_page("ports")
+    if session.get("role") != "admin":
+        return Response("Admin access required.", 403)
+    return _redirect_preserving_query(url_for("settings_ports_page"))
+
+
+@app.get("/settings/users")
+@requires_login()
+def settings_users_page():
+    return _render_global_panel_page("settings-users")
 
 
 @app.get("/users")
 @requires_login()
 def users_page():
-    return _render_global_panel_page("users")
+    if session.get("role") != "admin":
+        return Response("Admin access required.", 403)
+    return _redirect_preserving_query(url_for("settings_users_page"))
+
+
+@app.get("/settings/cluster")
+@requires_login()
+def settings_cluster_page():
+    return _render_global_panel_page("settings-cluster")
 
 
 @app.get("/cluster")
 @requires_login()
 def cluster_page():
-    return _render_global_panel_page("cluster")
+    if session.get("role") != "admin":
+        return Response("Admin access required.", 403)
+    return _redirect_preserving_query(url_for("settings_cluster_page"))
+
+
+@app.get("/settings/discord")
+@requires_login()
+def settings_discord_page():
+    return _render_global_panel_page("settings-discord")
 
 
 @app.get("/integrations/discord")
 @requires_login()
 def discord_page():
-    return _render_global_panel_page("integrations/discord")
+    if session.get("role") != "admin":
+        return Response("Admin access required.", 403)
+    return _redirect_preserving_query(url_for("settings_discord_page"))
+
+
+@app.get("/settings/about")
+@requires_login()
+def settings_about_page():
+    return _render_global_panel_page("settings-about")
 
 
 @app.get("/about")
 @requires_login()
 def about_page():
-    return _render_global_panel_page("about")
+    return _redirect_preserving_query(url_for("settings_about_page"))
 
 
 # ----- Ports API (Ports tab: Game/Query editor) -----
