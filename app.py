@@ -1907,9 +1907,7 @@ GLOBAL_PANEL_PAGES = {
     if spec.active_page is not None and spec.key not in {"servers", "settings"}
 }
 GLOBAL_PANEL_ROLES = {
-    spec.path.removeprefix("/"): spec.role
-    for spec in GLOBAL_PAGE_REGISTRY.values()
-    if spec.active_page is not None
+    spec.path.removeprefix("/"): spec.role for spec in GLOBAL_PAGE_REGISTRY.values() if spec.active_page is not None
 }
 
 
