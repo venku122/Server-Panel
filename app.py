@@ -54,7 +54,6 @@ import zipfile
 import io
 import threading
 import urllib.request
-import urllib.parse
 import secrets
 import uuid
 import traceback
@@ -2165,9 +2164,13 @@ def _render_panel_shell(
         since = None
         if activity_filters["time"]:
             since = (
-                datetime.datetime.now(datetime.timezone.utc)
-                - datetime.timedelta(hours=time_windows[activity_filters["time"]])
-            ).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+                (
+                    datetime.datetime.now(datetime.timezone.utc)
+                    - datetime.timedelta(hours=time_windows[activity_filters["time"]])
+                )
+                .isoformat(timespec="milliseconds")
+                .replace("+00:00", "Z")
+            )
         try:
             activity_page = AUDIT_SERVICE.list_events_page(
                 server_id=activity_filters["server_id"] or None,
@@ -2212,7 +2215,7 @@ def _render_panel_shell(
                     "label": chip_labels[key],
                     "value": value,
                     "remove_url": request.path
-                    + (f"?{urllib.parse.urlencode(remaining)}" if remaining else ""),
+                    + (f"?{importlib.import_module('urllib.parse').urlencode(remaining)}" if remaining else ""),
                 }
             )
 
