@@ -1830,7 +1830,7 @@ GLOBAL_PAGE_REGISTRY = {
         # Activity and Jobs are activated by their owning downstream PRs. Their
         # route metadata lives here so scope switching never relies on client state.
         PageSpec("activity", "Activity", "/activity", "activity", "admin"),
-        PageSpec("jobs", "Jobs", "/jobs", None, "admin"),
+        PageSpec("jobs", "Jobs", "/jobs", "jobs", "admin"),
         PageSpec("deployment", "Deployment", "/deployment", "manage", "admin"),
         PageSpec("settings", "Settings", "/settings", "ports", "admin", "settings"),
         PageSpec(
@@ -1902,7 +1902,7 @@ SERVER_PAGE_REGISTRY = {
         ),
         PageSpec("workshop", "Workshop", "/workshop", None),
         PageSpec("activity", "Activity", "/activity", "activity", "admin", global_peer="activity"),
-        PageSpec("jobs", "Jobs", "/jobs", None, "admin", global_peer="jobs"),
+        PageSpec("jobs", "Jobs", "/jobs", "jobs", "admin", global_peer="jobs"),
         PageSpec(
             "recordings",
             "Recorder",
@@ -2256,8 +2256,34 @@ def _render_panel_shell(
     elif page["active_page"] == "dashboard" and server_id is not None:
         recent_activity = AUDIT_SERVICE.list_events(server_id=server_id, limit=5)
     jobs = []
+    recent_jobs = []
+    job_filters = {
+        "q": str(request.args.get("q") or "").strip(),
+        "server_id": server_id or str(request.args.get("server_id") or "").strip(),
+        "status": str(request.args.get("status") or "").strip(),
+        "job_type": str(request.args.get("job_type") or "").strip(),
+        "time": str(request.args.get("time") or "").strip(),
+    }
+    job_time_windows = {"1h": 1, "24h": 24, "7d": 24 * 7, "30d": 24 * 30}
     if page["active_page"] == "jobs":
-        jobs = JOB_SERVICE.list(server_id=server_id, limit=200)
+        if job_filters["time"] and job_filters["time"] not in job_time_windows:
+            return Response("Invalid job time filter.", 400)
+        job_since = None
+        if job_filters["time"]:
+            job_since = (
+                datetime.datetime.now(datetime.timezone.utc)
+                - datetime.timedelta(hours=job_time_windows[job_filters["time"]])
+            ).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        jobs = JOB_SERVICE.list(
+            server_id=job_filters["server_id"] or None,
+            status=job_filters["status"] or None,
+            job_type=job_filters["job_type"] or None,
+            query=job_filters["q"] or None,
+            since=job_since,
+            limit=200,
+        )
+    elif page["active_page"] == "dashboard" and server_id is not None:
+        recent_jobs = JOB_SERVICE.list(server_id=server_id, limit=5)
     return render_template(
         page["template"],
         ports=ports,
@@ -2289,6 +2315,10 @@ def _render_panel_shell(
         activity_pagination=activity_pagination,
         audit_mirror_status=AUDIT_SERVICE.mirror_status(),
         jobs=jobs,
+        recent_jobs=recent_jobs,
+        job_filters=job_filters,
+        job_statuses=("queued", "running", "cancel_requested", "succeeded", "failed", "cancelled", "interrupted"),
+        job_types=("server_update", "workshop_sync", "noblackbox_install", "moderation_install"),
         job_worker_status=JOB_WORKER.status() if JOB_WORKER is not None else {"alive": False},
     )
 
@@ -2329,6 +2359,7 @@ def _render_server_registry_page(server_id: str, page_key: str):
         "recordings-gallery": "gallery",
         "settings": "settings",
         "activity": "activity",
+        "jobs": "jobs",
     }
     page = SERVER_SECTION_PAGES.get(section_keys.get(page_key, ""))
     if page is None:
@@ -2388,6 +2419,7 @@ def server_section(server_id: str, section: str):
         "gallery": "recordings-gallery",
         "configuration-history": "settings-history",
         "activity": "activity",
+        "jobs": "jobs",
     }
     page_key = aliases.get(section)
     if page_key is None:
