@@ -506,6 +506,45 @@ def check_template_architecture(base_ref: str, feature_ref: str) -> dict[str, in
     return {"routes": len(routes), "critical_js_ids": len(critical_ids), "legacy_css_additions": 0}
 
 
+def check_changed_python(base_ref: str, feature_ref: str) -> dict[str, object]:
+    paths = changed_existing_paths(base_ref, feature_ref, (".py",))
+    managed_paths = [path for path in paths if path.startswith("server_panel/")]
+    if managed_paths:
+        require(
+            run([sys.executable, "-m", "ruff", "check", "--config", str(TOOLS / "ruff.toml"), *managed_paths]),
+            "campaign-owned Python lint",
+        )
+        require(
+            run(
+                [
+                    sys.executable,
+                    "-m",
+                    "ruff",
+                    "format",
+                    "--check",
+                    "--config",
+                    str(TOOLS / "ruff.toml"),
+                    *managed_paths,
+                ]
+            ),
+            "campaign-owned Python format",
+        )
+        require(
+            run(
+                [
+                    sys.executable,
+                    "-m",
+                    "mypy",
+                    "--config-file",
+                    str(TOOLS / "mypy.ini"),
+                    *managed_paths,
+                ]
+            ),
+            "campaign-owned Python type check",
+        )
+    return {"changed": len(paths), "campaign_owned_strict": len(managed_paths)}
+
+
 def check_screenshots(
     evidence_dir: Path,
     *,
@@ -620,6 +659,7 @@ def main() -> int:
         baseline = Path(temp)
         extract_ref(args.base_ref, baseline)
         results["changed_frontend"] = check_changed_frontend(args.base_ref, args.feature_ref, baseline)
+        results["changed_python"] = check_changed_python(args.base_ref, args.feature_ref)
         results["ruff"] = ratchet("Ruff", ruff_diagnostics, baseline)
         results["mypy"] = ratchet("Mypy", mypy_diagnostics, baseline)
         results["djlint_legacy"] = ratchet("djLint legacy template", djlint_diagnostics, baseline)
@@ -684,6 +724,7 @@ def main() -> int:
 
     for path in [
         ROOT / "app.py",
+        *sorted((ROOT / "server_panel").rglob("*.py")),
         *sorted((ROOT / "fork_tests").rglob("*.py")),
         *sorted((ROOT / "scripts" / "fork").rglob("*.py")),
     ]:

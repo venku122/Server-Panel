@@ -32,7 +32,7 @@ def copy_source(source_root: Path, runtime_root: Path, source_ref: str | None) -
 
     for source in source_root.glob("*.py"):
         shutil.copy2(source, runtime_root / source.name)
-    for directory in ("templates", "static", "defaults"):
+    for directory in ("templates", "static", "defaults", "server_panel"):
         source = source_root / directory
         if source.is_dir():
             shutil.copytree(source, runtime_root / directory)
