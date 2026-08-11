@@ -2295,9 +2295,13 @@ def _render_panel_shell(
         job_since = None
         if job_filters["time"]:
             job_since = (
-                datetime.datetime.now(datetime.timezone.utc)
-                - datetime.timedelta(hours=job_time_windows[job_filters["time"]])
-            ).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+                (
+                    datetime.datetime.now(datetime.timezone.utc)
+                    - datetime.timedelta(hours=job_time_windows[job_filters["time"]])
+                )
+                .isoformat(timespec="milliseconds")
+                .replace("+00:00", "Z")
+            )
         jobs = JOB_SERVICE.list(
             server_id=job_filters["server_id"] or None,
             status=job_filters["status"] or None,
