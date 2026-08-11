@@ -118,8 +118,7 @@
         <div class="empty-state job-empty">
             <span class="empty-state-icon" aria-hidden="true">◫</span>
             <h2>No jobs found</h2>
-            <p>Server updates, Workshop syncs, and tool installs will appear here.</p>
-        {% if request.query_string %}<a class="btn ghost" href="{{ request.path }}">Clear filters</a>{% endif %}</div>
+            <p>Server updates, Workshop syncs, and tool installs will appear here.</p>{% if request.query_string %}<a class="btn ghost" href="{{ request.path }}">Clear filters</a>{% endif %}</div>
     {% endif %}
 {%- endmacro %}
 {% macro recent_job_list(jobs, server_id) -%}
