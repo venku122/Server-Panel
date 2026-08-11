@@ -10,15 +10,26 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
+
+from pydantic import ValidationError
+
+from server_panel.contracts.jobs import KNOWN_JOB_TYPES, JobResult
+from server_panel.limits import (
+    JOB_ERROR_SUMMARY_MAX_LENGTH,
+    JOB_EVENTS_MAX,
+    JOB_EVENT_MESSAGE_MAX_LENGTH,
+    JOB_LIST_DEFAULT,
+    JOB_LIST_MAX,
+)
 
 from .audit import serialize_payload
 from .db import Repository, connect
 
 TERMINAL_STATUSES = frozenset({"succeeded", "failed", "cancelled", "interrupted"})
 RETRYABLE_STATUSES = frozenset({"failed", "cancelled", "interrupted"})
-MAX_JOB_EVENTS = 1_000
-MAX_EVENT_MESSAGE_LENGTH = 2_000
+MAX_JOB_EVENTS = JOB_EVENTS_MAX
+MAX_EVENT_MESSAGE_LENGTH = JOB_EVENT_MESSAGE_MAX_LENGTH
 
 LOGGER = logging.getLogger(__name__)
 
@@ -52,7 +63,8 @@ def _strict_json_payload(value: Any) -> str | None:
         json.dumps(value, allow_nan=False)
     except (TypeError, ValueError, OverflowError) as error:
         raise ValueError("Job results must be finite, JSON-compatible values.") from error
-    return cast(str | None, serialize_payload(value))
+    serialized = serialize_payload(value)
+    return serialized if isinstance(serialized, str) else None
 
 
 @dataclass(frozen=True)
@@ -101,6 +113,7 @@ class Job:
     parent_job_id: str | None
     correlation_id: str
     replay_safe: bool
+    validation_warning: str | None = None
 
     def to_dict(
         self,
@@ -132,6 +145,8 @@ class Job:
             "correlation_id": self.correlation_id,
             "replay_safe": self.replay_safe,
             "last_completed_step": last_event.message if last_event is not None else None,
+            "invalid_record": self.validation_warning is not None,
+            "validation_warning": self.validation_warning,
         }
         if include_lease:
             payload["lease"] = {
@@ -146,16 +161,42 @@ class Job:
 class JobRepository(Repository):
     @staticmethod
     def _job(row: sqlite3.Row) -> Job:
+        warnings: list[str] = []
+
+        def integer(name: str, default: int) -> int:
+            try:
+                return int(row[name])
+            except (TypeError, ValueError, OverflowError):
+                warnings.append(f"invalid {name}")
+                return default
+
+        job_type = str(row["job_type"] or "")
+        status = str(row["status"] or "")
+        scope_type = str(row["scope_type"] or "")
+        if job_type not in KNOWN_JOB_TYPES:
+            warnings.append("unknown job_type")
+        if status not in TERMINAL_STATUSES | {"queued", "running"}:
+            warnings.append("unknown status")
+        if scope_type not in {"global", "server"}:
+            warnings.append("unknown scope_type")
+        for name in ("parameters_json", "result_json"):
+            value = row[name]
+            if value is None and name == "result_json":
+                continue
+            try:
+                json.loads(str(value))
+            except (TypeError, json.JSONDecodeError):
+                warnings.append(f"invalid {name}")
         return Job(
             id=str(row["id"]),
-            job_type=str(row["job_type"]),
-            scope_type=str(row["scope_type"]),
+            job_type=job_type,
+            scope_type=scope_type,
             server_id=str(row["server_id"]) if row["server_id"] is not None else None,
-            status=str(row["status"]),
+            status=status,
             parameters_json=str(row["parameters_json"]),
             result_json=str(row["result_json"]) if row["result_json"] is not None else None,
-            progress_current=int(row["progress_current"]),
-            progress_total=int(row["progress_total"]),
+            progress_current=max(0, integer("progress_current", 0)),
+            progress_total=max(0, integer("progress_total", 0)),
             created_by=str(row["created_by"]),
             created_at=str(row["created_at"]),
             updated_at=str(row["updated_at"]),
@@ -163,12 +204,15 @@ class JobRepository(Repository):
             finished_at=str(row["finished_at"]) if row["finished_at"] is not None else None,
             error_summary=str(row["error_summary"]) if row["error_summary"] is not None else None,
             cancel_requested=bool(row["cancel_requested"]),
-            attempt=int(row["attempt"]),
+            attempt=max(1, integer("attempt", 1)),
             lease_owner=str(row["lease_owner"]) if row["lease_owner"] is not None else None,
             lease_expires_at=(str(row["lease_expires_at"]) if row["lease_expires_at"] is not None else None),
             parent_job_id=str(row["parent_job_id"]) if row["parent_job_id"] is not None else None,
             correlation_id=str(row["correlation_id"]),
             replay_safe=bool(row["replay_safe"]),
+            validation_warning=(
+                "Persisted job record contains invalid fields: " + ", ".join(warnings) if warnings else None
+            ),
         )
 
     @staticmethod
@@ -190,14 +234,14 @@ class JobRepository(Repository):
     def list_jobs(
         self,
         server_id: str | None = None,
-        limit: int = 200,
+        limit: int = JOB_LIST_DEFAULT,
         *,
         status: str | None = None,
         job_type: str | None = None,
         query: str | None = None,
         since: str | None = None,
     ) -> list[Job]:
-        bounded = max(1, min(int(limit), 500))
+        bounded = max(1, min(int(limit), JOB_LIST_MAX))
         clauses: list[str] = []
         parameters: list[Any] = []
         if server_id:
@@ -205,8 +249,7 @@ class JobRepository(Repository):
             parameters.append(server_id)
         if status:
             clauses.append(
-                "CASE WHEN status = 'running' AND cancel_requested = 1 "
-                "THEN 'cancel_requested' ELSE status END = ?"
+                "CASE WHEN status = 'running' AND cancel_requested = 1 THEN 'cancel_requested' ELSE status END = ?"
             )
             parameters.append(status)
         if job_type:
@@ -408,7 +451,8 @@ class JobService:
         self.database_path = Path(database_path)
 
     def _connection(self) -> sqlite3.Connection:
-        return cast(sqlite3.Connection, connect(self.database_path))
+        connection: sqlite3.Connection = connect(self.database_path)
+        return connection
 
     def create(self, **values: Any) -> Job:
         connection = self._connection()
@@ -441,7 +485,7 @@ class JobService:
     def list(
         self,
         server_id: str | None = None,
-        limit: int = 200,
+        limit: int = JOB_LIST_DEFAULT,
         *,
         status: str | None = None,
         job_type: str | None = None,
@@ -635,7 +679,7 @@ class JobService:
                     (
                         status,
                         result_json,
-                        str(error_summary)[:1000] if error_summary else None,
+                        str(error_summary)[:JOB_ERROR_SUMMARY_MAX_LENGTH] if error_summary else None,
                         now,
                         now,
                         status,
@@ -678,7 +722,8 @@ class JobService:
                     repository.append_event(job_id, "warning", "Queued job cancelled.")
                 elif job.status == "running" and not job.cancel_requested:
                     connection.execute(
-                        "UPDATE jobs SET cancel_requested = 1, updated_at = ? WHERE id = ?", (now, job_id)
+                        "UPDATE jobs SET cancel_requested = 1, updated_at = ? WHERE id = ?",
+                        (now, job_id),
                     )
                     repository.append_event(
                         job_id,
@@ -925,13 +970,17 @@ class JobWorker:
         try:
             if handler is None:
                 raise RuntimeError(f"No worker handler is registered for {job.job_type!r}.")
-            result = handler(
+            raw_result = handler(
                 JobContext(self.service, job, self.owner, self.lease_seconds, lease_lost),
                 parameters,
             )
             if lease_lost.is_set():
                 raise LeaseLost(str(lease_error[-1]) if lease_error else "The worker heartbeat lost the lease.")
-            _strict_json_payload(result)
+            _strict_json_payload(raw_result)
+            try:
+                result = JobResult.model_validate(raw_result).root
+            except ValidationError as error:
+                raise RuntimeError("Job handler returned a non-JSON result.") from error
             terminal_status = "succeeded"
         except JobCancelled as error:
             terminal_status = "cancelled"
