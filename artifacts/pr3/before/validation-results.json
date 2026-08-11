@@ -1,0 +1,99 @@
+{
+  "browser": "149.0.7827.55",
+  "config": "fork_tools/validation/pr03-browser.json",
+  "phase": "before",
+  "assertions": [],
+  "captures": [
+    {
+      "name": "server-overview-desktop",
+      "viewport": "desktop",
+      "url": "http://127.0.0.1:5103/servers/alpha-operations",
+      "viewportWidth": 1200,
+      "viewportHeight": 800,
+      "documentWidth": 1200,
+      "clientWidth": 1200,
+      "documentHeight": 800,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "server-settings-desktop",
+      "viewport": "desktop",
+      "url": "http://127.0.0.1:5103/servers/alpha-operations/settings",
+      "viewportWidth": 1200,
+      "viewportHeight": 800,
+      "documentWidth": 1200,
+      "clientWidth": 1200,
+      "documentHeight": 800,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "server-overview-large-desktop",
+      "viewport": "large-desktop",
+      "url": "http://127.0.0.1:5103/servers/alpha-operations",
+      "viewportWidth": 1600,
+      "viewportHeight": 1000,
+      "documentWidth": 1600,
+      "clientWidth": 1600,
+      "documentHeight": 1000,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "server-settings-large-desktop",
+      "viewport": "large-desktop",
+      "url": "http://127.0.0.1:5103/servers/alpha-operations/settings",
+      "viewportWidth": 1600,
+      "viewportHeight": 1000,
+      "documentWidth": 1600,
+      "clientWidth": 1600,
+      "documentHeight": 1000,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "server-overview-iphone-portrait",
+      "viewport": "iphone-portrait",
+      "url": "http://127.0.0.1:5103/servers/alpha-operations",
+      "viewportWidth": 390,
+      "viewportHeight": 844,
+      "documentWidth": 390,
+      "clientWidth": 390,
+      "documentHeight": 2496,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "server-settings-iphone-portrait",
+      "viewport": "iphone-portrait",
+      "url": "http://127.0.0.1:5103/servers/alpha-operations/settings",
+      "viewportWidth": 390,
+      "viewportHeight": 844,
+      "documentWidth": 390,
+      "clientWidth": 390,
+      "documentHeight": 2617,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "server-overview-iphone-landscape",
+      "viewport": "iphone-landscape",
+      "url": "http://127.0.0.1:5103/servers/alpha-operations",
+      "viewportWidth": 844,
+      "viewportHeight": 390,
+      "documentWidth": 844,
+      "clientWidth": 844,
+      "documentHeight": 589,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "server-settings-iphone-landscape",
+      "viewport": "iphone-landscape",
+      "url": "http://127.0.0.1:5103/servers/alpha-operations/settings",
+      "viewportWidth": 844,
+      "viewportHeight": 390,
+      "documentWidth": 844,
+      "clientWidth": 844,
+      "documentHeight": 589,
+      "horizontalOverflow": false
+    }
+  ],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "physicalSafari": "Unavailable in this environment; Chromium mobile emulation is recorded, not claimed as physical Safari validation."
+}

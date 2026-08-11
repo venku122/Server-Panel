@@ -28,7 +28,8 @@ jobs:
           git fetch upstream main
           git fetch origin \
             feature/01-server-scope:refs/remotes/origin/feature/01-server-scope \
-            feature/02-jinja-components:refs/remotes/origin/feature/02-jinja-components
+            feature/02-jinja-components:refs/remotes/origin/feature/02-jinja-components \
+            feature/03-mobile-confirm-diagnostics:refs/remotes/origin/feature/03-mobile-confirm-diagnostics
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -46,19 +47,34 @@ jobs:
       - name: Run complete fork PR gate
         run: >-
           python scripts/fork/validate-pr.py
-          --base-ref origin/feature/01-server-scope
-          --feature-ref origin/feature/02-jinja-components
-          --evidence-dir artifacts/pr2
+          --base-ref origin/feature/02-jinja-components
+          --feature-ref origin/feature/03-mobile-confirm-diagnostics
+          --evidence-dir artifacts/pr3
           --browser-results after/validation-results.json
-          --capture-script scripts/fork/capture-pr2.cjs
-          --expected-browser-assertion global-shell-renders
-          --expected-browser-assertion server-shell-renders
-          --expected-browser-assertion component-styles-load
-          --expected-browser-assertion keyboard-server-card
-          --expected-browser-assertion desktop-global-no-overflow
-          --expected-browser-assertion desktop-server-no-overflow
-          --expected-browser-assertion iphone-global-no-overflow
-          --expected-browser-assertion iphone-server-no-overflow
+          --capture-script scripts/fork/capture-pr3.cjs
+          --expected-browser-assertion shared-confirmation-dialog
+          --expected-browser-assertion diagnostics-closed-default
+          --expected-browser-assertion diagnostics-redacts-sensitive-values
+          --expected-browser-assertion background-refresh-preserves-foreground-diagnostics
+          --expected-browser-assertion desktop-drawer-toggle-hidden
+          --expected-browser-assertion iphone-portrait-drawer-focus-escape
+          --expected-browser-assertion iphone-landscape-drawer-focus-escape
+          --expected-browser-assertion iphone-portrait-sticky-server-context
+          --expected-browser-assertion iphone-landscape-sticky-server-context
+          --expected-browser-assertion field-error-focus
+          --expected-browser-assertion typed-confirmation-guards-destructive-request
+          --expected-browser-assertion iphone-no-input-zoom
+          --expected-browser-assertion natural-document-scroll
+          --expected-browser-assertion desktop-overview-no-overflow
+          --expected-browser-assertion desktop-settings-no-overflow
+          --expected-browser-assertion large-desktop-overview-no-overflow
+          --expected-browser-assertion large-desktop-settings-no-overflow
+          --expected-browser-assertion iphone-portrait-overview-no-overflow
+          --expected-browser-assertion iphone-portrait-settings-no-overflow
+          --expected-browser-assertion iphone-landscape-overview-no-overflow
+          --expected-browser-assertion iphone-landscape-settings-no-overflow
           --expected-viewport 1200x800
+          --expected-viewport 1600x1000
           --expected-viewport 390x844
+          --expected-viewport 844x390
           --require-screenshots

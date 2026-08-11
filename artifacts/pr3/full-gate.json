@@ -1,0 +1,78 @@
+{
+  "changed_frontend": {
+    "legacy_script_lint": {
+      "baseline": 6,
+      "current": 2,
+      "removed": 4
+    },
+    "legacy_stylesheet_lint": {
+      "baseline": 0,
+      "current": 0,
+      "removed": 0
+    },
+    "new_script_typechecks": 3,
+    "new_stylesheets": 1,
+    "scripts": 5,
+    "stylesheets": 3,
+    "templates": 5
+  },
+  "compile": "pass",
+  "djlint_legacy": {
+    "baseline": 0,
+    "current": 0,
+    "removed": 0
+  },
+  "eslint": {
+    "baseline": 6,
+    "current": 2,
+    "removed": 4
+  },
+  "fork_code": {
+    "mypy": "pass",
+    "ruff_format": "pass",
+    "ruff_lint": "pass"
+  },
+  "javascript_syntax": {
+    "app": "pass",
+    "screenshot_automation": "pass"
+  },
+  "mypy": {
+    "baseline": 56,
+    "current": 56,
+    "removed": 0
+  },
+  "pytest": "37 passed in 0.44s",
+  "ruff": {
+    "baseline": 58,
+    "current": 58,
+    "removed": 0
+  },
+  "ruff_format": {
+    "changed_lines_clean": 20
+  },
+  "screenshots": {
+    "browser_assertions": 24,
+    "captures": 18
+  },
+  "secret_scan": "pass",
+  "stack": {
+    "base": "3c82bed3c2e8f0da77b7e1cf290527c9d3fc189e",
+    "feature": "ec581aa3374e1cace71cb6604e95847c4f7b3734",
+    "review_production_identity": "pass"
+  },
+  "stylelint": {
+    "baseline": 7,
+    "current": 7,
+    "removed": 0
+  },
+  "template_architecture": {
+    "critical_js_ids": 38,
+    "legacy_css_additions": 0,
+    "routes": 16
+  },
+  "typescript": {
+    "baseline": 236,
+    "current": 232,
+    "removed": 4
+  }
+}

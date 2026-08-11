@@ -1,0 +1,120 @@
+{
+  "base": {
+    "ref": "origin/feature/02-jinja-components",
+    "sha": "b65d30e75c11343e53bd680702a30bc49c68dfb4"
+  },
+  "captures": [
+    {
+      "kind": "before",
+      "path": "artifacts/pr3/before/server-overview-desktop.png",
+      "sha256": "30940b89a0044c96206e3464ff3376a7a19b70fd7f4cf71f42d9a30f68513b39",
+      "viewport": "1200x800"
+    },
+    {
+      "kind": "before",
+      "path": "artifacts/pr3/before/server-overview-iphone-landscape.png",
+      "sha256": "4db092252b2f692f050fc6cfbadfbd705f10740e2c15f8ce862f244bf1dd1490",
+      "viewport": "844x390"
+    },
+    {
+      "kind": "before",
+      "path": "artifacts/pr3/before/server-overview-iphone-portrait.png",
+      "sha256": "66c784f5876bd2f7130d4c0f071cffa38f9d12513bee598881e9fc147dde4b19",
+      "viewport": "390x844"
+    },
+    {
+      "kind": "before",
+      "path": "artifacts/pr3/before/server-overview-large-desktop.png",
+      "sha256": "23ce1ec468e2d166ba3dcb969888ff8e16dfee66be664fb4658afef23bd85e74",
+      "viewport": "1600x1000"
+    },
+    {
+      "kind": "before",
+      "path": "artifacts/pr3/before/server-settings-desktop.png",
+      "sha256": "ffce2919ec7dceaaa5fabf829c08990aa0872d17a4e9e8e4ba1bb8f4f10cb59e",
+      "viewport": "1200x800"
+    },
+    {
+      "kind": "before",
+      "path": "artifacts/pr3/before/server-settings-iphone-landscape.png",
+      "sha256": "61515f95a69ee0bc23761ac9e10944de3cd06af2f8dfbcd8ca53a57edd688f37",
+      "viewport": "844x390"
+    },
+    {
+      "kind": "before",
+      "path": "artifacts/pr3/before/server-settings-iphone-portrait.png",
+      "sha256": "19b1bf2bee06222c0f4e57e511fa04b2a59f7a6a1e234ec1f0f6137c29bbb85c",
+      "viewport": "390x844"
+    },
+    {
+      "kind": "before",
+      "path": "artifacts/pr3/before/server-settings-large-desktop.png",
+      "sha256": "2ba00eaca3267e60c3124ef21762bf35476919f6adea0ea6599036d244d055ae",
+      "viewport": "1600x1000"
+    },
+    {
+      "kind": "after",
+      "path": "artifacts/pr3/after/server-drawer-iphone-landscape.png",
+      "sha256": "295ac76aa0ae6f0b76802a5aa0960fb98f5920d126e2f42cb070d252aeefee22",
+      "viewport": "844x390"
+    },
+    {
+      "kind": "after",
+      "path": "artifacts/pr3/after/server-drawer-iphone-portrait.png",
+      "sha256": "447d75b27bb5a434eee69ff30f20c5854dfb7aab13914255d56a710b2c807156",
+      "viewport": "390x844"
+    },
+    {
+      "kind": "after",
+      "path": "artifacts/pr3/after/server-overview-desktop.png",
+      "sha256": "a068c3789d8074b9ee46200f208a8725292937a90f6936702bb5dfc7756f1c87",
+      "viewport": "1200x800"
+    },
+    {
+      "kind": "after",
+      "path": "artifacts/pr3/after/server-overview-iphone-landscape.png",
+      "sha256": "1d8d1e8929315be589aa123893d160a791ee763725a67f934346e1416c4393c3",
+      "viewport": "844x390"
+    },
+    {
+      "kind": "after",
+      "path": "artifacts/pr3/after/server-overview-iphone-portrait.png",
+      "sha256": "4667a3cfd5201d2bdb2eae9cf4c6ac2918baf16acaca1aeab9b330002069d9a7",
+      "viewport": "390x844"
+    },
+    {
+      "kind": "after",
+      "path": "artifacts/pr3/after/server-overview-large-desktop.png",
+      "sha256": "52e05eb1ad4a75a3a4d97da1e73a8b26e56b605d3ecda7914b3f776894ca5ca7",
+      "viewport": "1600x1000"
+    },
+    {
+      "kind": "after",
+      "path": "artifacts/pr3/after/server-settings-desktop.png",
+      "sha256": "a7b4b733be403607a47ca321923cfc4ea5e419005a04ea18be06a0fd836329d7",
+      "viewport": "1200x800"
+    },
+    {
+      "kind": "after",
+      "path": "artifacts/pr3/after/server-settings-iphone-landscape.png",
+      "sha256": "fbe03a94dae56457c6e96770d8d246de451b6fb2fc1874cf564dcf27316275a4",
+      "viewport": "844x390"
+    },
+    {
+      "kind": "after",
+      "path": "artifacts/pr3/after/server-settings-iphone-portrait.png",
+      "sha256": "51e4b06001194ed011a066dde8bd69b55c28f749f678ea1260841fa64331a0b7",
+      "viewport": "390x844"
+    },
+    {
+      "kind": "after",
+      "path": "artifacts/pr3/after/server-settings-large-desktop.png",
+      "sha256": "5e91eaf19121ce56ba97692b2093eeb758e69b9dee417c7914ea031d86dcd374",
+      "viewport": "1600x1000"
+    }
+  ],
+  "feature": {
+    "ref": "origin/feature/03-mobile-confirm-diagnostics",
+    "sha": "5f45814b2ce0a419bb1bc3959daf2292c3828439"
+  }
+}

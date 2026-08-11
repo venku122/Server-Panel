@@ -76,3 +76,28 @@
         <a class="scope-back-link" href="{{ url_for("servers_index") }}">All servers</a>
     </div>
 {%- endmacro %}
+{% macro global_bottom_navigation(active_page) -%}
+    <nav class="mobile-bottom-nav" aria-label="Primary panel navigation">
+        {{ nav_link('servers', 'Servers', '/servers', active_page) }}
+        {{ nav_link('activity', 'Activity', '/activity', active_page) }}
+        {{ nav_link('jobs', 'Jobs', '/jobs', active_page) }}
+        <button class="nav-item"
+                type="button"
+                data-open-drawer="more-drawer"
+                aria-controls="more-drawer"
+                aria-expanded="false">{{ icon("settings") }}<span class="nav-label">More</span></button>
+    </nav>
+{%- endmacro %}
+{% macro server_bottom_navigation(active_page, current_server) -%}
+    {% set root = '/servers/' ~ current_server.id %}
+    <nav class="mobile-bottom-nav" aria-label="Primary server navigation">
+        {{ nav_link('dashboard', 'Overview', root, active_page, 'overview') }}
+        {{ nav_link('control', 'Operations', root ~ '/operations', active_page, 'operations') }}
+        {{ nav_link('bans', 'Players', root ~ '/players', active_page, 'players', active_keys=('moderation',)) }}
+        <button class="nav-item"
+                type="button"
+                data-open-drawer="more-drawer"
+                aria-controls="more-drawer"
+                aria-expanded="false">{{ icon("settings") }}<span class="nav-label">More</span></button>
+    </nav>
+{%- endmacro %}

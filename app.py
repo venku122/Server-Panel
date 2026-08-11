@@ -3673,7 +3673,11 @@ def _delete_server_local(server_id: str, delete_files: bool) -> tuple[dict, int]
         except Exception:
             pass
 
-    return {"success": True, "removed": target}, 200
+    return {
+        "success": True,
+        "removed": {"id": target.get("id"), "name": target.get("name")},
+        "deleted_files": delete_files,
+    }, 200
 
 
 @app.delete("/api/servers/<server_id>")
@@ -3687,12 +3691,16 @@ def api_delete_server(server_id: str):
     if proxy is not None:
         resp, code = proxy
         if isinstance(resp, dict) and resp.get("success"):
-            resp["servers"] = _build_servers_view()
+            removed_payload = resp.get("removed")
+            removed = removed_payload if isinstance(removed_payload, dict) else {}
+            resp = {
+                "success": True,
+                "removed": {"id": removed.get("id") or server_id, "name": removed.get("name")},
+                "deleted_files": delete_files,
+            }
         return jsonify(resp), code
 
     payload, code = _delete_server_local(server_id, delete_files)
-    if isinstance(payload, dict) and payload.get("success"):
-        payload["servers"] = _build_servers_view()
     return jsonify(payload), code
 
 
@@ -3770,7 +3778,7 @@ def get_startup_settings():
         server = get_server_by_id(sid)
         bat_path = _bat_path(sid)
         if not bat_path.exists():
-            return jsonify({"success": False, "error": f"BAT not found: {bat_path}"}), 404
+            return jsonify({"success": False, "error": "Server startup script was not found."}), 404
         settings = _parse_bat_settings(bat_path.read_text(encoding="utf-8", errors="ignore"))
         # Also expose MaxPlayers from DedicatedServerConfig.json (for Server Settings UI)
         try:
@@ -3784,7 +3792,7 @@ def get_startup_settings():
         # prefer server's stored remote port if present
         if server.get("remote_commands_port"):
             settings["remote_commands_port"] = server.get("remote_commands_port")
-        return jsonify({"success": True, "bat_path": str(bat_path), "settings": settings, "server": server})
+        return jsonify({"success": True, "settings": settings})
     except NoServersConfigured as e:
         return jsonify({"success": False, "error": str(e)}), 400
     except KeyError as e:
@@ -3884,11 +3892,7 @@ def api_set_startup_settings():
     if new_text != old_text:
         bp.write_text(new_text, encoding="utf-8")
 
-    return jsonify({
-        "success": True,
-        "bat_path": str(bp),
-        "restart_required": restart_required
-    })
+    return jsonify({"success": True, "restart_required": restart_required})
 
 
 # =============================
@@ -6305,7 +6309,7 @@ def api_cluster_get_startup_settings():
         server = get_server_by_id(sid)
         bat_path = _bat_path(sid)
         if not bat_path.exists():
-            return jsonify({"success": False, "error": f"BAT not found: {bat_path}"}), 404
+            return jsonify({"success": False, "error": "Server startup script was not found."}), 404
         settings = _parse_bat_settings(bat_path.read_text(encoding="utf-8", errors="ignore"))
         # Also expose MaxPlayers from DedicatedServerConfig.json (for Server Settings UI)
         try:
@@ -6318,7 +6322,7 @@ def api_cluster_get_startup_settings():
             pass
         if server.get("remote_commands_port"):
             settings["remote_commands_port"] = server.get("remote_commands_port")
-        return jsonify({"success": True, "bat_path": str(bat_path), "settings": settings, "server": server})
+        return jsonify({"success": True, "settings": settings})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -6341,7 +6345,7 @@ def api_cluster_set_startup_settings():
         server = get_server_by_id(sid)
         bat_path = _bat_path(sid)
         if not bat_path.exists():
-            return jsonify({"success": False, "error": f"BAT not found: {bat_path}"}), 404
+            return jsonify({"success": False, "error": "Server startup script was not found."}), 404
 
         # Apply updates using the same helpers the UI endpoint uses
         old_text = bat_path.read_text(encoding="utf-8", errors="ignore")
@@ -6398,7 +6402,7 @@ def api_cluster_set_startup_settings():
         if new_text != old_text:
             bat_path.write_text(new_text, encoding="utf-8")
 
-        return jsonify({"success": True, "bat_path": str(bat_path), "restart_required": restart_required})
+        return jsonify({"success": True, "restart_required": restart_required})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -7089,7 +7093,7 @@ def api_cluster_servers_get_startup_settings():
             # Don't fail the request if the batch file is unreadable.
             pass
 
-    return jsonify({"success": True, "settings": settings, "bat_path": str(bat_path)})
+    return jsonify({"success": True, "settings": settings})
 
 
 # NOTE: deprecated duplicate route removed (kept signed version below)
