@@ -1,0 +1,44 @@
+name: Fork validation
+
+on:
+  pull_request:
+    branches: [fork-integration]
+  push:
+    branches: [fork-integration]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch public base and production branch
+        run: |
+          git remote add upstream https://github.com/Talon-One-Fighter-Squadron/Server-Panel.git
+          git fetch upstream main
+          git fetch origin feature/01-server-scope:refs/remotes/origin/feature/01-server-scope
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: fork_tools/package-lock.json
+      - name: Install fork validation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r fork_tools/requirements-dev.txt
+          npm ci --prefix fork_tools
+      - name: Run complete fork PR gate
+        run: >-
+          python scripts/fork/validate-pr.py
+          --base-ref upstream/main
+          --feature-ref origin/feature/01-server-scope
+          --require-screenshots

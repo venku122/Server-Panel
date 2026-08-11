@@ -1,0 +1,119 @@
+{
+  "browser": "149.0.7827.55",
+  "assertions": [
+    "Root login redirects to the global /servers index with two normal server anchors and no global status pill.",
+    "Selecting a server enters a route-derived shell showing its full name and breadcrumb.",
+    "A failed server request produces a server-scoped page alert without creating a global Error pill.",
+    "Normal anchors, back, forward, and refresh preserve the server and section URL.",
+    "The server switcher changes the route target while preserving the active section.",
+    "A global page has null server context and emits no server_id query target.",
+    "An invalid server ID returns HTTP 404 with a clear recovery path and available servers.",
+    "Global and server-scoped iPhone portrait views have no horizontal page overflow."
+  ],
+  "captures": [
+    {
+      "name": "servers-desktop",
+      "url": "http://127.0.0.1:5000/servers",
+      "title": "Servers • Nuclear Option Server Panel",
+      "viewportWidth": 1200,
+      "viewportHeight": 800,
+      "documentWidth": 1200,
+      "clientWidth": 1200,
+      "horizontalOverflow": false,
+      "scope": null,
+      "serverId": null,
+      "activePage": null,
+      "globalPillPresent": false,
+      "pageStatus": null,
+      "breadcrumb": null
+    },
+    {
+      "name": "server-overview-desktop",
+      "url": "http://127.0.0.1:5000/servers/talon-public-operations",
+      "title": "Talon One Public Operations - Long Name Validation • Nuclear Option Server Panel",
+      "viewportWidth": 1200,
+      "viewportHeight": 800,
+      "documentWidth": 1200,
+      "clientWidth": 1200,
+      "horizontalOverflow": false,
+      "scope": "server",
+      "serverId": "talon-public-operations",
+      "activePage": "dashboard",
+      "globalPillPresent": false,
+      "pageStatus": null,
+      "breadcrumb": "Servers/Talon One Public Operations - Long Name Validation"
+    },
+    {
+      "name": "server-error-desktop",
+      "url": "http://127.0.0.1:5000/servers/talon-public-operations",
+      "title": "Talon One Public Operations - Long Name Validation • Nuclear Option Server Panel",
+      "viewportWidth": 1200,
+      "viewportHeight": 800,
+      "documentWidth": 1200,
+      "clientWidth": 1200,
+      "horizontalOverflow": false,
+      "scope": "server",
+      "serverId": "talon-public-operations",
+      "activePage": "dashboard",
+      "globalPillPresent": false,
+      "pageStatus": "get-mission-time failed for Talon One Public Operations - Long Name Validation: Unknown error",
+      "breadcrumb": "Servers/Talon One Public Operations - Long Name Validation"
+    },
+    {
+      "name": "servers-large-desktop",
+      "url": "http://127.0.0.1:5000/servers",
+      "title": "Servers • Nuclear Option Server Panel",
+      "viewportWidth": 1440,
+      "viewportHeight": 900,
+      "documentWidth": 1440,
+      "clientWidth": 1440,
+      "horizontalOverflow": false,
+      "scope": null,
+      "serverId": null,
+      "activePage": null,
+      "globalPillPresent": false,
+      "pageStatus": null,
+      "breadcrumb": null
+    },
+    {
+      "name": "servers-iphone",
+      "url": "http://127.0.0.1:5000/servers",
+      "title": "Servers • Nuclear Option Server Panel",
+      "viewportWidth": 390,
+      "viewportHeight": 844,
+      "documentWidth": 390,
+      "clientWidth": 390,
+      "horizontalOverflow": false,
+      "scope": null,
+      "serverId": null,
+      "activePage": null,
+      "globalPillPresent": false,
+      "pageStatus": null,
+      "breadcrumb": null
+    },
+    {
+      "name": "server-overview-iphone",
+      "url": "http://127.0.0.1:5000/servers/talon-public-operations",
+      "title": "Talon One Public Operations - Long Name Validation • Nuclear Option Server Panel",
+      "viewportWidth": 390,
+      "viewportHeight": 844,
+      "documentWidth": 390,
+      "clientWidth": 390,
+      "horizontalOverflow": false,
+      "scope": "server",
+      "serverId": "talon-public-operations",
+      "activePage": "dashboard",
+      "globalPillPresent": false,
+      "pageStatus": null,
+      "breadcrumb": "Servers/Talon One Public Operations - Long Name Validation"
+    }
+  ],
+  "consoleErrors": [],
+  "expectedConsoleErrors": [
+    {
+      "scenario": "deliberate invalid server route",
+      "message": "Failed to load resource: the server responded with a status of 404 (NOT FOUND)"
+    }
+  ],
+  "pageErrors": []
+}

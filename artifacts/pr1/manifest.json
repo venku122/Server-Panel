@@ -1,0 +1,64 @@
+{
+  "base": {
+    "ref": "upstream/main",
+    "sha": "9e1abb50f2f75a3c0b0850ace70c94edba684d55"
+  },
+  "captures": [
+    {
+      "kind": "before",
+      "path": "artifacts/pr1/before/before-desktop-1200x800.png",
+      "sha256": "2ddeca82fa2016e66195139017aaabb37a6e9eacd2c57e094c536fe61e4170b1",
+      "viewport": "1200x800"
+    },
+    {
+      "kind": "before-error",
+      "path": "artifacts/pr1/before/before-desktop-global-error-1200x800.png",
+      "sha256": "eb1298d7d366cd188ed9910d20db24040a96c35326f0ae360955b4829413c525",
+      "viewport": "1200x800"
+    },
+    {
+      "kind": "before",
+      "path": "artifacts/pr1/before/before-iphone-390x844.png",
+      "sha256": "abbe7ae36dfdcf61d547e87d5c8007353fd6c93bdc796913f68f9e0cd414c761",
+      "viewport": "390x844"
+    },
+    {
+      "kind": "after-error",
+      "path": "artifacts/pr1/after/after-server-error-desktop-1200x800.png",
+      "sha256": "058f77061a000a2425f6da324202a134966eae655b6324f8278a1d7eedef2c9a",
+      "viewport": "1200x800"
+    },
+    {
+      "kind": "after",
+      "path": "artifacts/pr1/after/after-server-overview-desktop-1200x800.png",
+      "sha256": "b4cda090fa9f091c6dc534fc31500c5449851b626dac066bb77622bad3594e04",
+      "viewport": "1200x800"
+    },
+    {
+      "kind": "after",
+      "path": "artifacts/pr1/after/after-server-overview-iphone-390x844.png",
+      "sha256": "b912ef750158f1d3bbd5a54e20ce2368a3c133039fd5df49a480d07a9bfbe3e8",
+      "viewport": "390x844"
+    },
+    {
+      "kind": "after",
+      "path": "artifacts/pr1/after/after-servers-desktop-1200x800.png",
+      "sha256": "9f01d0493d4dccf5abe1428189e878efedf22322dcdce0d89b16b3ceef75d10d",
+      "viewport": "1200x800"
+    },
+    {
+      "kind": "after",
+      "path": "artifacts/pr1/after/after-servers-desktop-1440x900.png",
+      "sha256": "459c1b64de0a5ee2d7a1fb0bebfbeb21608fa59dd4667466669717fc11093c9a",
+      "viewport": "1440x900"
+    },
+    {
+      "kind": "after",
+      "path": "artifacts/pr1/after/after-servers-iphone-390x844.png",
+      "sha256": "fded523e6f3f0985d5439b595ee1b14738f628fbab1fc6d95fcb3a0812fe2e2c",
+      "viewport": "390x844"
+    }
+  ],
+  "feature_branch": "feature/01-server-scope",
+  "review_branch": "review/01-server-scope"
+}

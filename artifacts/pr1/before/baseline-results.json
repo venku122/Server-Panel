@@ -1,0 +1,41 @@
+{
+  "browser": "149.0.7827.55",
+  "captures": [
+    {
+      "name": "desktop-ready",
+      "url": "http://127.0.0.1:5000/",
+      "title": "Nuclear Option • Server Control Panel",
+      "viewportWidth": 1200,
+      "viewportHeight": 800,
+      "documentWidth": 1200,
+      "bodyWidth": 1200,
+      "horizontalOverflow": false,
+      "status": "Ready",
+      "selectedServer": "Talon One Public Operations - Long Name Validation"
+    },
+    {
+      "name": "desktop-error",
+      "url": "http://127.0.0.1:5000/",
+      "title": "Nuclear Option • Server Control Panel",
+      "viewportWidth": 1200,
+      "viewportHeight": 800,
+      "documentWidth": 1200,
+      "bodyWidth": 1200,
+      "horizontalOverflow": false,
+      "status": "Error",
+      "selectedServer": "Talon One Public Operations - Long Name Validation"
+    },
+    {
+      "name": "iphone-portrait",
+      "url": "http://127.0.0.1:5000/",
+      "title": "Nuclear Option • Server Control Panel",
+      "viewportWidth": 517,
+      "viewportHeight": 1119,
+      "documentWidth": 517,
+      "bodyWidth": 517,
+      "horizontalOverflow": true,
+      "status": "Ready",
+      "selectedServer": "Talon One Public Operations - Long Name Validation"
+    }
+  ]
+}

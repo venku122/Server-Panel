@@ -1,0 +1,460 @@
+{
+  "phase": "before",
+  "browser": "149.0.7827.55",
+  "captures": [
+    {
+      "file": "servers-desktop-1200x800.png",
+      "url": "http://127.0.0.1:5105/servers",
+      "width": 1200,
+      "height": 800,
+      "scrollWidth": 1200,
+      "clientWidth": 1200,
+      "overflow": false
+    },
+    {
+      "file": "server-overview-desktop-1200x800.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations",
+      "width": 1200,
+      "height": 800,
+      "scrollWidth": 1200,
+      "clientWidth": 1200,
+      "overflow": false
+    },
+    {
+      "file": "operations-desktop-1200x800.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations/operations",
+      "width": 1200,
+      "height": 800,
+      "scrollWidth": 1200,
+      "clientWidth": 1200,
+      "overflow": false
+    },
+    {
+      "file": "global-settings-desktop-1200x800.png",
+      "url": "http://127.0.0.1:5105/settings",
+      "width": 1200,
+      "height": 800,
+      "scrollWidth": 1200,
+      "clientWidth": 1200,
+      "overflow": false
+    },
+    {
+      "file": "server-settings-desktop-1200x800.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations/settings",
+      "width": 1200,
+      "height": 800,
+      "scrollWidth": 1200,
+      "clientWidth": 1200,
+      "overflow": false
+    },
+    {
+      "file": "activity-desktop-1200x800.png",
+      "url": "http://127.0.0.1:5105/activity",
+      "width": 1200,
+      "height": 800,
+      "scrollWidth": 1200,
+      "clientWidth": 1200,
+      "overflow": false
+    },
+    {
+      "file": "jobs-desktop-1200x800.png",
+      "url": "http://127.0.0.1:5105/jobs",
+      "width": 1200,
+      "height": 800,
+      "scrollWidth": 1200,
+      "clientWidth": 1200,
+      "overflow": false
+    },
+    {
+      "file": "settings-history-desktop-1200x800.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations/settings/history",
+      "width": 1200,
+      "height": 800,
+      "scrollWidth": 1200,
+      "clientWidth": 1200,
+      "overflow": false
+    },
+    {
+      "file": "workshop-desktop-1200x800.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations/workshop",
+      "width": 1200,
+      "height": 800,
+      "scrollWidth": 1200,
+      "clientWidth": 1200,
+      "overflow": false
+    },
+    {
+      "file": "players-desktop-1200x800.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations/players",
+      "width": 1200,
+      "height": 800,
+      "scrollWidth": 1200,
+      "clientWidth": 1200,
+      "overflow": false
+    },
+    {
+      "file": "moderation-desktop-1200x800.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations/players/moderation",
+      "width": 1200,
+      "height": 800,
+      "scrollWidth": 1200,
+      "clientWidth": 1200,
+      "overflow": false
+    },
+    {
+      "file": "servers-desktop-1600x1000.png",
+      "url": "http://127.0.0.1:5105/servers",
+      "width": 1600,
+      "height": 1000,
+      "scrollWidth": 1600,
+      "clientWidth": 1600,
+      "overflow": false
+    },
+    {
+      "file": "server-overview-desktop-1600x1000.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations",
+      "width": 1600,
+      "height": 1000,
+      "scrollWidth": 1600,
+      "clientWidth": 1600,
+      "overflow": false
+    },
+    {
+      "file": "operations-desktop-1600x1000.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations/operations",
+      "width": 1600,
+      "height": 1000,
+      "scrollWidth": 1600,
+      "clientWidth": 1600,
+      "overflow": false
+    },
+    {
+      "file": "global-settings-desktop-1600x1000.png",
+      "url": "http://127.0.0.1:5105/settings",
+      "width": 1600,
+      "height": 1000,
+      "scrollWidth": 1600,
+      "clientWidth": 1600,
+      "overflow": false
+    },
+    {
+      "file": "server-settings-desktop-1600x1000.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations/settings",
+      "width": 1600,
+      "height": 1000,
+      "scrollWidth": 1600,
+      "clientWidth": 1600,
+      "overflow": false
+    },
+    {
+      "file": "activity-desktop-1600x1000.png",
+      "url": "http://127.0.0.1:5105/activity",
+      "width": 1600,
+      "height": 1000,
+      "scrollWidth": 1600,
+      "clientWidth": 1600,
+      "overflow": false
+    },
+    {
+      "file": "jobs-desktop-1600x1000.png",
+      "url": "http://127.0.0.1:5105/jobs",
+      "width": 1600,
+      "height": 1000,
+      "scrollWidth": 1600,
+      "clientWidth": 1600,
+      "overflow": false
+    },
+    {
+      "file": "settings-history-desktop-1600x1000.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations/settings/history",
+      "width": 1600,
+      "height": 1000,
+      "scrollWidth": 1600,
+      "clientWidth": 1600,
+      "overflow": false
+    },
+    {
+      "file": "workshop-desktop-1600x1000.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations/workshop",
+      "width": 1600,
+      "height": 1000,
+      "scrollWidth": 1600,
+      "clientWidth": 1600,
+      "overflow": false
+    },
+    {
+      "file": "players-desktop-1600x1000.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations/players",
+      "width": 1600,
+      "height": 1000,
+      "scrollWidth": 1600,
+      "clientWidth": 1600,
+      "overflow": false
+    },
+    {
+      "file": "moderation-desktop-1600x1000.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations/players/moderation",
+      "width": 1600,
+      "height": 1000,
+      "scrollWidth": 1600,
+      "clientWidth": 1600,
+      "overflow": false
+    },
+    {
+      "file": "servers-mobile-390x844.png",
+      "url": "http://127.0.0.1:5105/servers",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    {
+      "file": "server-overview-mobile-390x844.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    {
+      "file": "operations-mobile-390x844.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations/operations",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    {
+      "file": "global-settings-mobile-390x844.png",
+      "url": "http://127.0.0.1:5105/settings",
+      "width": 980,
+      "height": 2121,
+      "scrollWidth": 980,
+      "clientWidth": 980,
+      "overflow": false
+    },
+    {
+      "file": "server-settings-mobile-390x844.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations/settings",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    {
+      "file": "activity-mobile-390x844.png",
+      "url": "http://127.0.0.1:5105/activity",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    {
+      "file": "jobs-mobile-390x844.png",
+      "url": "http://127.0.0.1:5105/jobs",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    {
+      "file": "settings-history-mobile-390x844.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations/settings/history",
+      "width": 980,
+      "height": 2121,
+      "scrollWidth": 980,
+      "clientWidth": 980,
+      "overflow": false
+    },
+    {
+      "file": "workshop-mobile-390x844.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations/workshop",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    {
+      "file": "players-mobile-390x844.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations/players",
+      "width": 390,
+      "height": 844,
+      "scrollWidth": 390,
+      "clientWidth": 390,
+      "overflow": false
+    },
+    {
+      "file": "moderation-mobile-390x844.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations/players/moderation",
+      "width": 980,
+      "height": 2121,
+      "scrollWidth": 980,
+      "clientWidth": 980,
+      "overflow": false
+    },
+    {
+      "file": "servers-mobile-landscape-844x390.png",
+      "url": "http://127.0.0.1:5105/servers",
+      "width": 844,
+      "height": 390,
+      "scrollWidth": 844,
+      "clientWidth": 844,
+      "overflow": false
+    },
+    {
+      "file": "server-overview-mobile-landscape-844x390.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations",
+      "width": 844,
+      "height": 390,
+      "scrollWidth": 844,
+      "clientWidth": 844,
+      "overflow": false
+    },
+    {
+      "file": "operations-mobile-landscape-844x390.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations/operations",
+      "width": 844,
+      "height": 390,
+      "scrollWidth": 844,
+      "clientWidth": 844,
+      "overflow": false
+    },
+    {
+      "file": "global-settings-mobile-landscape-844x390.png",
+      "url": "http://127.0.0.1:5105/settings",
+      "width": 980,
+      "height": 453,
+      "scrollWidth": 980,
+      "clientWidth": 980,
+      "overflow": false
+    },
+    {
+      "file": "server-settings-mobile-landscape-844x390.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations/settings",
+      "width": 844,
+      "height": 390,
+      "scrollWidth": 844,
+      "clientWidth": 844,
+      "overflow": false
+    },
+    {
+      "file": "activity-mobile-landscape-844x390.png",
+      "url": "http://127.0.0.1:5105/activity",
+      "width": 844,
+      "height": 390,
+      "scrollWidth": 844,
+      "clientWidth": 844,
+      "overflow": false
+    },
+    {
+      "file": "jobs-mobile-landscape-844x390.png",
+      "url": "http://127.0.0.1:5105/jobs",
+      "width": 844,
+      "height": 390,
+      "scrollWidth": 844,
+      "clientWidth": 844,
+      "overflow": false
+    },
+    {
+      "file": "settings-history-mobile-landscape-844x390.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations/settings/history",
+      "width": 980,
+      "height": 453,
+      "scrollWidth": 980,
+      "clientWidth": 980,
+      "overflow": false
+    },
+    {
+      "file": "workshop-mobile-landscape-844x390.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations/workshop",
+      "width": 844,
+      "height": 390,
+      "scrollWidth": 844,
+      "clientWidth": 844,
+      "overflow": false
+    },
+    {
+      "file": "players-mobile-landscape-844x390.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations/players",
+      "width": 844,
+      "height": 390,
+      "scrollWidth": 844,
+      "clientWidth": 844,
+      "overflow": false
+    },
+    {
+      "file": "moderation-mobile-landscape-844x390.png",
+      "url": "http://127.0.0.1:5105/servers/alpha-operations/players/moderation",
+      "width": 980,
+      "height": 453,
+      "scrollWidth": 980,
+      "clientWidth": 980,
+      "overflow": false
+    }
+  ],
+  "assertions": [
+    {
+      "id": "no-workshop-mutation-before-confirmation",
+      "passed": true
+    }
+  ],
+  "consoleErrors": [
+    {
+      "viewport": "desktop-1200x800",
+      "text": "Failed to load resource: the server responded with a status of 404 (NOT FOUND)"
+    },
+    {
+      "viewport": "desktop-1200x800",
+      "text": "Failed to load resource: the server responded with a status of 404 (NOT FOUND)"
+    },
+    {
+      "viewport": "desktop-1200x800",
+      "text": "Failed to load resource: the server responded with a status of 404 (NOT FOUND)"
+    },
+    {
+      "viewport": "desktop-1600x1000",
+      "text": "Failed to load resource: the server responded with a status of 404 (NOT FOUND)"
+    },
+    {
+      "viewport": "desktop-1600x1000",
+      "text": "Failed to load resource: the server responded with a status of 404 (NOT FOUND)"
+    },
+    {
+      "viewport": "desktop-1600x1000",
+      "text": "Failed to load resource: the server responded with a status of 404 (NOT FOUND)"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "text": "Failed to load resource: the server responded with a status of 404 (NOT FOUND)"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "text": "Failed to load resource: the server responded with a status of 404 (NOT FOUND)"
+    },
+    {
+      "viewport": "mobile-390x844",
+      "text": "Failed to load resource: the server responded with a status of 404 (NOT FOUND)"
+    },
+    {
+      "viewport": "mobile-landscape-844x390",
+      "text": "Failed to load resource: the server responded with a status of 404 (NOT FOUND)"
+    },
+    {
+      "viewport": "mobile-landscape-844x390",
+      "text": "Failed to load resource: the server responded with a status of 404 (NOT FOUND)"
+    },
+    {
+      "viewport": "mobile-landscape-844x390",
+      "text": "Failed to load resource: the server responded with a status of 404 (NOT FOUND)"
+    }
+  ],
+  "pageErrors": [],
+  "mutationRequests": []
+}
