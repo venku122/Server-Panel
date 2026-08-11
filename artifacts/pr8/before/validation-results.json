@@ -1,0 +1,66 @@
+{
+  "browser": "149.0.7827.55",
+  "config": "fork_tools/validation/pr08-browser.json",
+  "phase": "before",
+  "assertions": [
+    {
+      "id": "desktop-before-workshop-sync-present",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "desktop-before-no-overflow",
+      "passed": true,
+      "details": {
+        "url": "http://127.0.0.1:5108/servers/alpha-operations",
+        "viewportWidth": 1200,
+        "viewportHeight": 800,
+        "documentWidth": 1200,
+        "clientWidth": 1200,
+        "horizontalOverflow": false
+      }
+    },
+    {
+      "id": "iphone-before-workshop-sync-present",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "iphone-before-no-overflow",
+      "passed": true,
+      "details": {
+        "url": "http://127.0.0.1:5108/servers/alpha-operations",
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "documentWidth": 390,
+        "clientWidth": 390,
+        "horizontalOverflow": false
+      }
+    }
+  ],
+  "captures": [
+    {
+      "name": "workshop-before-desktop.png",
+      "viewport": "desktop",
+      "url": "http://127.0.0.1:5108/servers/alpha-operations",
+      "viewportWidth": 1200,
+      "viewportHeight": 800,
+      "documentWidth": 1200,
+      "clientWidth": 1200,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "workshop-before-iphone.png",
+      "viewport": "iphone",
+      "url": "http://127.0.0.1:5108/servers/alpha-operations",
+      "viewportWidth": 390,
+      "viewportHeight": 844,
+      "documentWidth": 390,
+      "clientWidth": 390,
+      "horizontalOverflow": false
+    }
+  ],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "physicalSafari": "Unavailable in this environment; Chromium mobile emulation is recorded, not claimed as physical Safari validation."
+}

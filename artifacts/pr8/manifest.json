@@ -1,0 +1,36 @@
+{
+  "base": {
+    "ref": "feature/07-config-versions",
+    "sha": "25fb96e92bbd968c69abafb30b333a40011899f9"
+  },
+  "captures": [
+    {
+      "kind": "before",
+      "path": "artifacts/pr8/before/workshop-before-desktop.png",
+      "sha256": "721ee689bb27d1afb890d3baf20c1cbca2bdd35f3d2c108874c7353e163ebe77",
+      "viewport": "1200x800"
+    },
+    {
+      "kind": "before",
+      "path": "artifacts/pr8/before/workshop-before-iphone.png",
+      "sha256": "4667a3cfd5201d2bdb2eae9cf4c6ac2918baf16acaca1aeab9b330002069d9a7",
+      "viewport": "390x844"
+    },
+    {
+      "kind": "after",
+      "path": "artifacts/pr8/after/workshop-after-desktop.png",
+      "sha256": "51d8f58e15afc2ed66cab020a804f7d935f66f9d5b92b14d7261e189f6e9abbb",
+      "viewport": "1200x800"
+    },
+    {
+      "kind": "after",
+      "path": "artifacts/pr8/after/workshop-after-iphone.png",
+      "sha256": "a5fdccdbf47b805764a9689a253ffa48d0e91f189e17eb98ce0fbef925eabfdd",
+      "viewport": "390x844"
+    }
+  ],
+  "feature": {
+    "ref": "feature/08-workshop-library",
+    "sha": "3da9a320e1e4c9e984fc168ebe2bf377d8458446"
+  }
+}
