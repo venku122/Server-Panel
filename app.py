@@ -2104,7 +2104,7 @@ def _render_panel_shell(
         current_server=current_server,
         server_page_key=server_page_key,
         server_switch_path=(
-            SERVER_PAGE_REGISTRY.get(server_page_key, SERVER_PAGE_REGISTRY["overview"]).path
+            SERVER_PAGE_REGISTRY.get(server_page_key or "overview", SERVER_PAGE_REGISTRY["overview"]).path
             if server_id is not None
             else ""
         ),
