@@ -187,17 +187,47 @@ class JobRepository(Repository):
         row = self.connection.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
         return self._job(row) if row is not None else None
 
-    def list_jobs(self, server_id: str | None = None, limit: int = 200) -> list[Job]:
+    def list_jobs(
+        self,
+        server_id: str | None = None,
+        limit: int = 200,
+        *,
+        status: str | None = None,
+        job_type: str | None = None,
+        query: str | None = None,
+        since: str | None = None,
+    ) -> list[Job]:
         bounded = max(1, min(int(limit), 500))
+        clauses: list[str] = []
+        parameters: list[Any] = []
         if server_id:
-            rows = self.connection.execute(
-                "SELECT * FROM jobs WHERE server_id = ? ORDER BY created_at DESC, id DESC LIMIT ?",
-                (server_id, bounded),
-            ).fetchall()
-        else:
-            rows = self.connection.execute(
-                "SELECT * FROM jobs ORDER BY created_at DESC, id DESC LIMIT ?", (bounded,)
-            ).fetchall()
+            clauses.append("server_id = ?")
+            parameters.append(server_id)
+        if status:
+            clauses.append(
+                "CASE WHEN status = 'running' AND cancel_requested = 1 "
+                "THEN 'cancel_requested' ELSE status END = ?"
+            )
+            parameters.append(status)
+        if job_type:
+            clauses.append("job_type = ?")
+            parameters.append(job_type)
+        if query:
+            needle = f"%{query.strip()}%"
+            clauses.append(
+                "(id LIKE ? OR job_type LIKE ? OR created_by LIKE ? OR "
+                "COALESCE(server_id, '') LIKE ? OR COALESCE(error_summary, '') LIKE ?)"
+            )
+            parameters.extend((needle, needle, needle, needle, needle))
+        if since:
+            clauses.append("created_at >= ?")
+            parameters.append(since)
+        where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+        parameters.append(bounded)
+        rows = self.connection.execute(
+            f"SELECT * FROM jobs{where} ORDER BY created_at DESC, id DESC LIMIT ?",  # noqa: S608
+            parameters,
+        ).fetchall()
         return [self._job(row) for row in rows]
 
     def events(self, job_id: str) -> list[JobEvent]:
@@ -408,13 +438,29 @@ class JobService:
         finally:
             connection.close()
 
-    def list(self, server_id: str | None = None, limit: int = 200) -> list[dict[str, Any]]:
+    def list(
+        self,
+        server_id: str | None = None,
+        limit: int = 200,
+        *,
+        status: str | None = None,
+        job_type: str | None = None,
+        query: str | None = None,
+        since: str | None = None,
+    ) -> list[dict[str, Any]]:
         connection = self._connection()
         try:
             repository = JobRepository(connection)
             return [
                 job.to_dict(last_event=repository.last_completed_step(job.id))
-                for job in repository.list_jobs(server_id, limit)
+                for job in repository.list_jobs(
+                    server_id,
+                    limit,
+                    status=status,
+                    job_type=job_type,
+                    query=query,
+                    since=since,
+                )
             ]
         finally:
             connection.close()

@@ -151,7 +151,7 @@
                             {{ event.correlation_id }}
                         </dd>
                     </div>
-                    {% if event.job_id %}<div><dt>Related job</dt><dd><a href="/jobs?job_id={{ event.job_id|urlencode }}" class="mono">{{ event.job_id }}</a></dd></div>{% endif %}
+                    {% if event.job_id %}<div><dt>Related job</dt><dd><a href="/jobs?q={{ event.job_id|urlencode }}" class="mono">{{ event.job_id }}</a></dd></div>{% endif %}
                 </dl>
                 {% if event.request_pretty %}
                     <details class="payload-disclosure">
