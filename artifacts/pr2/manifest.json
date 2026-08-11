@@ -1,7 +1,7 @@
 {
   "base": {
     "ref": "origin/feature/01-server-scope",
-    "sha": "6c077801ab7228e5c67c4122902c7554360c1ccc"
+    "sha": "9cdc0fb2b0a50d3d37e6ccb12be5dcfe438a6440"
   },
   "captures": [
     {
@@ -55,6 +55,6 @@
   ],
   "feature": {
     "ref": "origin/feature/02-jinja-components",
-    "sha": "3c82bed3c2e8f0da77b7e1cf290527c9d3fc189e"
+    "sha": "b0cd3058f1cad3f84912e0eb0476e7e90445bd2a"
   }
 }
