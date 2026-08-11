@@ -14,7 +14,8 @@ def test_server_shell_keeps_sticky_server_context_and_single_column_diagnostics(
     response = client.get("/servers/alpha-operations/settings")
     html = response.get_data(as_text=True)
     assert response.status_code == 200
-    assert '<span class="mobile-context">Alpha Operations — Full Name</span>' in html
+    assert 'class="mobile-scope-button"' in html
+    assert "<strong>Alpha Operations — Full Name</strong>" in html
     assert 'class="grid grid--single"' in html
     assert 'id="app-dialog-input"' in html
     assert "sensitive values are redacted" in html
