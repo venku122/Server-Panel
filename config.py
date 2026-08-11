@@ -35,3 +35,9 @@ TRUSTED_PROXY_IPS = ["127.0.0.1", "::1"]
 SESSION_COOKIE_SECURE = False
 # Optional static secret. Leave empty to auto-generate and persist to .panel_secret_key.
 SECRET_KEY = ""
+
+# Embedded persistence. Relative paths are resolved from the panel directory.
+# NO_PANEL_DATABASE_PATH can override this value for packaged/test deployments.
+DATABASE_PATH = "data/panel.sqlite3"
+# Lock contention wait in milliseconds. NO_PANEL_DATABASE_BUSY_TIMEOUT_MS can override it.
+DATABASE_BUSY_TIMEOUT_MS = 5000
