@@ -87,6 +87,28 @@ def seed_runtime(runtime_root: Path, username: str, password: str) -> list[dict[
         ]
     }
     (runtime_root / "panel_users.json").write_text(json.dumps(users, indent=2) + "\n", encoding="utf-8")
+    steamapps = runtime_root / "steamapps"
+    cache = steamapps / "workshop" / "content" / "2168680"
+    (cache / "111").mkdir(parents=True)
+    (cache / "222").mkdir(parents=True)
+    (cache / "333").mkdir(parents=True)
+    (steamapps / "libraryfolders.vdf").write_text(
+        f'"libraryfolders"\n{{\n  "0" {{ "path" "{runtime_root}" }}\n}}\n',
+        encoding="utf-8",
+    )
+    (cache / "111" / "meta.json").write_text(
+        json.dumps({"title": "Falcon Ridge", "author": "Aviator"}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    (cache / "111" / "FalconRidge.json").write_text('{"mission": true}\n', encoding="utf-8")
+    (cache / "222" / "SilentValley.json").write_text('{"MissionObjects": []}\n', encoding="utf-8")
+    (cache / "333" / "workshop.json").write_text(
+        json.dumps({"title": "Weekend Operations", "children": ["111", "222", "999"]}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    existing = runtime_root / "missions" / "FalconRidge"
+    existing.mkdir(parents=True)
+    (existing / "FalconRidge.json").write_text('{"mission": "existing-version"}\n', encoding="utf-8")
     return servers
 
 

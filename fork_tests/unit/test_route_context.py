@@ -45,6 +45,14 @@ def test_route_maps_keep_global_and_server_sections_disjoint(panel_module) -> No
             "subtitle": "Browse NoBlackBox recordings",
             "show_response": False,
         },
+        "workshop": {
+            "template": "server/workshop.html",
+            "active_page": "workshop",
+            "title": "Workshop library",
+            "subtitle": "Search local content and manage the current mission rotation",
+            "show_response": False,
+            "admin_only": True,
+        },
         "activity": {
             "template": "server/activity.html",
             "active_page": "activity",

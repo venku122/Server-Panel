@@ -1,0 +1,110 @@
+{% extends "layouts/server.html" %}
+{% from "components/primitives.html" import sheet %}
+{% block head %}
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/workshop.css') }}">
+{% endblock %}
+{% block panel_content %}
+    <section class="workshop-browser" aria-labelledby="workshop-browser-title">
+        <header class="workshop-browser-header">
+            <div>
+                <span class="eyebrow">Local resources</span>
+                <h2 id="workshop-browser-title">Workshop</h2>
+                <p id="workshop-source-note">Only files already available to this panel are indexed.</p>
+            </div>
+            <div class="workshop-header-actions">
+                <button class="btn" id="workshop-search-toggle" type="button">Search Workshop</button>
+                <button class="btn primary" id="workshop-refresh" type="button">Refresh library</button>
+            </div>
+        </header>
+        <form class="workshop-search" id="workshop-search-form" role="search">
+            <label class="workshop-query">
+                <span aria-hidden="true">⌕</span><span class="sr-only">Search by title or Workshop ID</span>
+                <input id="workshop-query"
+                       type="search"
+                       autocomplete="off"
+                       placeholder="Search by title or Workshop ID">
+            </label>
+            <button class="btn primary" type="submit">Search</button>
+        </form>
+        <div class="workshop-filters"
+             role="group"
+             aria-label="Filter Workshop items">
+            {% for key, label in [('all', 'All'), ('installed', 'Installed'), ('playlist', 'In Rotation'), ('collection', 'Collections'), ('local', 'Local')] %}
+                <button class="workshop-filter{% if key == 'all' %} active{% endif %}"
+                        type="button"
+                        data-workshop-filter="{{ key }}"
+                        aria-pressed="{{ 'true' if key == 'all' else 'false' }}">{{ label }}</button>
+            {% endfor %}
+        </div>
+        <div class="workshop-list-head" aria-hidden="true"><span>Resource</span><span>Type</span><span>Installed</span><span>Rotation</span><span>Updated</span><span>Status</span></div>
+        <div class="workshop-list"
+             id="workshop-results"
+             aria-live="polite"
+             aria-busy="true"></div>
+        <div class="empty-state" id="workshop-empty" hidden>
+            <span class="empty-state-icon" aria-hidden="true">◇</span>
+            <h2>No local matches</h2>
+            <p>Subscribe or download the item in Steam, refresh the library, or resolve a known ID.</p>
+        </div>
+        <footer class="workshop-browser-footer">
+            <span id="workshop-count">Loading local library…</span>
+            <button class="text-button" id="workshop-resolve-toggle" type="button">Resolve a URL or ID</button>
+        </footer>
+        <form class="workshop-resolve" id="workshop-resolve-form" hidden>
+            <label class="grow">
+                <span>Steam Workshop URL or numeric ID</span>
+                <input id="workshop-reference"
+                       inputmode="url"
+                       autocomplete="off"
+                       placeholder="https://steamcommunity.com/sharedfiles/filedetails/?id=…">
+            </label>
+            <button class="btn" type="submit">Resolve metadata</button>
+            <p>Remote lookup is unavailable. Collections expand only when local metadata names cached children.</p>
+        </form>
+    </section>
+    {% call sheet('workshop-detail', 'Workshop resource') %}
+        <div class="workshop-detail-heading">
+            <span class="status-badge" id="workshop-preview-type"><span class="status-dot" aria-hidden="true"></span>Unknown</span>
+            <h3 id="workshop-preview-title">Workshop item</h3>
+            <p id="workshop-preview-meta"></p>
+        </div>
+        <dl class="workshop-metadata" id="workshop-preview-details">
+        </dl>
+        <div class="note" id="workshop-preview-note" role="note"></div>
+        <section class="workshop-mutation">
+            <div>
+                <h3>Add to current rotation</h3>
+                <p>Review the slot and conflict policy. Nothing changes until the final confirmation.</p>
+            </div>
+            <label>
+                <span>Proposed slot change</span>
+                <select id="workshop-placement">
+                    <option value="first_available">First available slot</option>
+                    <option value="slot1">Replace slot 1</option>
+                    <option value="slot2">Replace slot 2</option>
+                </select>
+            </label>
+            <label>
+                <span>Conflict policy</span>
+                <select id="workshop-conflict-policy">
+                    <option value="error">Stop and require a decision</option>
+                    <option value="replace">Replace and retain a backup</option>
+                    <option value="skip">Keep the existing mission</option>
+                    <option value="rename">Install under a new name</option>
+                </select>
+            </label>
+            <label class="workshop-partial" id="workshop-partial-row" hidden>
+                <input id="workshop-partial-ack" type="checkbox">
+                <span>I acknowledge that locally missing collection items will not be installed.</span>
+            </label>
+            <button class="btn primary workshop-primary-action"
+                    id="workshop-add"
+                    type="button">Add to Rotation…</button>
+        </section>
+    {% endcall %}
+{% endblock %}
+{% block panel_scripts %}
+    <script defer
+            src="{{ url_for('static', filename='js/workshop-library.js') }}"></script>
+{% endblock %}

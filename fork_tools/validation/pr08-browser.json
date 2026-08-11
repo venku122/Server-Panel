@@ -1,0 +1,19 @@
+{
+  "baseRef": "feature/07-config-versions",
+  "featureRef": "feature/08-workshop-library",
+  "evidenceDir": "artifacts/pr8",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1200,
+      "height": 800,
+      "isMobile": false
+    },
+    {
+      "name": "iphone",
+      "width": 390,
+      "height": 844,
+      "isMobile": true
+    }
+  ]
+}
