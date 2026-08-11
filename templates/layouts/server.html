@@ -27,17 +27,18 @@
                aria-label="Server sidebar"
                tabindex="-1">
             <div class="sidebar-head">
-                {{ brand() }}<button class="sidebar-collapse"
-        id="sidebar-collapse"
-        type="button"
-        aria-label="Collapse sidebar"
-        aria-expanded="true">‹</button>
+                {{ brand() }}
+                <button class="sidebar-collapse"
+                        id="sidebar-collapse"
+                        type="button"
+                        aria-label="Collapse sidebar"
+                        aria-expanded="true">‹</button>
             </div>
             <div class="sidebar-scope">{{ server_switcher(servers, current_server, server_switch_path) }}</div>
             <button class="btn ghost sidebar-close" type="button" data-sidebar-close>Close</button>
             {{ server_navigation(active_page, current_server) }}
             <div class="sidebar-foot">
-                <div class="session-row"><span class="avatar" aria-hidden="true">{{ (current_user or 'U')[:1]|upper }}</span><span class="session-copy"><strong>{{ current_user or 'User' }}</strong><small>{{ current_role or 'member' }}</small></span><a class="link" href="{{ url_for('logout') }}">Log out</a></div>
+                <div class="session-row"><span class="avatar" aria-hidden="true">{{ (current_user or 'U')[:1]|upper }}</span><span class="session-copy"><strong>{{ current_user or 'User' }}</strong><small>{{ current_role or 'member' }}</small></span><a class="link" href="{{ url_for("logout") }}">Log out</a></div>
             </div>
             <button class="sidebar-resize"
                     data-sidebar-resize
