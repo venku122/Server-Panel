@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% from "components/navigation.html" import brand, global_navigation, global_settings_navigation %}
+{% from "components/page_header.html" import global_page_header %}
+{% block body_class %}panel-page global-page{% endblock %}
+{% block body %}
+    <div class="shell global-shell">
+        <aside class="sidebar" aria-label="Panel sidebar">
+            <div class="sidebar-head">
+                {{ brand() }}
+                <button class="sidebar-collapse"
+                        id="sidebar-collapse"
+                        type="button"
+                        aria-label="Collapse sidebar"
+                        aria-expanded="true">‹</button>
+            </div>
+            {{ global_navigation(active_page) }}
+            <div class="sidebar-foot">
+                <div class="scope-label">Panel scope</div>
+                <div class="session-row"><span class="avatar" aria-hidden="true">{{ (current_user or 'U')[:1]|upper }}</span><span class="session-copy"><strong>{{ current_user or 'User' }}</strong><small>{{ current_role or 'member' }}</small></span><a class="link" href="{{ url_for("logout") }}">Log out</a></div>
+            </div>
+            <button class="sidebar-resize"
+                    data-sidebar-resize
+                    type="button"
+                    aria-label="Resize sidebar"></button>
+        </aside>
+        <main class="main global-main" id="main-content">
+            {{ global_page_header(page_title, page_subtitle, page_action_label|default(''), page_action_href|default('')) }}
+            <div id="page-status"
+                 class="notice page-status"
+                 role="status"
+                 aria-live="polite"
+                 hidden></div>
+            {% if active_page in ('ports', 'cluster', 'users', 'discord', 'about') %}
+                <div class="settings-layout">
+                    <aside class="settings-sidebar">
+                        {{ global_settings_navigation(active_page) }}
+                    </aside>
+                    <section class="settings-content">
+            {% else %}
+                <section class="content-surface">
+            {% endif %}
+            {% block panel_content %}{% endblock %}
+        </section>
+        {% if active_page in ('ports', 'cluster', 'users', 'discord', 'about') %}</div>{% endif %}
+    </main>
+    </div>
+{% include "components/shell_overlays.html" %}
+{% endblock %}
+{% block scripts %}
+    {% if load_panel_script %}
+        <script>window.NO_ALLOWED_PORTS = {{ allowed_ports|default([], true)|tojson }}; window.NO_PANEL_CONTEXT = {scope: "global", serverId: null, activePage: {{ active_page|tojson }}, serversPath: {{ url_for('servers_index')|tojson }}};</script>
+        <script defer src="{{ url_for('static', filename='app.js') }}?v=20260811ux"></script>
+    {% endif %}
+{% endblock %}

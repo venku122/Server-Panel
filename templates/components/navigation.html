@@ -1,0 +1,78 @@
+{% macro icon(name) -%}
+    <span class="nav-icon" aria-hidden="true">
+        {% if name == 'servers' %}▦{% elif name == 'activity' %}⌁{% elif name == 'jobs' %}◫{% elif name == 'deployment' %}↑{% elif name == 'settings' %}⚙{% elif name == 'overview' %}⌂{% elif name == 'operations' %}▶{% elif name == 'players' %}◎{% elif name == 'workshop' %}◇{% elif name == 'recordings' %}◉{% else %}·{% endif %}
+    </span>
+{%- endmacro %}
+{% macro brand() -%}
+    <a class="brand"
+       href="{{ url_for("servers_index") }}"
+       aria-label="Nuclear Option Server Panel — all servers">
+        <span class="brand-mark" aria-hidden="true">N</span>
+        <span class="brand-text">
+            <span class="brand-title">Nuclear Option</span>
+            <span class="brand-sub">Server Panel</span>
+        </span>
+    </a>
+{%- endmacro %}
+{% macro nav_link(key, label, href, active_page, icon_name='', admin_only=false, active_keys=()) -%}
+    <a class="nav-item{% if active_page == key or active_page in active_keys %} active{% endif %}"
+       data-page="{{ key }}"
+       data-label="{{ label }}"
+       title="{{ label }}"
+       href="{{ href }}"
+       {% if active_page == key or active_page in active_keys %}aria-current="page"{% endif %}
+       {% if admin_only %}data-admin-only{% endif %}>
+        {{ icon(icon_name or key) }}<span class="nav-label">{{ label }}</span>
+    </a>
+{%- endmacro %}
+{% macro global_navigation(active_page) -%}
+    <nav class="nav" aria-label="Panel navigation">
+        <span class="nav-group-label">Workspace</span>
+        {{ nav_link('servers', 'Servers', url_for('servers_index'), active_page) }}
+        {{ nav_link('activity', 'Activity', '/activity', active_page, admin_only=true) }}
+        {{ nav_link('jobs', 'Jobs', '/jobs', active_page, admin_only=true) }}
+        {{ nav_link('manage', 'Deployment', url_for('deployment_page'), active_page, 'deployment', admin_only=true) }}
+        <span class="nav-group-label">Configuration</span>
+        {{ nav_link('settings-root', 'Settings', '/settings', active_page, 'settings', admin_only=true, active_keys=('ports', 'cluster', 'users', 'discord', 'about')) }}
+    </nav>
+{%- endmacro %}
+{% macro server_navigation(active_page, current_server) -%}
+    {% set root = '/servers/' ~ current_server.id %}
+    <nav class="nav" aria-label="Server navigation">
+        <span class="nav-group-label">Server</span>
+        {{ nav_link('dashboard', 'Overview', root, active_page, 'overview') }}
+        {{ nav_link('control', 'Operations', root ~ '/operations', active_page, 'operations') }}
+        {{ nav_link('bans', 'Players', root ~ '/players', active_page, 'players', active_keys=('moderation',)) }}
+        {{ nav_link('workshop', 'Workshop', root ~ '/workshop', active_page) }}
+        {{ nav_link('activity', 'Activity', root ~ '/activity', active_page, admin_only=true) }}
+        {{ nav_link('jobs', 'Jobs', root ~ '/jobs', active_page, admin_only=true) }}
+        {{ nav_link('server', 'Settings', root ~ '/settings', active_page, 'settings', admin_only=true, active_keys=('configuration-history',)) }}
+        <span class="nav-group-label">Tools</span>
+        {{ nav_link('noblackbox', 'Recordings', root ~ '/recordings', active_page, 'recordings', active_keys=('gallery',)) }}
+    </nav>
+{%- endmacro %}
+{% macro global_settings_navigation(active_page) -%}
+    <nav class="subnav" aria-label="Panel settings">
+        <span class="subnav-group">General</span>
+        {{ nav_link('ports', 'Ports', '/settings/ports', active_page, 'settings') }}
+        {{ nav_link('cluster', 'Cluster', '/settings/cluster', active_page, 'settings') }}
+        <span class="subnav-group">Access</span>
+        {{ nav_link('users', 'Panel Users', '/settings/users', active_page, 'players') }}
+        <span class="subnav-group">Integrations</span>
+        {{ nav_link('discord', 'Discord', '/settings/discord', active_page, 'activity') }}
+        <span class="subnav-group">Info</span>
+        {{ nav_link('about', 'About', '/settings/about', active_page, 'overview') }}
+    </nav>
+{%- endmacro %}
+{% macro server_switcher(servers, current_server, server_switch_path='') -%}
+    <div class="scope-switcher">
+        <label for="server-switcher">Server scope</label>
+        <select id="server-switcher">
+            {% for server in servers %}
+                <option value="/servers/{{ server.id }}{{ server_switch_path }}"
+                        {% if server.id == current_server.id %} selected{% endif %}>{{ server.name }}</option>
+            {% endfor %}
+        </select>
+        <a class="scope-back-link" href="{{ url_for("servers_index") }}">All servers</a>
+    </div>
+{%- endmacro %}

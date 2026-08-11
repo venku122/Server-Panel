@@ -1,0 +1,64 @@
+{% extends "layouts/global.html" %}
+{% block panel_content %}
+    <section class="page show" id="page-discord" data-page="discord">
+        <div class="card">
+            <h2>DISCORD BOT</h2>
+            <p class="muted">Run an optional Discord bot that can control this panel. The bot runs on the machine hosting the panel.</p>
+            <div class="discord-indicator" title="Discord bot status">
+                <div id="discord-indicator-dot" class="dot unknown"></div>
+                <div id="discord-indicator-text" class="text">UNKNOWN</div>
+            </div>
+            <div class="grid two">
+                <div>
+                    <label for="discord-token">Bot Token</label>
+                    <input id="discord-token"
+                           type="password"
+                           placeholder="Paste bot token (stored locally)"
+                           autocomplete="off" />
+                    <div class="hint">Tip: enable <b>Message Content Intent</b> in the Dev Portal if you want prefix commands.</div>
+                </div>
+                <div>
+                    <label for="discord-prefix">Command Prefix</label>
+                    <input id="discord-prefix" type="text" value="!" />
+                    <div class="hint">Example: <code>!servers</code>, <code>!start Server1</code>, <code>!cmd Server1 status</code></div>
+                </div>
+            </div>
+            <div class="grid two">
+                <div>
+                    <label for="discord-roles">Allowed Role IDs (comma separated)</label>
+                    <input id="discord-roles" type="text" placeholder="123,456,789" />
+                    <div class="hint">Only users with one of these role IDs (or Admins) can use the bot.</div>
+                </div>
+                <div>
+                    <label for="discord-guild">Guild ID (optional)</label>
+                    <input id="discord-guild"
+                           type="text"
+                           placeholder="Restrict to one server (recommended)" />
+                </div>
+            </div>
+            <div class="grid two">
+                <div>
+                    <label for="discord-channel">Channel ID (optional)</label>
+                    <input id="discord-channel"
+                           type="text"
+                           placeholder="Restrict to one channel" />
+                </div>
+                <div>
+                    <label for="discord-panel-url">Panel Base URL</label>
+                    <input id="discord-panel-url" type="text" value="http://127.0.0.1:5000" />
+                    <div class="hint">For safety, must be localhost. The bot calls the panel internally.</div>
+                </div>
+            </div>
+            <div class="row">
+                <button class="btn" id="discord-save">Save</button>
+                <button class="btn" id="discord-start">Start Bot</button>
+                <button class="btn danger" id="discord-stop">Stop Bot</button>
+            </div>
+            <div class="divider"></div>
+            <div>
+                <div class="field-label">Status</div>
+                <pre class="pre" id="discord-status">Not loaded.</pre>
+            </div>
+        </div>
+    </section>
+{% endblock %}

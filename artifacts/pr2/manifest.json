@@ -1,0 +1,60 @@
+{
+  "base": {
+    "ref": "origin/feature/01-server-scope",
+    "sha": "dd940346a78976c4bf50568f5b36637be54c33cf"
+  },
+  "captures": [
+    {
+      "kind": "before",
+      "path": "artifacts/pr2/before/server-overview-desktop.png",
+      "sha256": "f71c3a5bdf478a8235f4673b39d7cfd50f5efecdb42174a4782554ad4c738da5",
+      "viewport": "1200x800"
+    },
+    {
+      "kind": "before",
+      "path": "artifacts/pr2/before/server-overview-iphone.png",
+      "sha256": "e27e9391a9ee86dc98e420bff188c8893e3b2aaa6bad62880aa5d6a0da3ee226",
+      "viewport": "390x844"
+    },
+    {
+      "kind": "before",
+      "path": "artifacts/pr2/before/servers-desktop.png",
+      "sha256": "90f062161f378b8acfd0249e791946d7a0a3156bc8525b9fd22c6734c27be1af",
+      "viewport": "1200x800"
+    },
+    {
+      "kind": "before",
+      "path": "artifacts/pr2/before/servers-iphone.png",
+      "sha256": "bf6a9f64a8b78bfb67274aadd3b39076e8863f4301213ab3bd4c4c425c435d49",
+      "viewport": "390x844"
+    },
+    {
+      "kind": "after",
+      "path": "artifacts/pr2/after/server-overview-desktop.png",
+      "sha256": "4efca74067758dbf82ad83d9ee87db3a155cf97b2ea75628c17b7462e01e654f",
+      "viewport": "1200x800"
+    },
+    {
+      "kind": "after",
+      "path": "artifacts/pr2/after/server-overview-iphone.png",
+      "sha256": "6eb59e4157790f45807c1c3a12bea079c38d63a7bd48acd8ae3fba808fbd7499",
+      "viewport": "390x844"
+    },
+    {
+      "kind": "after",
+      "path": "artifacts/pr2/after/servers-desktop.png",
+      "sha256": "efae2952c6bd29856891b3e1df6383b00c1c3e374fef0cd365862766438f7b31",
+      "viewport": "1200x800"
+    },
+    {
+      "kind": "after",
+      "path": "artifacts/pr2/after/servers-iphone.png",
+      "sha256": "92861450761be472a5ac9a17eb324ec6e558a5669d91f52e5a7b213fa5c179f1",
+      "viewport": "390x844"
+    }
+  ],
+  "feature": {
+    "ref": "origin/feature/02-jinja-components",
+    "sha": "b65d30e75c11343e53bd680702a30bc49c68dfb4"
+  }
+}

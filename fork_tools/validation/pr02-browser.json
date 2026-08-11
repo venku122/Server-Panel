@@ -1,0 +1,29 @@
+{
+  "baseRef": "origin/feature/01-server-scope",
+  "featureRef": "origin/feature/02-jinja-components",
+  "evidenceDir": "artifacts/pr2",
+  "assertions": [
+    "global-shell-renders",
+    "server-shell-renders",
+    "component-styles-load",
+    "keyboard-server-card",
+    "desktop-global-no-overflow",
+    "desktop-server-no-overflow",
+    "iphone-global-no-overflow",
+    "iphone-server-no-overflow"
+  ],
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1200,
+      "height": 800,
+      "isMobile": false
+    },
+    {
+      "name": "iphone",
+      "width": 390,
+      "height": 844,
+      "isMobile": true
+    }
+  ]
+}

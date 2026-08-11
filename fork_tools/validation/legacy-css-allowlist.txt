@@ -1,0 +1,2 @@
+# One exact added static/style.css line per entry, with a source-backed reason.
+# The allowlist is intentionally empty for PR 2.

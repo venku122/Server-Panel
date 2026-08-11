@@ -1,20 +1,3 @@
-:root{
-  --bg0:#0b0d13;
-  --bg1:#0f1117;
-  --panel:#121624;
-  --panel2:#0c0e14;
-  --border:#1b2030;
-  --border2:#2a3350;
-  --text:#e7e9ee;
-  --muted:#9aa3b2;
-  --accent:#6c63ff;
-  --accent2:#b86bff;
-  --good:#2aa776;
-  --warn:#d6a23a;
-  --bad:#d45363;
-  --radius:18px;
-}
-
 *{box-sizing:border-box}
 html,body{height:100%}
 body{

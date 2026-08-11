@@ -1,0 +1,166 @@
+{% extends "layouts/server.html" %}
+{% block panel_content %}
+    <section class="page show" id="page-noblackbox" data-page="noblackbox">
+        <nav class="page-tabs" aria-label="Recording views">
+            <a class="active"
+               href="/servers/{{ current_server.id }}/recordings"
+               aria-current="page">Recorder</a><a href="/servers/{{ current_server.id }}/recordings/gallery">Gallery</a>
+        </nav>
+        <div class="card">
+            <div class="nobb-row">
+                <div>
+                    <h2>NoBlackBox</h2>
+                    <p class="muted">Install/manage the NOBlackBox Tacview recorder plugin for the selected server.</p>
+                    <div class="space-before-4">
+                        <label for="nobb-server-select" class="small muted">Select a server</label>
+                        <select class="in" id="nobb-server-select"></select>
+                    </div>
+                    <div class="hrow space-before-4">
+                        <button class="btn" id="nobb-install-btn">Install NOBlackBox</button>
+                        <button class="btn danger" id="nobb-uninstall-btn">Uninstall NOBlackBox</button>
+                    </div>
+                    <pre id="nobb-progress" class="mono space-before-3 progress-output"></pre>
+                    <div class="hr section-divider"></div>
+                    <div class="hrow">
+                        <div class="grow min-inline-280">
+                            <label for="nobb-outputpath" class="small muted">Recording Path (accepts quoted/unquoted)</label>
+                            <input class="in"
+                                   id="nobb-outputpath"
+                                   placeholder='C:/Users/Public/Documents/NuclearOption/Replays/' />
+                            <div class="hrow space-before-2">
+                                <button class="btn" id="nobb-apply-path-btn">Apply File Path</button>
+                            </div>
+                            <div class="muted small space-before-2">
+                                For remote servers, paste the path you want the node to use (it will be stored without quotes).
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hr section-divider"></div>
+                    <div class="hrow gap-3">
+                        <button class="btn primary" id="nobb-save-btn">Save NoBlackBox Settings</button>
+                        <div class="space-before-3">
+                            <a class="btn ghost"
+                               href="https://www.tacview.net/download/latest/en/"
+                               target="_blank"
+                               rel="noopener noreferrer">Install Tacview</a>
+                            <div class="muted small space-before-1">Needed to review footage.</div>
+                        </div>
+                        <button class="btn" id="nobb-reload-btn">Reload</button>
+                    </div>
+                </div>
+                <div>
+                    <div class="grid2">
+                        <div class="row check-row">
+                            <input type="checkbox" id="nobb-autostart" />
+                            <label for="nobb-autostart" class="small muted">AutoStartRecording</label>
+                        </div>
+                        <div class="row check-row">
+                            <input type="checkbox" id="nobb-record-ejected" />
+                            <label for="nobb-record-ejected" class="small muted">RecordEjectedPilots</label>
+                        </div>
+                        <div class="row check-row">
+                            <input type="checkbox" id="nobb-destruction" />
+                            <label for="nobb-destruction" class="small muted">DestructionEvents</label>
+                        </div>
+                        <div class="row check-row">
+                            <input type="checkbox" id="nobb-use-mission-time" />
+                            <label for="nobb-use-mission-time" class="small muted">UseMissionTime</label>
+                        </div>
+                        <div class="row check-row">
+                            <input type="checkbox" id="nobb-record-steamid" />
+                            <label for="nobb-record-steamid" class="small muted">RecordSteamID</label>
+                        </div>
+                        <div class="row check-row">
+                            <input type="checkbox" id="nobb-record-speed" />
+                            <label for="nobb-record-speed" class="small muted">RecordSpeed</label>
+                        </div>
+                        <div class="row check-row">
+                            <input type="checkbox" id="nobb-record-aoa" />
+                            <label for="nobb-record-aoa" class="small muted">RecordAOA</label>
+                        </div>
+                        <div class="row check-row">
+                            <input type="checkbox" id="nobb-record-agl" />
+                            <label for="nobb-record-agl" class="small muted">RecordAGL</label>
+                        </div>
+                        <div class="row check-row">
+                            <input type="checkbox" id="nobb-record-radar" />
+                            <label for="nobb-record-radar" class="small muted">RecordRadarMode</label>
+                        </div>
+                        <div class="row check-row">
+                            <input type="checkbox" id="nobb-record-gear" />
+                            <label for="nobb-record-gear" class="small muted">RecordLandingGear</label>
+                        </div>
+                        <div class="row check-row">
+                            <input type="checkbox" id="nobb-record-head" />
+                            <label for="nobb-record-head" class="small muted">RecordPilotHead</label>
+                        </div>
+                        <div class="row check-row">
+                            <input type="checkbox" id="nobb-record-extra" />
+                            <label for="nobb-record-extra" class="small muted">RecordExtraTelemetry</label>
+                        </div>
+                        <div class="row check-row">
+                            <input type="checkbox" id="nobb-compress-ids" />
+                            <label for="nobb-compress-ids" class="small muted">CompressIDs</label>
+                        </div>
+                        <div class="row check-row">
+                            <input type="checkbox" id="nobb-heightmap-enable" />
+                            <label for="nobb-heightmap-enable" class="small muted">EnableHeightmapGenerator</label>
+                        </div>
+                        <div>
+                            <label for="nobb-unit-discovery" class="small muted">Unit Discovery Rate</label>
+                            <input class="in" id="nobb-unit-discovery" />
+                        </div>
+                        <div>
+                            <label for="nobb-bulletsim-discovery" class="small muted">BulletSim Discovery Rate</label>
+                            <input class="in" id="nobb-bulletsim-discovery" />
+                        </div>
+                        <div>
+                            <label for="nobb-shockwave-discovery" class="small muted">Shockwave Discovery Rate</label>
+                            <input class="in" id="nobb-shockwave-discovery" />
+                        </div>
+                        <div>
+                            <label for="nobb-aircraft-update" class="small muted">Aircraft Update Rate</label>
+                            <input class="in" id="nobb-aircraft-update" />
+                        </div>
+                        <div>
+                            <label for="nobb-vehicle-update" class="small muted">Vehicle Update Rate</label>
+                            <input class="in" id="nobb-vehicle-update" />
+                        </div>
+                        <div>
+                            <label for="nobb-munition-update" class="small muted">Munition Update Rate</label>
+                            <input class="in" id="nobb-munition-update" />
+                        </div>
+                        <div>
+                            <label for="nobb-shockwave-update" class="small muted">Shockwave Update Rate</label>
+                            <input class="in" id="nobb-shockwave-update" />
+                        </div>
+                        <div>
+                            <label for="nobb-tracer-update" class="small muted">Tracer Update Rate</label>
+                            <input class="in" id="nobb-tracer-update" />
+                        </div>
+                        <div>
+                            <label for="nobb-flare-update" class="small muted">Flare Update Rate</label>
+                            <input class="in" id="nobb-flare-update" />
+                        </div>
+                        <div>
+                            <label for="nobb-building-update" class="small muted">Building Update Rate</label>
+                            <input class="in" id="nobb-building-update" />
+                        </div>
+                        <div>
+                            <label for="nobb-autosave" class="small muted">AutoSaveInterval (min 60)</label>
+                            <input class="in" id="nobb-autosave" />
+                        </div>
+                        <div>
+                            <label for="nobb-meters-per-scan" class="small muted">MetersPerScan</label>
+                            <input class="in" id="nobb-meters-per-scan" />
+                        </div>
+                        <div>
+                            <label for="nobb-heightmap-res" class="small muted">HeightMapResolution</label>
+                            <input class="in" id="nobb-heightmap-res" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+{% endblock %}

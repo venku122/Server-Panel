@@ -138,7 +138,7 @@ def test_global_servers_preserves_local_and_cached_remote_on_member_failure(
     assert "Alpha Local" in html
     assert "Bravo Cached" in html
     assert "Bravo node is unavailable" in html
-    assert "Unavailable (cached)" in html
+    assert "Unavailable" in html
 
 
 def test_local_server_page_renders_when_remote_member_is_unavailable(
@@ -206,7 +206,7 @@ def test_non_admin_can_render_non_admin_global_pages(
 
 def test_global_navigation_uses_named_route_outputs(client) -> None:
     html = client.get("/servers").get_data(as_text=True)
-    for path in ("/deployment", "/settings/ports"):
+    for path in ("/deployment", "/settings"):
         assert f'href="{path}"' in html
     settings_html = client.get("/settings/ports").get_data(as_text=True)
     for path in (

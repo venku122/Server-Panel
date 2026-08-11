@@ -1,0 +1,53 @@
+{% from "components/breadcrumbs.html" import server_breadcrumb %}
+{% from "components/button.html" import link_button %}
+{% macro find_button() -%}
+    <button class="btn btn-find" type="button" data-open-find>
+        <span aria-hidden="true">⌕</span><span>Find</span><kbd>⌘K</kbd>
+    </button>
+{%- endmacro %}
+{% macro global_page_header(title, subtitle, action_label='', action_href='') -%}
+    <header class="topbar">
+        <div class="title">
+            <div class="scope-kicker">Panel</div>
+            <h1 id="page-title">{{ title }}</h1>
+            {% if subtitle %}<p id="page-subtitle">{{ subtitle }}</p>{% endif %}
+        </div>
+        <div class="page-actions">
+            {{ find_button() }}
+            {% if action_label and action_href %}{{ link_button(action_label, action_href) }}{% endif %}
+        </div>
+    </header>
+{%- endmacro %}
+{% macro server_page_header(server, title) -%}
+    <header class="topbar server-topbar">
+        <div class="title">
+            {{ server_breadcrumb(server) }}
+            <div class="server-title-line">
+                <h1>{{ server.name }}</h1>
+                <span class="status-badge status-badge--{% if server.stale %}warning{% elif server.running %}success{% else %}neutral{% endif %}">
+                    <span class="status-dot" aria-hidden="true"></span>
+                    {% if server.stale %}Unavailable{% elif server.running %}Running{% else %}Stopped{% endif %}
+                </span>
+            </div>
+            <p><span id="page-title">{{ title }}</span><span aria-hidden="true">·</span>{{ server.location|default("local") |title }}{% if server.node_id %}<span aria-hidden="true">·</span><span class="mono">{{ server.node_id }}</span>{% endif %}</p>
+        </div>
+        <div class="page-actions">
+            {{ find_button() }}
+            <a class="btn primary" href="/servers/{{ server.id }}/operations">
+                {% if server.running %}Restart server{% else %}Start server{% endif %}
+            </a>
+            <div class="menu-wrap">
+                <button class="btn icon-button"
+                        type="button"
+                        aria-label="More server actions"
+                        aria-controls="server-actions-menu"
+                        aria-expanded="false"
+                        data-menu-button>•••</button>
+                <div class="resource-menu" id="server-actions-menu" role="menu" hidden>
+                    <a role="menuitem" href="/servers/{{ server.id }}/operations">Operations</a>
+                    <a role="menuitem" href="/servers/{{ server.id }}/settings">Settings</a>
+                </div>
+            </div>
+        </div>
+    </header>
+{%- endmacro %}

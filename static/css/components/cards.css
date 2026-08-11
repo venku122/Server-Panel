@@ -1,0 +1,46 @@
+.server-card-heading,
+.server-card-title {
+  display: block;
+}
+
+.server-card-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.card-header-row,
+.list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-header-row {
+  gap: var(--space-4);
+}
+
+.list-row {
+  gap: var(--space-3);
+  padding-block: var(--space-3);
+  border-block-end: 1px solid rgb(255 255 255 / 0.06);
+}
+
+.list-row--compact {
+  padding-block: var(--space-2);
+}
+
+.list-copy {
+  padding-block: var(--space-1);
+  border-block-end: 1px solid rgb(255 255 255 / 0.06);
+}
+
+.text-small {
+  font-size: var(--font-size-sm);
+}
+
+.text-strong {
+  font-weight: 700;
+}

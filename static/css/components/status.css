@@ -1,0 +1,21 @@
+.inline-notice {
+  margin: var(--space-3) var(--space-4) 0;
+}
+
+.compact-scroll {
+  max-block-size: 140px;
+  overflow: auto;
+}
+
+.code-scroll {
+  max-block-size: 260px;
+  overflow: auto;
+}
+
+.progress-output {
+  min-block-size: 54px;
+}
+
+.section-divider {
+  margin-block: var(--space-6);
+}

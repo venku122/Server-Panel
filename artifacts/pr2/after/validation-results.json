@@ -1,0 +1,208 @@
+{
+  "browser": "149.0.7827.55",
+  "config": "fork_tools/validation/pr02-browser.json",
+  "phase": "after",
+  "assertions": [
+    {
+      "id": "global-shell-renders",
+      "passed": true,
+      "details": {
+        "viewport": "desktop"
+      }
+    },
+    {
+      "id": "component-styles-load",
+      "passed": true,
+      "details": {
+        "viewport": "desktop",
+        "stylesheets": [
+          "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap",
+          "http://127.0.0.1:5102/static/css/tokens.css",
+          "http://127.0.0.1:5102/static/style.css",
+          "http://127.0.0.1:5102/static/css/base.css",
+          "http://127.0.0.1:5102/static/css/layout.css",
+          "http://127.0.0.1:5102/static/css/components/navigation.css",
+          "http://127.0.0.1:5102/static/css/components/cards.css",
+          "http://127.0.0.1:5102/static/css/components/buttons.css",
+          "http://127.0.0.1:5102/static/css/components/forms.css",
+          "http://127.0.0.1:5102/static/css/components/status.css",
+          "http://127.0.0.1:5102/static/css/pages.css"
+        ]
+      }
+    },
+    {
+      "id": "keyboard-server-card",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "desktop-global-no-overflow",
+      "passed": true,
+      "details": {
+        "route": "/servers"
+      }
+    },
+    {
+      "id": "server-shell-renders",
+      "passed": true,
+      "details": {
+        "viewport": "desktop"
+      }
+    },
+    {
+      "id": "desktop-server-no-overflow",
+      "passed": true,
+      "details": {
+        "route": "server"
+      }
+    },
+    {
+      "id": "global-shell-renders",
+      "passed": true,
+      "details": {
+        "viewport": "iphone"
+      }
+    },
+    {
+      "id": "component-styles-load",
+      "passed": true,
+      "details": {
+        "viewport": "iphone",
+        "stylesheets": [
+          "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap",
+          "http://127.0.0.1:5102/static/css/tokens.css",
+          "http://127.0.0.1:5102/static/style.css",
+          "http://127.0.0.1:5102/static/css/base.css",
+          "http://127.0.0.1:5102/static/css/layout.css",
+          "http://127.0.0.1:5102/static/css/components/navigation.css",
+          "http://127.0.0.1:5102/static/css/components/cards.css",
+          "http://127.0.0.1:5102/static/css/components/buttons.css",
+          "http://127.0.0.1:5102/static/css/components/forms.css",
+          "http://127.0.0.1:5102/static/css/components/status.css",
+          "http://127.0.0.1:5102/static/css/pages.css"
+        ]
+      }
+    },
+    {
+      "id": "iphone-global-no-overflow",
+      "passed": true,
+      "details": {
+        "route": "/servers"
+      }
+    },
+    {
+      "id": "server-shell-renders",
+      "passed": true,
+      "details": {
+        "viewport": "iphone"
+      }
+    },
+    {
+      "id": "iphone-server-no-overflow",
+      "passed": true,
+      "details": {
+        "route": "server"
+      }
+    }
+  ],
+  "captures": [
+    {
+      "name": "servers-desktop",
+      "url": "http://127.0.0.1:5102/servers",
+      "viewportWidth": 1200,
+      "viewportHeight": 800,
+      "documentWidth": 1200,
+      "clientWidth": 1200,
+      "horizontalOverflow": false,
+      "scope": null,
+      "serverId": null,
+      "stylesheets": [
+        "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap",
+        "http://127.0.0.1:5102/static/css/tokens.css",
+        "http://127.0.0.1:5102/static/style.css",
+        "http://127.0.0.1:5102/static/css/base.css",
+        "http://127.0.0.1:5102/static/css/layout.css",
+        "http://127.0.0.1:5102/static/css/components/navigation.css",
+        "http://127.0.0.1:5102/static/css/components/cards.css",
+        "http://127.0.0.1:5102/static/css/components/buttons.css",
+        "http://127.0.0.1:5102/static/css/components/forms.css",
+        "http://127.0.0.1:5102/static/css/components/status.css",
+        "http://127.0.0.1:5102/static/css/pages.css"
+      ]
+    },
+    {
+      "name": "server-overview-desktop",
+      "url": "http://127.0.0.1:5102/servers/alpha-operations",
+      "viewportWidth": 1200,
+      "viewportHeight": 800,
+      "documentWidth": 1200,
+      "clientWidth": 1200,
+      "horizontalOverflow": false,
+      "scope": "server",
+      "serverId": "alpha-operations",
+      "stylesheets": [
+        "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap",
+        "http://127.0.0.1:5102/static/css/tokens.css",
+        "http://127.0.0.1:5102/static/style.css",
+        "http://127.0.0.1:5102/static/css/base.css",
+        "http://127.0.0.1:5102/static/css/layout.css",
+        "http://127.0.0.1:5102/static/css/components/navigation.css",
+        "http://127.0.0.1:5102/static/css/components/cards.css",
+        "http://127.0.0.1:5102/static/css/components/buttons.css",
+        "http://127.0.0.1:5102/static/css/components/forms.css",
+        "http://127.0.0.1:5102/static/css/components/status.css",
+        "http://127.0.0.1:5102/static/css/pages.css"
+      ]
+    },
+    {
+      "name": "servers-iphone",
+      "url": "http://127.0.0.1:5102/servers",
+      "viewportWidth": 390,
+      "viewportHeight": 844,
+      "documentWidth": 390,
+      "clientWidth": 390,
+      "horizontalOverflow": false,
+      "scope": null,
+      "serverId": null,
+      "stylesheets": [
+        "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap",
+        "http://127.0.0.1:5102/static/css/tokens.css",
+        "http://127.0.0.1:5102/static/style.css",
+        "http://127.0.0.1:5102/static/css/base.css",
+        "http://127.0.0.1:5102/static/css/layout.css",
+        "http://127.0.0.1:5102/static/css/components/navigation.css",
+        "http://127.0.0.1:5102/static/css/components/cards.css",
+        "http://127.0.0.1:5102/static/css/components/buttons.css",
+        "http://127.0.0.1:5102/static/css/components/forms.css",
+        "http://127.0.0.1:5102/static/css/components/status.css",
+        "http://127.0.0.1:5102/static/css/pages.css"
+      ]
+    },
+    {
+      "name": "server-overview-iphone",
+      "url": "http://127.0.0.1:5102/servers/alpha-operations",
+      "viewportWidth": 390,
+      "viewportHeight": 844,
+      "documentWidth": 390,
+      "clientWidth": 390,
+      "horizontalOverflow": false,
+      "scope": "server",
+      "serverId": "alpha-operations",
+      "stylesheets": [
+        "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap",
+        "http://127.0.0.1:5102/static/css/tokens.css",
+        "http://127.0.0.1:5102/static/style.css",
+        "http://127.0.0.1:5102/static/css/base.css",
+        "http://127.0.0.1:5102/static/css/layout.css",
+        "http://127.0.0.1:5102/static/css/components/navigation.css",
+        "http://127.0.0.1:5102/static/css/components/cards.css",
+        "http://127.0.0.1:5102/static/css/components/buttons.css",
+        "http://127.0.0.1:5102/static/css/components/forms.css",
+        "http://127.0.0.1:5102/static/css/components/status.css",
+        "http://127.0.0.1:5102/static/css/pages.css"
+      ]
+    }
+  ],
+  "consoleErrors": [],
+  "pageErrors": []
+}
