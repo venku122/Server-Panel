@@ -66,7 +66,7 @@
 .recent-activity .entity-row small { max-width: 620px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .compact-empty { min-height: 84px; border: 1px solid var(--color-border); border-radius: var(--radius-card); background: #090909; }
 
-@media (max-width: 1180px) {
+@media (max-width: 1320px) {
   .audit-toolbar { grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(110px, .55fr)) auto; }
   .audit-toolbar label:nth-of-type(4),
   .audit-toolbar label:nth-of-type(5) { grid-row: 2; }
