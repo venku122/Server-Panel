@@ -48,6 +48,7 @@
              hidden></div>
         {% block body %}{% endblock %}
         <script defer src="{{ url_for('static', filename='js/core/shell.js') }}"></script>
+        <script defer src="{{ url_for('static', filename='js/components/timeline.js') }}"></script>
         {% include "components/dialog.html" %}
         <script defer src="{{ url_for('static', filename='js/core/status.js') }}"></script>
         <script defer src="{{ url_for('static', filename='js/core/dialog.js') }}"></script>
