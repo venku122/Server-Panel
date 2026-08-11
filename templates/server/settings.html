@@ -18,7 +18,9 @@
                     <p>Leave blank to allow players to join without a password.</p>
                 </div>
                 <div class="setting-control">
-                    <label class="sr-only" for="server-password">Server password</label><input id="server-password" type="text" placeholder="No password"><button class="btn primary" id="password-save-btn" type="button">Save</button>
+                    <label class="sr-only" for="server-password">Server password</label>
+                    <input id="server-password" type="text" placeholder="No password">
+                    <button class="btn primary" id="password-save-btn" type="button">Save</button>
                     <div id="password-status" class="help"></div>
                 </div>
             </div>
@@ -35,7 +37,8 @@
                     <p>Maximum server simulation frame rate.</p>
                 </div>
                 <div class="setting-control">
-                    <label class="sr-only" for="startup-fps">FPS limit</label><input id="startup-fps" type="number" min="1" max="1000" placeholder="60">
+                    <label class="sr-only" for="startup-fps">FPS limit</label>
+                    <input id="startup-fps" type="number" min="1" max="1000" placeholder="60">
                 </div>
             </div>
             <div class="setting-row">
@@ -44,11 +47,12 @@
                     <p>Maximum concurrent player slots.</p>
                 </div>
                 <div class="setting-control">
-                    <label class="sr-only" for="startup-max-players">Maximum players</label><input id="startup-max-players"
-       type="number"
-       min="1"
-       max="256"
-       placeholder="16">
+                    <label class="sr-only" for="startup-max-players">Maximum players</label>
+                    <input id="startup-max-players"
+                           type="number"
+                           min="1"
+                           max="256"
+                           placeholder="16">
                 </div>
             </div>
             <div class="setting-row">
@@ -57,16 +61,18 @@
                     <p>TCP port used by panel server commands.</p>
                 </div>
                 <div class="setting-control">
-                    <label class="sr-only" for="startup-remote-port">Remote command port</label><input class="mono"
-       id="startup-remote-port"
-       type="number"
-       min="1"
-       max="65535"
-       placeholder="7779">
+                    <label class="sr-only" for="startup-remote-port">Remote command port</label>
+                    <input class="mono"
+                           id="startup-remote-port"
+                           type="number"
+                           min="1"
+                           max="65535"
+                           placeholder="7779">
                 </div>
             </div>
             <div class="settings-actions">
-                <button class="btn ghost" id="startup-load-btn" type="button">Reload values</button><button class="btn primary" id="startup-save-btn" type="button">Save startup settings</button>
+                <button class="btn ghost" id="startup-load-btn" type="button">Reload values</button>
+                <button class="btn primary" id="startup-save-btn" type="button">Save startup settings</button>
             </div>
         </section>
         <section class="settings-section">
@@ -81,10 +87,11 @@
                     <p>Shown to connected players at startup.</p>
                 </div>
                 <div class="setting-control">
-                    <label class="sr-only" for="motd-text">Message of the day</label><textarea class="textarea"
-          id="motd-text"
-          rows="3"
-          placeholder="Optional server announcement…"></textarea>
+                    <label class="sr-only" for="motd-text">Message of the day</label>
+                    <textarea class="textarea"
+                              id="motd-text"
+                              rows="3"
+                              placeholder="Optional server announcement…"></textarea>
                 </div>
             </div>
             <div class="setting-row">
@@ -93,7 +100,8 @@
                     <p>Use zero to send only once.</p>
                 </div>
                 <div class="setting-control inline-control">
-                    <input id="motd-repeat" type="number" min="0" max="100000" placeholder="0"><span>minutes</span>
+                    <input id="motd-repeat" type="number" min="0" max="100000" placeholder="0">
+                    <span>minutes</span>
                 </div>
             </div>
             <div class="settings-actions">
@@ -112,14 +120,16 @@
                     <p>Invalid JSON is rejected before the file is changed.</p>
                 </div>
                 <div class="setting-control">
-                    <label class="sr-only" for="dedicated-config-text">Dedicated server JSON</label><textarea class="textarea mono code-editor"
-          id="dedicated-config-text"
-          spellcheck="false"
-          placeholder='{"ServerName":"Nuclear Option Server"}'></textarea>
+                    <label class="sr-only" for="dedicated-config-text">Dedicated server JSON</label>
+                    <textarea class="textarea mono code-editor"
+                              id="dedicated-config-text"
+                              spellcheck="false"
+                              placeholder='{"ServerName":"Nuclear Option Server"}'></textarea>
                 </div>
             </div>
             <div class="settings-actions">
-                <button class="btn ghost" id="dedicated-load-btn" type="button">Reload file</button><button class="btn primary" id="dedicated-save-btn" type="button">Save configuration</button>
+                <button class="btn ghost" id="dedicated-load-btn" type="button">Reload file</button>
+                <button class="btn primary" id="dedicated-save-btn" type="button">Save configuration</button>
             </div>
         </section>
         <section class="settings-section danger-zone">
@@ -135,7 +145,10 @@
                 </div>
                 <div class="setting-control">
                     <label class="chk">
-                        <input type="checkbox" id="sm-delete-files">Also delete files on disk</label><button class="btn danger" id="sm-delete">Delete server</button>
+                        <input type="checkbox" id="sm-delete-files">
+                        Also delete files on disk
+                    </label>
+                    <button class="btn danger" id="sm-delete">Delete server</button>
                     <div id="sm-status" class="status"></div>
                 </div>
             </div>
