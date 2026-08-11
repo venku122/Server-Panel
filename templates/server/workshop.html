@@ -19,10 +19,11 @@
         </header>
         <form class="workshop-search" id="workshop-search-form" role="search">
             <label class="workshop-query">
-                <span aria-hidden="true">⌕</span><span class="sr-only">Search by title or Workshop ID</span><input id="workshop-query"
-       type="search"
-       autocomplete="off"
-       placeholder="Search by title or Workshop ID">
+                <span aria-hidden="true">⌕</span><span class="sr-only">Search by title or Workshop ID</span>
+                <input id="workshop-query"
+                       type="search"
+                       autocomplete="off"
+                       placeholder="Search by title or Workshop ID">
             </label>
             <button class="btn primary" type="submit">Search</button>
         </form>
@@ -52,10 +53,11 @@
         </footer>
         <form class="workshop-resolve" id="workshop-resolve-form" hidden>
             <label class="grow">
-                <span>Steam Workshop URL or numeric ID</span><input id="workshop-reference"
-       inputmode="url"
-       autocomplete="off"
-       placeholder="https://steamcommunity.com/sharedfiles/filedetails/?id=…">
+                <span>Steam Workshop URL or numeric ID</span>
+                <input id="workshop-reference"
+                       inputmode="url"
+                       autocomplete="off"
+                       placeholder="https://steamcommunity.com/sharedfiles/filedetails/?id=…">
             </label>
             <button class="btn" type="submit">Resolve metadata</button>
             <p>Remote lookup is unavailable. Collections expand only when local metadata names cached children.</p>
@@ -76,14 +78,16 @@
                 <p>Review the slot and conflict policy. Nothing changes until the final confirmation.</p>
             </div>
             <label>
-                <span>Proposed slot change</span><select id="workshop-placement">
+                <span>Proposed slot change</span>
+                <select id="workshop-placement">
                     <option value="first_available">First available slot</option>
                     <option value="slot1">Replace slot 1</option>
                     <option value="slot2">Replace slot 2</option>
                 </select>
             </label>
             <label>
-                <span>Conflict policy</span><select id="workshop-conflict-policy">
+                <span>Conflict policy</span>
+                <select id="workshop-conflict-policy">
                     <option value="error">Stop and require a decision</option>
                     <option value="replace">Replace and retain a backup</option>
                     <option value="skip">Keep the existing mission</option>
@@ -91,7 +95,8 @@
                 </select>
             </label>
             <label class="workshop-partial" id="workshop-partial-row" hidden>
-                <input id="workshop-partial-ack" type="checkbox"><span>I acknowledge that locally missing collection items will not be installed.</span>
+                <input id="workshop-partial-ack" type="checkbox">
+                <span>I acknowledge that locally missing collection items will not be installed.</span>
             </label>
             <button class="btn primary workshop-primary-action"
                     id="workshop-add"
