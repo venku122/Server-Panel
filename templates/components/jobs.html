@@ -2,10 +2,11 @@
 {% macro job_filters_bar(filters, servers, statuses, types, current_server=none) -%}
     <form class="job-toolbar" method="get" aria-label="Filter jobs">
         <label class="job-search">
-            <span aria-hidden="true">⌕</span><span class="sr-only">Search jobs</span><input type="search"
-       name="q"
-       value="{{ filters.q }}"
-       placeholder="Search Jobs">
+            <span aria-hidden="true">⌕</span><span class="sr-only">Search jobs</span>
+            <input type="search"
+                   name="q"
+                   value="{{ filters.q }}"
+                   placeholder="Search Jobs">
         </label>
         {% if current_server %}
             <span class="job-scope-control"><span class="status-dot{% if current_server.running %} running{% endif %}"
@@ -26,7 +27,7 @@
 {% macro job_list(jobs) -%}
     {% if jobs %}
         <div class="job-list" data-job-list>
-            <div class="job-list-head" aria-hidden="true"><span>Status</span><span>Job</span><span>Target</span><span>Actor</span><span>Created / duration</span><span>Attempt</span><span></span></div>
+            <div class="job-list-head" aria-hidden="true"><span>Status</span><span>Job</span><span>Target</span><span>Actor</span><span>Created / duration</span><span>Attempt</span><span class="sr-only">Actions</span></div>
             {% for job in jobs %}
                 <article class="job-row" data-job-id="{{ job.id }}">
                     {% if job.invalid_record %}<div class="note note--warning job-record-warning"
@@ -114,7 +115,9 @@
             {% endcall %}
         {% endfor %}
     {% else %}
-        <div class="empty-state job-empty"><span class="empty-state-icon" aria-hidden="true">◫</span><h2>No jobs found</h2><p>Server updates, Workshop syncs, and tool installs will appear here.</p>{% if request.query_string %}<a class="btn ghost" href="{{ request.path }}">Clear filters</a>{% endif %}</div>
+        <div class="empty-state job-empty"><span class="empty-state-icon" aria-hidden="true">◫</span><h2>No jobs found</h2>
+            <p>Server updates, Workshop syncs, and tool installs will appear here.</p>
+            {% if request.query_string %}<a class="btn ghost" href="{{ request.path }}">Clear filters</a>{% endif %}</div>
     {% endif %}
 {%- endmacro %}
 {% macro recent_job_list(jobs, server_id) -%}
