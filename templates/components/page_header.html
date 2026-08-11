@@ -29,7 +29,7 @@
                     {% if server.stale %}Unavailable{% elif server.running %}Running{% else %}Stopped{% endif %}
                 </span>
             </div>
-            <p><span id="page-title">{{ title }}</span><span aria-hidden="true"> · </span>{{ server.location|default("local") |title }}{% if server.node_id %}<span aria-hidden="true"> · </span><span class="mono">{{ server.node_id }}</span>{% endif %}</p>
+            <p><span id="page-title">{{ title }}</span><span aria-hidden="true">·</span>{{ server.location|default("local") |title }}{% if server.node_id %}<span aria-hidden="true">·</span><span class="mono">{{ server.node_id }}</span>{% endif %}</p>
         </div>
         <div class="page-actions">
             {{ find_button() }}

@@ -6,16 +6,17 @@
     <div class="shell global-shell">
         <aside class="sidebar" aria-label="Panel sidebar">
             <div class="sidebar-head">
-                {{ brand() }}<button class="sidebar-collapse"
-        id="sidebar-collapse"
-        type="button"
-        aria-label="Collapse sidebar"
-        aria-expanded="true">‹</button>
+                {{ brand() }}
+                <button class="sidebar-collapse"
+                        id="sidebar-collapse"
+                        type="button"
+                        aria-label="Collapse sidebar"
+                        aria-expanded="true">‹</button>
             </div>
             {{ global_navigation(active_page) }}
             <div class="sidebar-foot">
                 <div class="scope-label">Panel scope</div>
-                <div class="session-row"><span class="avatar" aria-hidden="true">{{ (current_user or 'U')[:1]|upper }}</span><span class="session-copy"><strong>{{ current_user or 'User' }}</strong><small>{{ current_role or 'member' }}</small></span><a class="link" href="{{ url_for('logout') }}">Log out</a></div>
+                <div class="session-row"><span class="avatar" aria-hidden="true">{{ (current_user or 'U')[:1]|upper }}</span><span class="session-copy"><strong>{{ current_user or 'User' }}</strong><small>{{ current_role or 'member' }}</small></span><a class="link" href="{{ url_for("logout") }}">Log out</a></div>
             </div>
             <button class="sidebar-resize"
                     data-sidebar-resize
@@ -43,7 +44,7 @@
         {% if active_page in ('ports', 'cluster', 'users', 'discord', 'about') %}</div>{% endif %}
     </main>
     </div>
-    {% include "components/shell_overlays.html" %}
+{% include "components/shell_overlays.html" %}
 {% endblock %}
 {% block scripts %}
     {% if load_panel_script %}
