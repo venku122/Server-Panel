@@ -207,7 +207,7 @@ def test_remote_history_failure_is_visible_not_an_empty_history(
         "_proxy_server_op_if_remote",
         lambda *_args, **_kwargs: ({"success": False, "error": "Remote member unavailable"}, 502),
     )
-    response = client.get("/servers/bravo-training/configuration-history")
+    response = client.get("/servers/bravo-training/settings/history")
     assert response.status_code == 200
     html = response.get_data(as_text=True)
     assert "Configuration history unavailable" in html
