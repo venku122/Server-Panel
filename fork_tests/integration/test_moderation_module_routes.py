@@ -92,7 +92,7 @@ def test_settings_load_save_and_template_render_compatibility(
     )
 
     assert page.status_code == 200
-    assert b"Moderation settings" in page.data
+    assert b"Friendly-fire settings" in page.data
     assert before.status_code == 200
     assert before.get_json()["tickets"][0]["OffenderSteamId"] == "7656"
     assert saved.status_code == 200
