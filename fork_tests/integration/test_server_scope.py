@@ -206,7 +206,7 @@ def test_non_admin_can_render_non_admin_global_pages(
 
 def test_global_navigation_uses_named_route_outputs(client) -> None:
     html = client.get("/servers").get_data(as_text=True)
-    for path in ("/deployment", "/settings/ports"):
+    for path in ("/deployment", "/settings"):
         assert f'href="{path}"' in html
     settings_html = client.get("/settings/ports").get_data(as_text=True)
     for path in (
