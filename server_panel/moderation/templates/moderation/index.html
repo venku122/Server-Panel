@@ -1,54 +1,75 @@
 {% extends "layouts/server.html" %}
+{% from "components/primitives.html" import progress %}
+{% block head %}
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/player-management.css') }}">
+{% endblock %}
 {% block panel_content %}
     <div class="page show" id="page-moderation">
-        <nav class="page-tabs" aria-label="Player management views"><a href="/servers/{{ current_server.id }}/players">Players</a><a class="active" href="/servers/{{ current_server.id }}/players/moderation" aria-current="page">Moderation</a></nav>
-        <div class="row">
-            <div class="card grid-span-full">
-                <div class="card-h">
-                    <div>
-                        <div class="card-t">Moderation settings</div>
-                        <div class="card-s">Configure automatic friendly-fire enforcement and Discord bot notifications for the selected server.</div>
-                    </div>
+        <nav class="page-tabs" aria-label="Player management views">
+            <a href="/servers/{{ current_server.id }}/players">Players</a><a class="active"
+   href="/servers/{{ current_server.id }}/players/moderation"
+   aria-current="page">Moderation</a>
+        </nav>
+        <section class="moderation-status" aria-labelledby="moderation-module-title">
+            <header class="section-header">
+                <div>
+                    <span class="eyebrow">Server integration</span>
+                    <h2 id="moderation-module-title">Moderation module</h2>
+                    <p>Friendly-fire enforcement and panel bot notifications for this server.</p>
                 </div>
-                <div class="form">
-                    <div class="btns">
-                        <button class="btn ghost" id="mod-install-btn" type="button">Install / Repair Moderation Mod</button>
-                        <button class="btn ghost" id="mod-refresh-status-btn" type="button">Refresh Status</button>
-                    </div>
-                    <div class="hint" id="mod-install-status">Select a server to check moderation mod status.</div>
-                    <div id="mod-install-progress" class="list compact-scroll">
-                        <div class="muted small">Install output will appear here.</div>
-                    </div>
-                    <label class="chk">
-                        <input type="checkbox" id="mod-enable-autokick" />
-                        Enable auto-kick for teamkilling
-                    </label>
-                    <label class="chk">
-                        <input type="checkbox" id="mod-bot-notify" />
-                        Send friendly-fire notifications through the panel bot
-                    </label>
-                    <div class="grid2">
-                        <div class="field">
-                            <label for="mod-aircraft-tol">Aircraft tolerance</label>
-                            <input id="mod-aircraft-tol" type="number" min="-1" />
-                        </div>
-                        <div class="field">
-                            <label for="mod-vehicle-tol">Vehicle tolerance</label>
-                            <input id="mod-vehicle-tol" type="number" min="-1" />
-                        </div>
-                        <div class="field">
-                            <label for="mod-ship-tol">Ship tolerance</label>
-                            <input id="mod-ship-tol" type="number" min="-1" />
-                        </div>
-                    </div>
-                    <div class="hint" id="mod-paths-hint"></div>
-                    <div class="hint">The moderation backend still tracks incidents and tickets in the background for enforcement and bot messages, but the standalone ticket view is hidden in the panel.</div>
-                    <div class="btns">
-                        <button class="btn ghost" id="mod-load-btn" type="button">Load</button>
-                        <button class="btn primary" id="mod-save-btn" type="button">Save</button>
-                    </div>
+                <span class="status-badge" id="mod-install-state"><span class="status-dot" aria-hidden="true"></span>Checking</span>
+            </header>
+            <div class="moderation-install-row">
+                <div>
+                    <strong id="mod-install-status">Checking installation…</strong>
+                    <p id="mod-install-paths">Plugin, configuration, and state paths will appear after the status check.</p>
+                </div>
+                <div class="btns">
+                    <button class="btn" id="mod-refresh-status-btn" type="button">Refresh status</button><button class="btn primary" id="mod-install-btn" type="button">Install / Repair…</button>
                 </div>
             </div>
-        </div>
+            <div id="mod-install-progress-meter" hidden>{{ progress(0, 'Install progress') }}</div>
+            <details class="moderation-install-log">
+                <summary>Install event sequence</summary>
+                <div id="mod-install-progress" class="moderation-log">
+                    <div class="muted small">No install job selected.</div>
+                </div>
+            </details>
+        </section>
+        <section class="moderation-settings"
+                 aria-labelledby="moderation-settings-title">
+            <header class="section-header">
+                <div>
+                    <span class="eyebrow">Policy</span>
+                    <h2 id="moderation-settings-title">Friendly-fire settings</h2>
+                    <p>Changes affect automatic enforcement and notification behavior.</p>
+                </div>
+                <div class="btns">
+                    <button class="btn" id="mod-load-btn" type="button">Discard changes</button><button class="btn primary" id="mod-save-btn" type="button">Save settings</button>
+                </div>
+            </header>
+            <div class="setting-list">
+                <label class="setting-row">
+                    <span><strong>Automatic kick</strong><small>Kick players when a configured friendly-fire tolerance is exceeded.</small></span><input type="checkbox" id="mod-enable-autokick">
+                </label>
+                <label class="setting-row">
+                    <span><strong>Discord notifications</strong><small>Send friendly-fire events through the panel bot.</small></span><input type="checkbox" id="mod-bot-notify">
+                </label>
+            </div>
+            <div class="tolerance-grid">
+                <label>
+                    <span>Aircraft tolerance</span><input id="mod-aircraft-tol" type="number" min="-1">
+                </label>
+                <label>
+                    <span>Vehicle tolerance</span><input id="mod-vehicle-tol" type="number" min="-1">
+                </label>
+                <label>
+                    <span>Ship tolerance</span><input id="mod-ship-tol" type="number" min="-1">
+                </label>
+            </div>
+            <div class="note" role="note"><strong>Operational records remain active.</strong><span>The backend continues to track incidents and tickets for enforcement and bot messages. The standalone ticket console is intentionally not exposed here.</span></div>
+            <p class="mono moderation-path-hint" id="mod-paths-hint"></p>
+        </section>
     </div>
 {% endblock %}
