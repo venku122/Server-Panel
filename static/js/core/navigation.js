@@ -106,6 +106,16 @@ document.addEventListener("DOMContentLoaded", () => {
     (focusableIn(sheet)[0] || sheet).focus();
   };
 
+  window.NO_PANEL_SHEETS = {
+    open(id, trigger = null) {
+      const source = trigger || document.querySelector(`[data-open-sheet="${CSS.escape(id)}"]`);
+      if (!source) return;
+      source.dataset.openSheet = id;
+      openSheet(source);
+    },
+    close: closeSheet,
+  };
+
   document.querySelectorAll("[data-open-sheet]").forEach((trigger) => {
     trigger.addEventListener("click", () => openSheet(trigger));
     trigger.addEventListener("keydown", (event) => {
