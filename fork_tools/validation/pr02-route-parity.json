@@ -125,7 +125,7 @@
       "name": "Moderation",
       "path": "/servers/<server_id>/players/moderation",
       "role": "authenticated",
-      "template": "templates/server/moderation.html",
+      "template": "server_panel/moderation/templates/moderation/index.html",
       "context": ["servers", "current_server", "server_section", "ports", "allowed_ports", "page_scope", "active_page", "page_title", "page_subtitle"],
       "js_ids": ["page-moderation", "mod-load-btn", "mod-save-btn"],
       "empty_state": "Unavailable or absent moderation configuration is reported explicitly.",
