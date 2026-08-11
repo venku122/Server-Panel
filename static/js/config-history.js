@@ -9,12 +9,12 @@
   }
 
   function versionEntries() {
-    return [...document.querySelectorAll("[data-version-id]")];
+    return /** @type {HTMLElement[]} */ ([...document.querySelectorAll("[data-version-id]")]);
   }
 
   async function loadDiff(versionId, sheet) {
     const output = sheet.querySelector("[data-version-diff-output]");
-    const serverId = String(window.NO_PANEL_CONTEXT?.serverId || "");
+    const serverId = String(/** @type {any} */ (window).NO_PANEL_CONTEXT?.serverId || "");
     if (output) output.textContent = "Loading normalized diff…";
     try {
       const payload = await requestJson(`/api/config-versions/${encodeURIComponent(versionId)}/diff?server_id=${encodeURIComponent(serverId)}`);
@@ -31,19 +31,19 @@
     row.addEventListener("click", () => loadDiff(versionId, sheet));
     sheet.querySelector("[data-version-diff]")?.addEventListener("click", () => loadDiff(versionId, sheet));
     sheet.querySelector("[data-version-restore]")?.addEventListener("click", async () => {
-      const confirmed = await window.NO_PANEL_DIALOG?.confirm({
+      const confirmed = await /** @type {any} */ (window).NO_PANEL_DIALOG?.confirm({
         title: "Restore configuration version?",
         message: "This writes the selected historical content as a new current version. Existing history is preserved, but the server may require a restart.",
         confirmLabel: "Restore as new version",
         tone: "danger",
       });
       if (!confirmed) return;
-      const serverId = String(window.NO_PANEL_CONTEXT?.serverId || "");
+      const serverId = String(/** @type {any} */ (window).NO_PANEL_CONTEXT?.serverId || "");
       try {
         await requestJson(`/api/config-versions/${encodeURIComponent(versionId)}/restore`, { method: "POST", body: JSON.stringify({ server_id: serverId }) });
         window.location.reload();
       } catch (error) {
-        window.NO_PANEL_STATUS?.show(String(error), { level: "error", focus: true });
+        /** @type {any} */ (window).NO_PANEL_STATUS?.show(String(error), { level: "error", focus: true });
       }
     });
   });
