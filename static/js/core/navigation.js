@@ -25,7 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
     activeDrawer = null;
     drawerTrigger = null;
     if (restoreFocus) trigger?.focus();
-    if (!fromHistory && history.state?.panelDrawer) history.back();
+    if (!fromHistory && window.history.state?.panelDrawer) window.history.back();
   };
 
   const openDrawer = (id, trigger) => {
@@ -38,7 +38,7 @@ document.addEventListener("DOMContentLoaded", () => {
     trigger?.setAttribute("aria-expanded", "true");
     document.body.classList.add("drawer-open");
     document.querySelector("[data-overlay-backdrop]")?.removeAttribute("hidden");
-    history.pushState({ panelDrawer: id }, "");
+    window.history.pushState({ panelDrawer: id }, "");
     (focusableIn(drawer)[0] || drawer).focus();
   };
 
