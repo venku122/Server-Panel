@@ -63,7 +63,7 @@ def test_job_pages_api_worker_status_and_explicit_lease_diagnostics(
     assert global_page.status_code == 200
     assert "data-worker-status" not in global_page.get_data(as_text=True)
     assert server_page.status_code == 200 and job_id in server_page.get_data(as_text=True)
-    assert "Cancellation pending at safe checkpoint" in server_page.get_data(as_text=True)
+    assert "Requested; waiting for a safe checkpoint" in server_page.get_data(as_text=True)
     assert listing.get_json()["worker"]["alive"] is True
     assert "lease" not in ordinary.get_json()["job"]
     assert ordinary.get_json()["job"]["events"][0]["message"] == "Job queued."
