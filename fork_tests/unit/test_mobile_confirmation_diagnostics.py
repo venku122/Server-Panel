@@ -132,4 +132,4 @@ def test_mobile_shell_has_dynamic_viewport_safe_areas_and_focus_hooks() -> None:
     assert "overflow: visible" in layout
     assert "sidebar.focus()" in navigation
     assert 'event.key === "Escape"' in navigation
-    assert "toggle?.focus()" in navigation
+    assert "legacyToggle?.focus()" in navigation
