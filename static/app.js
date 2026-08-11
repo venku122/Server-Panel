@@ -911,15 +911,16 @@ function renderBansPlayerPills(players){
   }
 
   mapped.slice(0, 40).forEach(p => {
-    const el = document.createElement("div");
-    el.className = "player-pill";
+    const el = document.createElement("button");
+    el.className = "player-entity";
+    el.type = "button";
     el.dataset.sid = p.sid;
-
-    el.innerHTML = `<div class="p-name" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</div><div class="p-sep">-</div><div class="p-id">${escapeHtml(p.sid)}</div>`;
+    el.setAttribute("aria-label", `Select ${p.name}, Steam ID ${p.sid}`);
+    el.innerHTML = `<span class="p-name" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</span><span class="p-id">${escapeHtml(p.sid)}</span><span class="status-badge status-badge--success"><span class="status-dot" aria-hidden="true"></span>Connected</span><span class="p-action">Select</span>`;
 
     el.addEventListener("click", () => {
       // highlight selection
-      wrap.querySelectorAll(".player-pill").forEach(x => x.classList.remove("selected"));
+      wrap.querySelectorAll(".player-entity").forEach(x => x.classList.remove("selected"));
       el.classList.add("selected");
 
       // fill SteamID inputs in the existing forms
@@ -3243,6 +3244,18 @@ function moderationSetInstallStatus(text){
   if (el) el.textContent = text || '';
 }
 
+function moderationSetProgress(job){
+  const wrap = document.getElementById('mod-install-progress-meter');
+  const progress = wrap?.querySelector('progress');
+  const value = wrap?.querySelector('.progress-block > div > span:last-child');
+  if (!wrap || !progress || !job) return;
+  const total = Math.max(1, Number(job.progress_total || 1));
+  const percent = Math.min(100, Math.round((Number(job.progress_current || 0) / total) * 100));
+  wrap.hidden = false;
+  progress.value = percent;
+  if (value) value.textContent = `${percent}%`;
+}
+
 async function moderationRefreshStatus(){
   if (!currentServerId) return null;
   const res = await apiFetch(`/api/moderation/status?server_id=${encodeURIComponent(currentServerId)}`, { method:'GET' });
@@ -3251,7 +3264,14 @@ async function moderationRefreshStatus(){
     return null;
   }
   const st = res.data;
-  moderationSetInstallStatus(`Installed: ${st.installed ? 'yes' : 'no'} | Plugin: ${st.plugin_path || 'not found'} | Config: ${st.cfg_path || 'not found'} | State: ${st.state_path || 'not found'}`);
+  moderationSetInstallStatus(st.installed ? 'Moderation module installed' : 'Moderation module not installed');
+  const state = document.getElementById('mod-install-state');
+  if (state) {
+    state.className = `status-badge status-badge--${st.installed ? 'success' : 'warning'}`;
+    state.innerHTML = `<span class="status-dot" aria-hidden="true"></span>${st.installed ? 'Installed' : 'Action needed'}`;
+  }
+  const paths = document.getElementById('mod-install-paths');
+  if (paths) paths.textContent = `Plugin: ${st.plugin_path || 'not found'} · Config: ${st.cfg_path || 'not found'} · State: ${st.state_path || 'not found'}`;
   return st;
 }
 
@@ -3260,6 +3280,7 @@ async function moderationPollInstallJob(){
   const res = await apiFetch(`/api/moderation/job?server_id=${encodeURIComponent(currentServerId)}`, { background: true, method:'GET' });
   if (!res.ok || !res.data?.success) return;
   moderationSetInstallLines(res.data.lines || []);
+  moderationSetProgress(res.data.job);
   if (res.data.done){
     if (moderationInstallPoll){ clearInterval(moderationInstallPoll); moderationInstallPoll = null; }
     await moderationRefreshStatus();
