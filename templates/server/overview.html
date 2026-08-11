@@ -1,110 +1,119 @@
 {% extends "layouts/server.html" %}
 {% block panel_content %}
-    <div class="page show" id="page-dashboard">
-        <div class="row">
-            <div class="card">
-                <div class="card-h">
-                    <div>
-                        <div class="card-t">Quick actions</div>
-                        <div class="card-s">Common one-click commands</div>
-                    </div>
-                </div>
-                <div class="btns">
-                    <button class="btn danger" id="update-server-btn">Update Server</button>
-                    <button class="btn" id="start-server-btn">Start Server</button>
-                    <button class="btn ghost" id="stop-server-btn">Stop Server</button>
-                    <button class="btn ghost" id="restart-server-btn">Restart Server</button>
-                    <button class="btn ghost" data-command="get-mission-time">Get Mission Time</button>
-                    <button class="btn ghost" data-command="set-time-remaining" data-time="5">Next Mission</button>
-                    <button class="btn ghost" data-command="get-mission">Get Mission</button>
-                    <button class="btn ghost" data-command="get-player-list">Get Player List</button>
-                </div>
+    <div class="page show overview-page" id="page-dashboard">
+        {% if current_server.stale %}<div class="note note--warning"><strong>Live status is unavailable.</strong><span>Showing the most recent cached server identity. Operations may fail until the node reconnects.</span></div>{% endif %}
+        <section class="overview-hero">
+            <div>
+                <span class="eyebrow">Runtime</span>
+                <h2>{% if current_server.running %}Server is online{% else %}Server is stopped{% endif %}</h2>
+                <p>{% if current_server.running %}Open Operations to manage the active session or inspect connected players.{% else %}Start this server from Operations when you are ready for players to connect.{% endif %}</p>
             </div>
-            <div class="card">
-                <div class="card-h">
+            <a class="btn primary"
+               href="/servers/{{ current_server.id }}/operations">Open Operations</a>
+        </section>
+        <div class="summary-grid">
+            <section class="summary-section">
+                <header>
+                    <h2>Runtime</h2>
+                    <a href="/servers/{{ current_server.id }}/players">View players</a>
+                </header>
+                <dl class="description-list">
+                    <div><dt>Status</dt><dd><span class="status-badge status-badge--{% if current_server.stale %}warning{% elif current_server.running %}success{% else %}neutral{% endif %}"><span class="status-dot" aria-hidden="true"></span>{% if current_server.stale %}Unavailable{% elif current_server.running %}Running{% else %}Stopped{% endif %}</span></dd></div>
                     <div>
-                        <div class="card-t">Server access</div>
-                        <div class="card-s">Set password and mission rotation for the selected server.</div>
+                        <dt>Current mission</dt>
+                        <dd>
+                            {{ current_server.current_mission|default('—', true) }}
+                        </dd>
                     </div>
-                </div>
-                <!-- Inline notice for changes that require a restart -->
-                <div id="server-settings-notice" class="notice inline-notice" hidden></div>
-                <div class="form">
-                    <div class="field">
-                        <label for="server-password">Server Password</label>
-                        <input id="server-password"
-                               type="text"
-                               placeholder="Leave blank for no password">
-                        <div id="password-status" class="help"></div>
-                    </div>
-                    <div class="btns">
-                        <button class="btn primary" id="password-save-btn" type="button">Save Password</button>
-                    </div>
-                    <div class="hr"></div>
-                    <div class="field">
-                        <div class="field-label">Mission Slot 1</div>
-                        <div class="row">
-                            <select id="mission1-group" class="grow" aria-label="Mission Slot 1 source">
-                                <option value="BuiltIn">Built-in</option>
-                                <option value="User">User missions (from panel missions folder)</option>
-                            </select>
-                            <select id="mission1-name" class="grow" aria-label="Mission Slot 1 mission">
-                                <option value="">None</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="field">
-                        <div class="field-label">Mission Slot 2</div>
-                        <div class="row">
-                            <select id="mission2-group" class="grow" aria-label="Mission Slot 2 source">
-                                <option value="BuiltIn">Built-in</option>
-                                <option value="User">User missions (from panel missions folder)</option>
-                            </select>
-                            <select id="mission2-name" class="grow" aria-label="Mission Slot 2 mission">
-                                <option value="">None</option>
-                            </select>
-                        </div>
-                        <div class="help" id="mission-help"></div>
-                    </div>
-                    <div class="btns">
-                        <button class="btn primary" id="mission-slots-save-btn" type="button">Save Missions</button>
-                    </div>
-                </div>
-            </div>
-            <div class="card">
-                <div class="card-h">
                     <div>
-                        <div class="card-t">Sync Workshop Maps</div>
-                        <div class="card-s">Copies your subscribed Workshop missions from Steam into this panel's missions folder.</div>
+                        <dt>Connected players</dt>
+                        <dd class="tabular">
+                            {{ current_server.player_count|default('—', true) }}
+                        </dd>
                     </div>
-                </div>
-                <div class="form">
-                    <div class="btns">
-                        <button class="btn primary" id="sync-workshop-btn" type="button">Sync Workshop Maps</button>
-                    </div>
-                    <div class="hint space-before-3" id="sync-workshop-status">
-                        Tip: Subscribe to missions in Steam first, then click Sync.
-                    </div>
-                </div>
-            </div>
-            <div class="card">
-                <div class="card-h">
+                    <div><dt>Location</dt><dd>{{ current_server.location|default("local") |title }}{% if current_server.node_id %} <span class="muted mono">{{ current_server.node_id }}</span>{% endif %}</dd></div>
+                </dl>
+            </section>
+            <section class="summary-section">
+                <header>
+                    <h2>Software</h2>
+                    <a href="/servers/{{ current_server.id }}/settings">Settings</a>
+                </header>
+                <dl class="description-list">
                     <div>
-                        <div class="card-t">Reload config</div>
-                        <div class="card-s">Path optional (empty uses server default)</div>
+                        <dt>Installed version</dt>
+                        <dd class="mono">
+                            {{ current_server.version|default('—', true) }}
+                        </dd>
                     </div>
-                </div>
-                <form class="form" id="reload-config-form">
-                    <div class="field">
-                        <label for="reload-config-path">Config path (optional)</label>
-                        <input id="reload-config-path"
-                               type="text"
-                               name="path"
-                               placeholder="/path/to/server/config.json">
+                    <div>
+                        <dt>Build</dt>
+                        <dd class="mono">
+                            {{ current_server.build|default('—', true) }}
+                        </dd>
                     </div>
-                    <button class="btn primary" type="submit">Reload</button>
-                </form>
-            </div>
+                    <div>
+                        <dt>Last update</dt>
+                        <dd>
+                            {{ current_server.last_update|default('—', true) }}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt>Install directory</dt>
+                        <dd class="mono truncate"
+                            title="{{ current_server.install_dir|default('') }}">
+                            {{ current_server.install_dir|default('—', true) }}
+                        </dd>
+                    </div>
+                </dl>
+            </section>
+            <section class="summary-section">
+                <header>
+                    <h2>Network</h2>
+                    <a href="/settings/ports">Manage ports</a>
+                </header>
+                <dl class="description-list">
+                    <div>
+                        <dt>Game port</dt>
+                        <dd class="mono tabular">
+                            {{ current_server.game_port|default('—', true) }}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt>Query port</dt>
+                        <dd class="mono tabular">
+                            {{ current_server.query_port|default('—', true) }}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt>Remote command port</dt>
+                        <dd class="mono tabular">
+                            {{ current_server.remote_port|default(current_server.remote_command_port|default('—', true), true) }}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt>Server ID</dt>
+                        <dd class="mono">
+                            {{ current_server.id }}
+                        </dd>
+                    </div>
+                </dl>
+            </section>
         </div>
+        <section class="quick-links">
+            <header>
+                <div>
+                    <span class="eyebrow">Explore</span>
+                    <h2>Server workspace</h2>
+                </div>
+            </header>
+            <div class="entity-list">
+                <a class="entity-row" href="/servers/{{ current_server.id }}/operations"><span><strong>Operations</strong><small>Lifecycle, missions, and server commands</small></span><span aria-hidden="true">→</span></a>
+                <a class="entity-row" href="/servers/{{ current_server.id }}/workshop"><span><strong>Workshop</strong><small>Browse missions and manage rotation</small></span><span aria-hidden="true">→</span></a>
+                <a class="entity-row" href="/servers/{{ current_server.id }}/players"><span><strong>Players</strong><small>Connected players and moderation</small></span><span aria-hidden="true">→</span></a>
+                <a class="entity-row" href="/servers/{{ current_server.id }}/recordings"><span><strong>Recordings</strong><small>Recorder status and gallery</small></span><span aria-hidden="true">→</span></a>
+                <a class="entity-row" href="/servers/{{ current_server.id }}/settings"><span><strong>Settings</strong><small>Gameplay and startup configuration</small></span><span aria-hidden="true">→</span></a>
+            </div>
+        </section>
     </div>
 {% endblock %}

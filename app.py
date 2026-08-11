@@ -1897,8 +1897,8 @@ SERVER_OVERVIEW_PAGE = {
     "template": "server/overview.html",
     "active_page": "dashboard",
     "title": "Overview",
-    "subtitle": "Quick actions and live responses",
-    "show_response": True,
+    "subtitle": "Runtime, software, and network summary",
+    "show_response": False,
 }
 
 SERVER_SECTION_PAGES = {
@@ -1906,8 +1906,8 @@ SERVER_SECTION_PAGES = {
         "template": "server/operations.html",
         "active_page": "control",
         "title": "Operations",
-        "subtitle": "Mission and server controls",
-        "show_response": True,
+        "subtitle": "Lifecycle, mission, and server commands",
+        "show_response": False,
     },
     "players": {
         "template": "server/players.html",
@@ -1927,14 +1927,14 @@ SERVER_SECTION_PAGES = {
         "template": "server/settings.html",
         "active_page": "server",
         "title": "Settings",
-        "subtitle": "Configuration and startup settings",
-        "show_response": True,
+        "subtitle": "Gameplay and startup configuration",
+        "show_response": False,
     },
     "noblackbox": {
         "template": "server/noblackbox.html",
         "active_page": "noblackbox",
-        "title": "NoBlackBox",
-        "subtitle": "Install and configure Tacview recording",
+        "title": "Recordings",
+        "subtitle": "Recorder installation and configuration",
         "show_response": False,
     },
     "gallery": {
@@ -1942,7 +1942,7 @@ SERVER_SECTION_PAGES = {
         "active_page": "gallery",
         "title": "Gallery",
         "subtitle": "Browse NoBlackBox recordings",
-        "show_response": True,
+        "show_response": False,
     },
 }
 GLOBAL_PANEL_PAGES = {
@@ -2019,6 +2019,29 @@ def _render_global_servers(error: Optional[str] = None, status: int = 200):
         warnings = [f"Remote server status is unavailable: {exc}"]
         error = error or "The complete server list could not be loaded. Local servers remain available."
         status = 503
+    query = request.args.get("q", "").strip().casefold()
+    state = request.args.get("state", "").strip().casefold()
+    location = request.args.get("location", "").strip().casefold()
+    if query:
+        servers = [
+            server
+            for server in servers
+            if query
+            in " ".join(
+                str(server.get(key) or "")
+                for key in ("name", "id", "node_id", "node_name", "node_label")
+            ).casefold()
+        ]
+    if state == "running":
+        servers = [server for server in servers if server.get("running") and not server.get("stale")]
+    elif state == "stopped":
+        servers = [server for server in servers if not server.get("running") or server.get("stale")]
+    if location in {"local", "remote"}:
+        servers = [
+            server
+            for server in servers
+            if str(server.get("location") or "local").casefold() == location
+        ]
     return (
         render_template(
             "global/servers.html",

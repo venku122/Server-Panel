@@ -1,0 +1,39 @@
+<div class="overlay-backdrop" data-overlay-backdrop hidden></div>
+<section class="command-palette"
+         id="find-palette"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="find-title"
+         hidden>
+    <div class="command-input-row">
+        <span aria-hidden="true">⌕</span>
+        <label class="sr-only" for="find-input" id="find-title">Find servers, pages, and settings</label>
+        <input id="find-input"
+               type="search"
+               placeholder="Find servers, pages, and settings…"
+               autocomplete="off">
+        <kbd>Esc</kbd>
+    </div>
+    <div class="command-results" id="find-results" role="listbox">
+        <div class="command-empty">Start typing to search this panel.</div>
+    </div>
+    <footer>
+        <span>↑↓ Navigate</span><span>↵ Open</span><span>⌘K Find</span>
+    </footer>
+</section>
+<script type="application/json" id="find-index">
+[
+  {"group":"Pages","label":"Servers","description":"All managed servers","href":"/servers","keywords":"servers scope cluster"},
+  {"group":"Pages","label":"Activity","description":"Panel activity across servers","href":"/activity","keywords":"logs audit events"},
+  {"group":"Pages","label":"Jobs","description":"Durable background work","href":"/jobs","keywords":"deployments queue progress"},
+  {"group":"Pages","label":"Deployment","description":"Deploy a server","href":"/deployment","keywords":"create install"},
+  {"group":"Settings","label":"Ports","description":"Game and query ports","href":"/settings/ports","keywords":"network"},
+  {"group":"Settings","label":"Cluster","description":"Panel nodes","href":"/settings/cluster","keywords":"remote node"},
+  {"group":"Settings","label":"Panel Users","description":"Accounts and access","href":"/settings/users","keywords":"auth roles"},
+  {"group":"Settings","label":"Discord","description":"Discord integration","href":"/settings/discord","keywords":"bot integration"},
+  {"group":"Settings","label":"About","description":"Panel information","href":"/settings/about","keywords":"version help"}
+  {% for server in servers %},
+  {"group":"Servers","label":{{ server.name|tojson }},"description":{{ ((server.location|default('local')|title) ~ ' · ' ~ (server.node_label|default(server.node_name|default(server.node_id|default('This node')))))|tojson }},"href":{{ ('/servers/' ~ server.id)|tojson }},"keywords":{{ ((server.id|string) ~ ' ' ~ (server.node_id|default('')))|tojson }}}
+  {% endfor %}
+]
+</script>

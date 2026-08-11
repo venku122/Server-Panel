@@ -1,6 +1,7 @@
 {% extends "layouts/server.html" %}
 {% block panel_content %}
     <div class="page show" id="page-moderation">
+        <nav class="page-tabs" aria-label="Player management views"><a href="/servers/{{ current_server.id }}/players">Players</a><a class="active" href="/servers/{{ current_server.id }}/players/moderation" aria-current="page">Moderation</a></nav>
         <div class="row">
             <div class="card grid-span-full">
                 <div class="card-h">

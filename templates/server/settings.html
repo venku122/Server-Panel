@@ -1,96 +1,144 @@
 {% extends "layouts/server.html" %}
 {% block panel_content %}
-    <div class="page show" id="page-server">
-        <div class="row">
-            <div class="card">
-                <div class="card-h">
-                    <div>
-                        <div class="card-t">Startup settings</div>
-                        <div class="card-s">Edits <code>RunServer.bat</code> (FPS + Remote Commands Port). Changing either requires a server restart.</div>
-                    </div>
+    <div class="page show settings-page" id="page-server">
+        <nav class="page-tabs" aria-label="Server settings views">
+            <a class="active"
+               href="/servers/{{ current_server.id }}/settings"
+               aria-current="page">General / Gameplay</a><a href="/servers/{{ current_server.id }}/settings/history">History</a>
+        </nav>
+        <section class="settings-section">
+            <header>
+                <span class="eyebrow">Access</span>
+                <h2>Player access</h2>
+                <p>Controls that affect how players join this server.</p>
+            </header>
+            <div class="setting-row">
+                <div>
+                    <h3>Server password</h3>
+                    <p>Leave blank to allow players to join without a password.</p>
                 </div>
-                <div class="form">
-                    <div class="field">
-                        <label for="startup-fps">FPS limit (<code>-limitframerate</code>)</label>
-                        <input id="startup-fps" type="number" min="1" max="1000" placeholder="60">
-                    </div>
-                    <div class="field">
-                        <label for="startup-max-players">Max Players (<code>MaxPlayers</code>)</label>
-                        <input id="startup-max-players"
-                               type="number"
-                               min="1"
-                               max="256"
-                               placeholder="16">
-                    </div>
-                    <div class="field">
-                        <label for="startup-remote-port">Remote Commands Port (<code>-ServerRemoteCommands</code>)</label>
-                        <input id="startup-remote-port"
-                               type="number"
-                               min="1"
-                               max="65535"
-                               placeholder="7779">
-                    </div>
-                    <div class="btns">
-                        <button class="btn ghost" id="startup-load-btn" type="button">Load</button>
-                        <button class="btn primary" id="startup-save-btn" type="button">Save</button>
-                    </div>
-                    <div class="hr"></div>
-                    <div class="field">
-                        <label for="motd-text">MOTD (Message of the Day)</label>
-                        <textarea class="textarea"
-                                  id="motd-text"
-                                  rows="3"
-                                  placeholder="Optional message to broadcast when the server starts..."></textarea>
-                        <div class="hint">Uses the existing <b>Send Message</b> remote command. If set, it will send once when the server starts. Optionally repeats every X minutes while the server is running.</div>
-                    </div>
-                    <div class="field">
-                        <label for="motd-repeat">Repeat every (minutes)</label>
-                        <input id="motd-repeat" type="number" min="0" max="100000" placeholder="0">
-                        <div class="hint">Set to <b>0</b> (or leave blank) to only send once on start.</div>
-                    </div>
-                    <div class="btns">
-                        <button class="btn primary" id="motd-save-btn" type="button">Save MOTD</button>
-                    </div>
+                <div class="setting-control">
+                    <label class="sr-only" for="server-password">Server password</label><input id="server-password" type="text" placeholder="No password"><button class="btn primary" id="password-save-btn" type="button">Save</button>
+                    <div id="password-status" class="help"></div>
                 </div>
             </div>
-            <div class="card">
-                <div class="card-h">
-                    <div>
-                        <div class="card-t">Dedicated server config</div>
-                        <div class="card-s">Edits <code>DedicatedServerConfig.json</code>. Save writes directly to file (JSON must be valid).</div>
-                    </div>
+        </section>
+        <section class="settings-section">
+            <header>
+                <span class="eyebrow">Runtime</span>
+                <h2>Startup settings</h2>
+                <p>Changes apply the next time the server process starts.</p>
+            </header>
+            <div class="setting-row">
+                <div>
+                    <h3>Frame-rate limit</h3>
+                    <p>Maximum server simulation frame rate.</p>
                 </div>
-                <div class="form">
-                    <div class="field">
-                        <label for="dedicated-config-text">DedicatedServerConfig.json</label>
-                        <textarea class="textarea"
-                                  id="dedicated-config-text"
-                                  spellcheck="false"
-                                  placeholder='{"ServerName":"Nuclear Option Server"}'></textarea>
-                    </div>
-                    <div class="btns">
-                        <button class="btn ghost" id="dedicated-load-btn" type="button">Load</button>
-                        <button class="btn primary" id="dedicated-save-btn" type="button">Save</button>
-                    </div>
+                <div class="setting-control">
+                    <label class="sr-only" for="startup-fps">FPS limit</label><input id="startup-fps" type="number" min="1" max="1000" placeholder="60">
                 </div>
             </div>
-            <div class="card danger-zone">
-                <div class="card-h">
-                    <div>
-                        <div class="card-t">Delete {{ current_server.name if current_server else "server" }}</div>
-                        <div class="card-s">This action targets the server named in the URL and page header.</div>
-                    </div>
+            <div class="setting-row">
+                <div>
+                    <h3>Maximum players</h3>
+                    <p>Maximum concurrent player slots.</p>
                 </div>
-                <div class="actions">
-                    <button class="btn danger" id="sm-delete">Delete {{ current_server.name if current_server else "server" }}</button>
+                <div class="setting-control">
+                    <label class="sr-only" for="startup-max-players">Maximum players</label><input id="startup-max-players"
+       type="number"
+       min="1"
+       max="256"
+       placeholder="16">
+                </div>
+            </div>
+            <div class="setting-row">
+                <div>
+                    <h3>Remote command port</h3>
+                    <p>TCP port used by panel server commands.</p>
+                </div>
+                <div class="setting-control">
+                    <label class="sr-only" for="startup-remote-port">Remote command port</label><input class="mono"
+       id="startup-remote-port"
+       type="number"
+       min="1"
+       max="65535"
+       placeholder="7779">
+                </div>
+            </div>
+            <div class="settings-actions">
+                <button class="btn ghost" id="startup-load-btn" type="button">Reload values</button><button class="btn primary" id="startup-save-btn" type="button">Save startup settings</button>
+            </div>
+        </section>
+        <section class="settings-section">
+            <header>
+                <span class="eyebrow">Gameplay</span>
+                <h2>Message of the day</h2>
+                <p>Send an optional announcement when the server starts.</p>
+            </header>
+            <div class="setting-row setting-row--wide">
+                <div>
+                    <h3>Message</h3>
+                    <p>Shown to connected players at startup.</p>
+                </div>
+                <div class="setting-control">
+                    <label class="sr-only" for="motd-text">Message of the day</label><textarea class="textarea"
+          id="motd-text"
+          rows="3"
+          placeholder="Optional server announcement…"></textarea>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div>
+                    <h3>Repeat interval</h3>
+                    <p>Use zero to send only once.</p>
+                </div>
+                <div class="setting-control inline-control">
+                    <input id="motd-repeat" type="number" min="0" max="100000" placeholder="0"><span>minutes</span>
+                </div>
+            </div>
+            <div class="settings-actions">
+                <button class="btn primary" id="motd-save-btn" type="button">Save message</button>
+            </div>
+        </section>
+        <section class="settings-section">
+            <header>
+                <span class="eyebrow">Advanced</span>
+                <h2>Dedicated server config</h2>
+                <p>Edit the source JSON only when the structured controls are insufficient.</p>
+            </header>
+            <div class="setting-row setting-row--wide">
+                <div>
+                    <h3>DedicatedServerConfig.json</h3>
+                    <p>Invalid JSON is rejected before the file is changed.</p>
+                </div>
+                <div class="setting-control">
+                    <label class="sr-only" for="dedicated-config-text">Dedicated server JSON</label><textarea class="textarea mono code-editor"
+          id="dedicated-config-text"
+          spellcheck="false"
+          placeholder='{"ServerName":"Nuclear Option Server"}'></textarea>
+                </div>
+            </div>
+            <div class="settings-actions">
+                <button class="btn ghost" id="dedicated-load-btn" type="button">Reload file</button><button class="btn primary" id="dedicated-save-btn" type="button">Save configuration</button>
+            </div>
+        </section>
+        <section class="settings-section danger-zone">
+            <header>
+                <span class="eyebrow">Danger zone</span>
+                <h2>Delete {{ current_server.name }}</h2>
+                <p>Remove this server from the panel. File deletion is optional and irreversible.</p>
+            </header>
+            <div class="setting-row">
+                <div>
+                    <h3>Delete server</h3>
+                    <p>This action always targets the server in the current URL.</p>
+                </div>
+                <div class="setting-control">
                     <label class="chk">
-                        <input type="checkbox" id="sm-delete-files" />
-                        Also delete server files on disk
-                    </label>
+                        <input type="checkbox" id="sm-delete-files">Also delete files on disk</label><button class="btn danger" id="sm-delete">Delete server</button>
+                    <div id="sm-status" class="status"></div>
                 </div>
-                <div id="{% if page_scope == 'server' %}sm-status{% else %}sm-delete-status{% endif %}"
-                     class="status"></div>
             </div>
-        </div>
+        </section>
     </div>
 {% endblock %}
