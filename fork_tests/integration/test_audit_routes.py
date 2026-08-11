@@ -44,8 +44,9 @@ def test_global_activity_renders_collapsed_redacted_timeline_and_filters(client,
     assert "Bravo update failed" not in html
     assert "[REDACTED]" in html
     assert "route-secret" not in html
-    assert 'class="diagnostics-disclosure audit-details"' in html
-    assert 'class="diagnostics-disclosure audit-details" open' not in html
+    assert 'class="detail-sheet"' in html
+    assert 'class="payload-disclosure"' in html
+    assert 'data-open-sheet="activity-detail-' in html
     assert 'name="action"' in html
 
 
@@ -160,7 +161,7 @@ def test_activity_navigation_keeps_filter_query(client, panel_module) -> None:
     )
     html = response.get_data(as_text=True)
     assert response.status_code == 200
-    assert "Older activity" in html
+    assert "Older →" in html
     assert "server_id=alpha-operations" in html
     assert "actor=filter-admin" in html
     assert "outcome=failure" in html
@@ -175,6 +176,6 @@ def test_activity_exposes_jsonl_mirror_degradation_to_admin(client, panel_module
     response = client.get("/activity")
     html = response.get_data(as_text=True)
     assert response.status_code == 200
-    assert "SQLite audit history is intact" in html
-    assert "JSONL compatibility mirror is degraded" in html
-    assert "2 mirror operation(s) failed" in html
+    assert "SQLite history is intact" in html
+    assert "Compatibility mirror degraded" in html
+    assert "2 JSONL mirror operation(s) failed" in html

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from fork_tests.helpers.failures import inject_failure
 from server_panel.storage import connect, run_migrations
 from server_panel.storage.jobs import (
     JobCancelled,
@@ -96,8 +97,11 @@ def test_job_schema_redaction_event_bounds_and_lease_disclosure(tmp_path: Path) 
 def test_claims_prevent_double_work_and_serialize_conflicting_scopes(tmp_path: Path) -> None:
     _database_path, service = make_service(tmp_path)
     alpha_first = create_job(service, server_id="alpha")
+    time.sleep(0.002)
     alpha_second = create_job(service, server_id="alpha", job_type="noblackbox_install")
+    time.sleep(0.002)
     global_job = create_job(service, server_id=None, scope_type="global", job_type="workshop_sync")
+    time.sleep(0.002)
     bravo = create_job(service, server_id="bravo")
 
     assert service.claim_next("worker-one").id == alpha_first.id
@@ -167,13 +171,14 @@ def test_lease_loss_blocks_checkpoint_event_and_terminal_write(tmp_path: Path) -
 def test_renewal_failure_stops_handler_output_and_success_finalization(tmp_path: Path) -> None:
     _database_path, service = make_service(tmp_path)
     job = create_job(service)
+    renewal_failure = inject_failure("job lease renewal", error=LeaseLost("renewal deliberately failed"))
 
     class RenewalFailureService:
         def __getattr__(self, name):
             return getattr(service, name)
 
         def renew(self, *_args, **_kwargs):
-            raise LeaseLost("renewal deliberately failed")
+            renewal_failure()
 
     def handler(context, _parameters):
         time.sleep(0.45)
@@ -197,6 +202,7 @@ def test_finalization_failure_does_not_kill_worker_and_second_job_succeeds(tmp_p
     _database_path, service = make_service(tmp_path)
     first = create_job(service, server_id="alpha")
     second = create_job(service, server_id="bravo")
+    finish_failure = inject_failure("job finish", error=sqlite3.OperationalError("deliberate finalization failure"))
 
     class FinishOnceFailureService:
         failed = False
@@ -207,7 +213,7 @@ def test_finalization_failure_does_not_kill_worker_and_second_job_succeeds(tmp_p
         def finish(self, *args, **kwargs):
             if not self.failed:
                 self.failed = True
-                raise sqlite3.OperationalError("deliberate finalization failure")
+                finish_failure()
             return service.finish(*args, **kwargs)
 
     worker = JobWorker(

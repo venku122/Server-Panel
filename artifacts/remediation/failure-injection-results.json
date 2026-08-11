@@ -1,0 +1,16 @@
+{
+  "framework": "fork_tests/helpers/failures.py",
+  "result": "pass",
+  "boundaries": [
+    {"boundary": "sqlite insert/commit", "tests": ["test_metadata_failure_after_replace_restores_previous_file", "test_rollback_failure_is_an_explicit_partial_failure"], "asserted_state": "authoritative files restored or an explicit partial-failure state returned", "result": "pass"},
+    {"boundary": "filesystem write", "tests": ["test_file_apply_failure_preserves_authoritative_content"], "asserted_state": "authoritative content unchanged and metadata callback not entered", "result": "pass"},
+    {"boundary": "atomic replace", "tests": ["test_file_apply_failure_preserves_authoritative_content"], "asserted_state": "authoritative content unchanged and metadata callback not entered", "result": "pass"},
+    {"boundary": "rollback write", "tests": ["test_rollback_failure_is_an_explicit_partial_failure"], "asserted_state": "partial failure names rollback error and does not claim restoration", "result": "pass"},
+    {"boundary": "audit append", "tests": ["test_jsonl_mirror_failure_keeps_sqlite_event_and_reports_degradation", "test_late_audit_failure_rolls_back_every_file"], "asserted_state": "SQLite event survives mirror failure; Workshop mutation compensates on authoritative audit failure", "result": "pass"},
+    {"boundary": "job lease renewal", "tests": ["test_renewal_failure_stops_handler_output_and_success_finalization"], "asserted_state": "lost worker cannot persist handler output or success", "result": "pass"},
+    {"boundary": "job finish", "tests": ["test_finalization_failure_does_not_kill_worker_and_second_job_succeeds"], "asserted_state": "worker remains alive and a second queued job succeeds", "result": "pass"},
+    {"boundary": "remote signed request", "tests": ["test_cluster_ticket_actor_requires_verified_signature"], "asserted_state": "invalid signature returns 401 and forwarded actor is not trusted", "result": "pass"},
+    {"boundary": "workshop copy", "tests": ["test_workshop_copy_failure_leaves_files_and_configuration_unchanged"], "asserted_state": "mission, config, and server metadata remain unchanged", "result": "pass"},
+    {"boundary": "config version save", "tests": ["test_metadata_failure_restores_replaced_and_new_files", "test_multifile_startup_restore_rolls_back_every_file_when_version_save_fails"], "asserted_state": "existing and newly created files are fully compensated", "result": "pass"}
+  ]
+}

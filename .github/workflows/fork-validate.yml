@@ -44,6 +44,6 @@ jobs:
       - name: Run complete fork PR gate
         run: >-
           python scripts/fork/validate-pr.py
-          --base-ref origin/feature/08-workshop-library
-          --feature-ref origin/feature/09-moderation-module
+          --base-ref origin/feature/09-moderation-module
+          --feature-ref origin/feature/10-pydantic-contracts
           --capture-script scripts/fork/capture-pr8.cjs

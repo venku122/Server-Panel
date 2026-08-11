@@ -1,0 +1,128 @@
+{
+  "browser": "149.0.7827.55",
+  "config": "artifacts/remediation/pr8-browser-final.json",
+  "phase": "after",
+  "assertions": [
+    {
+      "id": "desktop-local-index",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "desktop-metadata-absence",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "desktop-named-playlist-boundary",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "collection-local-expansion",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "collection-missing-child-visible",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "metadata-before-confirmation",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "conflict-preview",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "proposed-rotation-preview",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "restart-preview",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "shared-confirmation",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "desktop-after-no-overflow",
+      "passed": true,
+      "details": {
+        "url": "http://127.0.0.1:5102/servers/alpha-operations/workshop",
+        "viewportWidth": 1200,
+        "viewportHeight": 800,
+        "documentWidth": 1200,
+        "clientWidth": 1200,
+        "horizontalOverflow": false
+      }
+    },
+    {
+      "id": "iphone-local-index",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "iphone-metadata-absence",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "iphone-named-playlist-boundary",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "iphone-no-input-zoom",
+      "passed": true,
+      "details": {
+        "inputSize": "16px"
+      }
+    },
+    {
+      "id": "iphone-after-no-overflow",
+      "passed": true,
+      "details": {
+        "url": "http://127.0.0.1:5102/servers/alpha-operations/workshop",
+        "viewportWidth": 390,
+        "viewportHeight": 844,
+        "documentWidth": 390,
+        "clientWidth": 390,
+        "horizontalOverflow": false
+      }
+    }
+  ],
+  "captures": [
+    {
+      "name": "workshop-after-desktop.png",
+      "viewport": "desktop",
+      "url": "http://127.0.0.1:5102/servers/alpha-operations/workshop",
+      "viewportWidth": 1200,
+      "viewportHeight": 800,
+      "documentWidth": 1200,
+      "clientWidth": 1200,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "workshop-after-iphone.png",
+      "viewport": "iphone",
+      "url": "http://127.0.0.1:5102/servers/alpha-operations/workshop",
+      "viewportWidth": 390,
+      "viewportHeight": 844,
+      "documentWidth": 390,
+      "clientWidth": 390,
+      "horizontalOverflow": false
+    }
+  ],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "physicalSafari": "Unavailable in this environment; Chromium mobile emulation is recorded, not claimed as physical Safari validation."
+}
