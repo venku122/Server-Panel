@@ -2169,8 +2169,7 @@ def _render_global_servers(error: Optional[str] = None, status: int = 200):
             for server in servers
             if query
             in " ".join(
-                str(server.get(key) or "")
-                for key in ("name", "id", "node_id", "node_name", "node_label")
+                str(server.get(key) or "") for key in ("name", "id", "node_id", "node_name", "node_label")
             ).casefold()
         ]
     if state == "running":
@@ -2178,11 +2177,7 @@ def _render_global_servers(error: Optional[str] = None, status: int = 200):
     elif state == "stopped":
         servers = [server for server in servers if not server.get("running") or server.get("stale")]
     if location in {"local", "remote"}:
-        servers = [
-            server
-            for server in servers
-            if str(server.get("location") or "local").casefold() == location
-        ]
+        servers = [server for server in servers if str(server.get("location") or "local").casefold() == location]
     return (
         render_template(
             "global/servers.html",
