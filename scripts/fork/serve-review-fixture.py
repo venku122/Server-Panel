@@ -44,6 +44,10 @@ def seed_runtime(runtime_root: Path, username: str, password: str) -> list[dict[
     for install_dir in (alpha_install, bravo_install):
         install_dir.mkdir(parents=True)
         (install_dir / "DedicatedServerConfig.json").write_text("{}\n", encoding="utf-8")
+        (install_dir / "RunServer.bat").write_text(
+            "NuclearOptionServer.exe -batchmode -limitframerate 60 -ServerRemoteCommands 7779\n",
+            encoding="utf-8",
+        )
 
     servers: list[dict[str, object]] = [
         {

@@ -1,0 +1,268 @@
+{
+  "browser": "149.0.7827.55",
+  "config": "fork_tools/validation/pr03-browser.json",
+  "phase": "after",
+  "assertions": [
+    {
+      "id": "desktop-overview-no-overflow",
+      "passed": true,
+      "details": {
+        "route": "http://127.0.0.1:5103/servers/alpha-operations"
+      }
+    },
+    {
+      "id": "diagnostics-closed-default",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "diagnostics-redacts-sensitive-values",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "background-refresh-preserves-foreground-diagnostics",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "desktop-drawer-toggle-hidden",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "shared-confirmation-dialog",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "desktop-settings-no-overflow",
+      "passed": true,
+      "details": {
+        "route": "http://127.0.0.1:5103/servers/alpha-operations/settings"
+      }
+    },
+    {
+      "id": "large-desktop-overview-no-overflow",
+      "passed": true,
+      "details": {
+        "route": "http://127.0.0.1:5103/servers/alpha-operations"
+      }
+    },
+    {
+      "id": "diagnostics-closed-default",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "large-desktop-settings-no-overflow",
+      "passed": true,
+      "details": {
+        "route": "http://127.0.0.1:5103/servers/alpha-operations/settings"
+      }
+    },
+    {
+      "id": "iphone-portrait-overview-no-overflow",
+      "passed": true,
+      "details": {
+        "route": "http://127.0.0.1:5103/servers/alpha-operations"
+      }
+    },
+    {
+      "id": "diagnostics-closed-default",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "iphone-portrait-drawer-focus-escape",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "iphone-portrait-sticky-server-context",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "iphone-portrait-settings-no-overflow",
+      "passed": true,
+      "details": {
+        "route": "http://127.0.0.1:5103/servers/alpha-operations/settings"
+      }
+    },
+    {
+      "id": "iphone-no-input-zoom",
+      "passed": true,
+      "details": {
+        "inputFontSize": "16px"
+      }
+    },
+    {
+      "id": "natural-document-scroll",
+      "passed": true,
+      "details": {
+        "scrollY": 897,
+        "mainOverflow": "visible"
+      }
+    },
+    {
+      "id": "field-error-focus",
+      "passed": true,
+      "details": {
+        "invalid": true,
+        "focused": true
+      }
+    },
+    {
+      "id": "typed-confirmation-guards-destructive-request",
+      "passed": true,
+      "details": {
+        "destructiveRequests": []
+      }
+    },
+    {
+      "id": "iphone-landscape-overview-no-overflow",
+      "passed": true,
+      "details": {
+        "route": "http://127.0.0.1:5103/servers/alpha-operations"
+      }
+    },
+    {
+      "id": "diagnostics-closed-default",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "iphone-landscape-drawer-focus-escape",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "iphone-landscape-sticky-server-context",
+      "passed": true,
+      "details": {}
+    },
+    {
+      "id": "iphone-landscape-settings-no-overflow",
+      "passed": true,
+      "details": {
+        "route": "http://127.0.0.1:5103/servers/alpha-operations/settings"
+      }
+    }
+  ],
+  "captures": [
+    {
+      "name": "server-overview-desktop",
+      "viewport": "desktop",
+      "url": "http://127.0.0.1:5103/servers/alpha-operations",
+      "viewportWidth": 1200,
+      "viewportHeight": 800,
+      "documentWidth": 1200,
+      "clientWidth": 1200,
+      "documentHeight": 897,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "server-settings-desktop",
+      "viewport": "desktop",
+      "url": "http://127.0.0.1:5103/servers/alpha-operations/settings",
+      "viewportWidth": 1200,
+      "viewportHeight": 800,
+      "documentWidth": 1200,
+      "clientWidth": 1200,
+      "documentHeight": 1147,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "server-overview-large-desktop",
+      "viewport": "large-desktop",
+      "url": "http://127.0.0.1:5103/servers/alpha-operations",
+      "viewportWidth": 1600,
+      "viewportHeight": 1000,
+      "documentWidth": 1600,
+      "clientWidth": 1600,
+      "documentHeight": 1000,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "server-settings-large-desktop",
+      "viewport": "large-desktop",
+      "url": "http://127.0.0.1:5103/servers/alpha-operations/settings",
+      "viewportWidth": 1600,
+      "viewportHeight": 1000,
+      "documentWidth": 1600,
+      "clientWidth": 1600,
+      "documentHeight": 1092,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "server-overview-iphone-portrait",
+      "viewport": "iphone-portrait",
+      "url": "http://127.0.0.1:5103/servers/alpha-operations",
+      "viewportWidth": 390,
+      "viewportHeight": 844,
+      "documentWidth": 390,
+      "clientWidth": 390,
+      "documentHeight": 1669,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "server-drawer-iphone-portrait",
+      "viewport": "iphone-portrait",
+      "url": "http://127.0.0.1:5103/servers/alpha-operations",
+      "viewportWidth": 390,
+      "viewportHeight": 844,
+      "documentWidth": 390,
+      "clientWidth": 390,
+      "documentHeight": 1669,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "server-settings-iphone-portrait",
+      "viewport": "iphone-portrait",
+      "url": "http://127.0.0.1:5103/servers/alpha-operations/settings",
+      "viewportWidth": 390,
+      "viewportHeight": 844,
+      "documentWidth": 390,
+      "clientWidth": 390,
+      "documentHeight": 1741,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "server-overview-iphone-landscape",
+      "viewport": "iphone-landscape",
+      "url": "http://127.0.0.1:5103/servers/alpha-operations",
+      "viewportWidth": 844,
+      "viewportHeight": 390,
+      "documentWidth": 844,
+      "clientWidth": 844,
+      "documentHeight": 1459,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "server-drawer-iphone-landscape",
+      "viewport": "iphone-landscape",
+      "url": "http://127.0.0.1:5103/servers/alpha-operations",
+      "viewportWidth": 844,
+      "viewportHeight": 390,
+      "documentWidth": 844,
+      "clientWidth": 844,
+      "documentHeight": 1459,
+      "horizontalOverflow": false
+    },
+    {
+      "name": "server-settings-iphone-landscape",
+      "viewport": "iphone-landscape",
+      "url": "http://127.0.0.1:5103/servers/alpha-operations/settings",
+      "viewportWidth": 844,
+      "viewportHeight": 390,
+      "documentWidth": 844,
+      "clientWidth": 844,
+      "documentHeight": 1608,
+      "horizontalOverflow": false
+    }
+  ],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "physicalSafari": "Unavailable in this environment; Chromium mobile emulation is recorded, not claimed as physical Safari validation."
+}
