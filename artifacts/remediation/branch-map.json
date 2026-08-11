@@ -1,0 +1,17 @@
+{
+  "captured_at": "2026-08-05T01:15:00-05:00",
+  "public_base": "9e1abb50f2f75a3c0b0850ace70c94edba684d55",
+  "status": "remediated-and-locally-validated",
+  "branches": [
+    {"pr": 1, "production": "feature/01-server-scope", "production_sha": "6c077801ab7228e5c67c4122902c7554360c1ccc", "review": "review/01-server-scope", "review_sha": "677ae12078691c4323726d30dc42ff9c3c1afd00", "review_base": "fork-integration"},
+    {"pr": 2, "production": "feature/02-jinja-components", "production_sha": "3c82bed3c2e8f0da77b7e1cf290527c9d3fc189e", "review": "review/02-jinja-components", "review_sha": "4546064258e5663126da29affa7ea2d4271a5308", "review_base": "review/01-server-scope"},
+    {"pr": 3, "production": "feature/03-mobile-confirm-diagnostics", "production_sha": "ec581aa3374e1cace71cb6604e95847c4f7b3734", "review": "review/03-mobile-confirm-diagnostics", "review_sha": "485a3d04466e3edd035acf1eeb799de0e53405ad", "review_base": "review/02-jinja-components"},
+    {"pr": 4, "production": "feature/04-sqlite-foundation", "production_sha": "1561ff8b7aab69e3c8af9ad08074acf32d9ab24c", "review": "review/04-sqlite-foundation", "review_sha": "dd2d722934ca8004f3f8634a91cf2673eec3ebbd", "review_base": "review/03-mobile-confirm-diagnostics"},
+    {"pr": 5, "production": "feature/05-audit-timeline", "production_sha": "8b3c73a66e0a309ef40d2b4429076785e3543666", "review": "review/05-audit-timeline", "review_sha": "07a8c24d448155dad0ac7bcd4ccc5a5cf7ea1030", "review_base": "review/04-sqlite-foundation"},
+    {"pr": 6, "production": "feature/06-job-system", "production_sha": "bf515d50f830987d841cbcaaf3d4fe6160ab4613", "review": "review/06-job-system", "review_sha": "1da7599a6fd9244f84d91731626279ef45105fd1", "review_base": "review/05-audit-timeline"},
+    {"pr": 7, "production": "feature/07-config-versions", "production_sha": "25fb96e92bbd968c69abafb30b333a40011899f9", "review": "review/07-config-versions", "review_sha": "9d8562f7a204724c330515ab2f4e8d904bcb7a84", "review_base": "review/06-job-system"},
+    {"pr": 8, "production": "feature/08-workshop-library", "production_sha": "3da9a320e1e4c9e984fc168ebe2bf377d8458446", "review": "review/08-workshop-library", "review_sha": "3ec3acf255935c49805c22445f6564a286f20089", "review_base": "review/07-config-versions"},
+    {"pr": 9, "production": "feature/09-moderation-module", "production_sha": "f671b8262a68199fd9e2f15784ba3aaa799b9452", "review": "review/09-moderation-module", "review_sha": "b68f3289a579ff81528f0a29db57716d891cb6cd", "review_base": "review/08-workshop-library"},
+    {"pr": 10, "production": "feature/10-pydantic-contracts", "production_sha": "e1549f0352daf927947103e1a0c8423c3697eddd", "review": "review/10-pydantic-contracts", "review_validation_sha": "b2df0fc3f7c31b5add451728ecd5d4b9c9e12a07", "review_base": "review/09-moderation-module", "review_tip_note": "The final metadata commit containing this self-referential map is a review-only child of review_validation_sha."}
+  ]
+}

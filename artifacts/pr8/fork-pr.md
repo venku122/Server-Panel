@@ -1,3 +1,10 @@
+## Remediation (2026-08-05)
+
+- Production: `3da9a320e1e4c9e984fc168ebe2bf377d8458446`; review: `3ec3acf255935c49805c22445f6564a286f20089`.
+- Preview is non-mutating; mission candidates/signatures, placement, missing children, and hash conflicts validate before copying.
+- Files/config/server metadata/version/audit form one compensated mutation with explicit stop/replace-backup/skip/rename policies and bounded cached scans.
+- 108-test PR gate and final-tree Chromium 16 assertions/two captures: pass. Physical Safari remains pending and is not claimed.
+
 ## Summary
 
 - add a bounded, cached local Workshop index with explicit mission-file signatures and last-refresh state;

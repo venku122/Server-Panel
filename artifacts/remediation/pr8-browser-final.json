@@ -1,0 +1,9 @@
+{
+  "baseRef": "feature/01-server-scope",
+  "featureRef": "feature/10-pydantic-contracts",
+  "evidenceDir": "artifacts/remediation/browser-pr8",
+  "viewports": [
+    {"name": "desktop", "width": 1200, "height": 800, "isMobile": false},
+    {"name": "iphone", "width": 390, "height": 844, "isMobile": true}
+  ]
+}

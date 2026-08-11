@@ -1,3 +1,9 @@
+## Remediation (2026-08-05)
+
+- Production: `8b3c73a66e0a309ef40d2b4429076785e3543666`; review: `07a8c24d448155dad0ac7bcd4ccc5a5cf7ea1030`.
+- Added private-key-safe server redaction, stable cursor pagination/filter retention, authoritative SQLite with visible JSONL degradation, and correct recursion-path cycle handling.
+- 65-test PR gate, including 550 equal-timestamp records and mirror failure: pass.
+
 ## Summary
 
 - add the structured `audit_events` migration, repository, and centralized audit service;

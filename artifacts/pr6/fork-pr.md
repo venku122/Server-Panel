@@ -1,3 +1,10 @@
+## Remediation (2026-08-05)
+
+- Production: `bf515d50f830987d841cbcaaf3d4fe6160ab4613`; review: `1da7599a6fd9244f84d91731626279ef45105fd1`.
+- Lease renewal, checkpoint, event, and finish ownership are enforced; unexpected iteration/finalization failures cannot kill the worker.
+- Replay/cancellation policies, selected-vs-global Workshop scope, JSON/event bounds, diagnostics-only leases, and duplicate-worker semantics are explicit.
+- 81-test PR gate; injected finish failure followed by a successful second queued job: pass.
+
 ## Summary
 
 - make the durable worker survive handler, renewal, lease-loss, and terminal-write failures while exposing liveness and last error to administrators;

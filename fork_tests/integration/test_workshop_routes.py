@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from fork_tests.helpers.failures import inject_failure
 from server_panel.workshop import WorkshopLibrary, invalidate_workshop_cache
 
 
@@ -126,9 +127,7 @@ def test_late_audit_failure_rolls_back_every_file(client, panel_module, monkeypa
     config_before = config_path.read_bytes()
     servers_before = servers_path.read_bytes()
 
-    def fail_audit(**_values):
-        raise RuntimeError("injected audit failure")
-
+    fail_audit = inject_failure("audit append")
     monkeypatch.setattr(panel_module.AUDIT_SERVICE, "record", fail_audit)
     response = client.post(
         "/api/servers/alpha-operations/workshop/rotation",
@@ -137,6 +136,30 @@ def test_late_audit_failure_rolls_back_every_file(client, panel_module, monkeypa
 
     assert response.status_code == 500
     assert response.get_json()["files_restored"] is True
+    assert config_path.read_bytes() == config_before
+    assert servers_path.read_bytes() == servers_before
+    assert not missions.exists()
+
+
+def test_workshop_copy_failure_leaves_files_and_configuration_unchanged(
+    client, panel_module, monkeypatch, tmp_path: Path
+) -> None:
+    library, missions, _item = _seed_library(tmp_path)
+    config_path, servers_path = _wire_local_mutation(panel_module, monkeypatch, tmp_path, library)
+    config_before = config_path.read_bytes()
+    servers_before = servers_path.read_bytes()
+    monkeypatch.setattr(
+        panel_module._config_version_storage,
+        "apply_compensating_file_mutation",
+        inject_failure("workshop copy"),
+    )
+
+    response = client.post(
+        "/api/servers/alpha-operations/workshop/rotation",
+        json={"item_id": "111", "placement": "first_available", "conflict_policy": "error"},
+    )
+
+    assert response.status_code == 500
     assert config_path.read_bytes() == config_before
     assert servers_path.read_bytes() == servers_before
     assert not missions.exists()
@@ -167,6 +190,7 @@ def test_refresh_queues_existing_durable_workshop_job(client, panel_module, monk
 
     monkeypatch.setattr(panel_module, "load_servers", lambda: [{"id": "alpha-operations"}])
     monkeypatch.setattr(panel_module, "_enqueue_job", enqueue)
+    monkeypatch.setattr(panel_module, "_job_payload", lambda job: job.to_dict())
 
     response = client.post("/api/sync-workshop-missions", json={"server_id": "alpha-operations"})
 

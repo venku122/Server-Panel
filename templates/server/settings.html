@@ -38,7 +38,11 @@
                 </div>
                 <div class="setting-control">
                     <label class="sr-only" for="startup-fps">FPS limit</label>
-                    <input id="startup-fps" type="number" min="1" max="1000" placeholder="60">
+                    <input id="startup-fps"
+                           type="number"
+                           min="{{ panel_limits.FPS_MIN }}"
+                           max="{{ panel_limits.FPS_MAX }}"
+                           placeholder="60">
                 </div>
             </div>
             <div class="setting-row">
@@ -50,8 +54,8 @@
                     <label class="sr-only" for="startup-max-players">Maximum players</label>
                     <input id="startup-max-players"
                            type="number"
-                           min="1"
-                           max="256"
+                           min="{{ panel_limits.MAX_PLAYERS_MIN }}"
+                           max="{{ panel_limits.MAX_PLAYERS_MAX }}"
                            placeholder="16">
                 </div>
             </div>
@@ -65,8 +69,8 @@
                     <input class="mono"
                            id="startup-remote-port"
                            type="number"
-                           min="1"
-                           max="65535"
+                           min="{{ panel_limits.PORT_MIN }}"
+                           max="{{ panel_limits.PORT_MAX }}"
                            placeholder="7779">
                 </div>
             </div>

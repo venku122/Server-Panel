@@ -5,6 +5,7 @@ from typing import Any
 
 from server_panel.moderation import (
     InstallRequest,
+    ModerationSettingsUpdate,
     ModerationInstaller,
     ModerationPoller,
     ModerationRepository,
@@ -45,9 +46,14 @@ def test_repository_keeps_file_and_ticket_callbacks_behind_one_boundary() -> Non
 
     assert repository.status("alpha")["installed"] is True
     assert repository.snapshot("bravo")["settings"] == {"server": "bravo"}
-    assert repository.save_settings("alpha", {"enable_auto_kick": True}) == (True, None)
-    assert repository.apply(TicketAction("alpha", "7656", "comment", "admin", "review")) == (True, "ok")
-    assert repository.apply(TicketAction("alpha", "7656", "monitor_once", "admin")) == (True, "armed")
+    assert repository.save_settings(ModerationSettingsUpdate(server_id="alpha", enable_auto_kick=True)) == (True, None)
+    assert repository.apply(
+        TicketAction(server_id="alpha", steam_id="7656", action="comment", actor="admin", text="review")
+    ) == (True, "ok")
+    assert repository.apply(TicketAction(server_id="alpha", steam_id="7656", action="monitor_once", actor="admin")) == (
+        True,
+        "armed",
+    )
     assert [name for name, _value in calls] == ["settings", "ticket", "monitor"]
 
 
@@ -68,9 +74,10 @@ def test_service_coordinates_installer_durable_job_and_audit() -> None:
         ),
     )
 
-    queued = service.start_install(InstallRequest("alpha", "https://example.invalid/mod.dll"))
-    installed = service.install_now(InstallRequest("alpha", "https://example.invalid/mod.dll"))
-    ticket = service.ticket_action(TicketAction("alpha", "7656", "claim", "admin"))
+    request = InstallRequest(server_id="alpha", dll_url="https://example.invalid/mod.dll")
+    queued = service.start_install(request)
+    installed = service.install_now(request)
+    ticket = service.ticket_action(TicketAction(server_id="alpha", steam_id="7656", action="claim", actor="admin"))
 
     assert queued.status == 200
     assert queued.payload["job"]["id"] == "job-1"
@@ -102,7 +109,12 @@ def test_install_url_credentials_query_and_fragment_are_never_persisted() -> Non
         ),
     )
 
-    service.start_install(InstallRequest("alpha", "https://user:pass@example.invalid/mod.dll?token=secret#fragment"))
+    service.start_install(
+        InstallRequest(
+            server_id="alpha",
+            dll_url="https://user:pass@example.invalid/mod.dll?token=secret#fragment",
+        )
+    )
 
     assert sanitize_dll_url("https://user:pass@example.invalid/mod.dll?token=secret#fragment") == (
         "https://example.invalid/mod.dll"

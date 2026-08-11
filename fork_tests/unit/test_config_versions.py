@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from fork_tests.helpers.failures import FailureBoundary, inject_failure
 from server_panel.storage import connect, run_migrations
 from server_panel.storage.config_versions import (
     ConfigVersionService,
@@ -97,8 +98,7 @@ def test_metadata_failure_restores_replaced_and_new_files(tmp_path: Path) -> Non
     created = tmp_path / "created.json"
     existing.write_text("before", encoding="utf-8")
 
-    def fail_metadata():
-        raise RuntimeError("injected config version save failure")
+    fail_metadata = inject_failure("config version save")
 
     with pytest.raises(RuntimeError, match="injected"):
         apply_compensating_file_mutation(
@@ -109,15 +109,29 @@ def test_metadata_failure_restores_replaced_and_new_files(tmp_path: Path) -> Non
     assert not created.exists()
 
 
+@pytest.mark.parametrize("boundary", ["filesystem write", "atomic replace"])
+def test_file_apply_failure_preserves_authoritative_content(tmp_path: Path, boundary: FailureBoundary) -> None:
+    target = tmp_path / "config.json"
+    target.write_text("before", encoding="utf-8")
+    persist_calls: list[bool] = []
+
+    with pytest.raises(RuntimeError, match=boundary):
+        apply_compensating_file_mutation(
+            {target: b"after"},
+            lambda: persist_calls.append(True),
+            replace_file=inject_failure(boundary),
+        )
+
+    assert target.read_text(encoding="utf-8") == "before"
+    assert persist_calls == []
+
+
 def test_rollback_failure_is_an_explicit_partial_failure(tmp_path: Path) -> None:
     target = tmp_path / "config.json"
     target.write_text("before", encoding="utf-8")
 
-    def fail_metadata():
-        raise RuntimeError("database unavailable")
-
-    def fail_rollback(_path: Path, _content: bytes) -> None:
-        raise OSError("rollback disk failure")
+    fail_metadata = inject_failure("sqlite insert/commit", error=RuntimeError("database unavailable"))
+    fail_rollback = inject_failure("rollback write", error=OSError("rollback disk failure"))
 
     with pytest.raises(PartialMutationFailure) as raised:
         apply_compensating_file_mutation(

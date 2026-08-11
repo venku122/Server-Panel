@@ -1,3 +1,10 @@
+## Remediation (2026-08-05)
+
+- Production: `f671b8262a68199fd9e2f15784ba3aaa799b9452`; review: `b68f3289a579ff81528f0a29db57716d891cb6cd`.
+- Browser actors come only from the authenticated session; cluster actors are accepted only after signature verification.
+- Signature/role/input/resource errors return 401/403/400/404, and DLL URL credentials/query/fragment are stripped before job/audit persistence.
+- 124-test PR gate and response compatibility: pass.
+
 ## Summary
 
 - extract the public moderation feature behind typed route, service, repository, installer, and background-poller boundaries;

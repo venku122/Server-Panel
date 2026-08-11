@@ -1,0 +1,78 @@
+{
+  "changed_frontend": {
+    "legacy_script_lint": {
+      "baseline": 6,
+      "current": 2,
+      "removed": 4
+    },
+    "legacy_stylesheet_lint": {
+      "baseline": 7,
+      "current": 7,
+      "removed": 0
+    },
+    "new_script_typechecks": 7,
+    "new_stylesheets": 12,
+    "scripts": 8,
+    "stylesheets": 13,
+    "templates": 38
+  },
+  "changed_python": {
+    "campaign_owned_strict": 24,
+    "changed": 26
+  },
+  "compile": "pass",
+  "djlint_legacy": {
+    "baseline": 69,
+    "current": 0,
+    "removed": 69
+  },
+  "eslint": {
+    "baseline": 6,
+    "current": 2,
+    "removed": 4
+  },
+  "fork_code": {
+    "mypy": "pass",
+    "ruff_format": "pass",
+    "ruff_lint": "pass"
+  },
+  "javascript_syntax": {
+    "app": "pass",
+    "screenshot_automation": "pass"
+  },
+  "mypy": {
+    "baseline": 56,
+    "current": 48,
+    "removed": 8
+  },
+  "pytest": "159 passed in 7.30s",
+  "ruff": {
+    "baseline": 58,
+    "current": 54,
+    "removed": 4
+  },
+  "ruff_format": {
+    "changed_lines_clean": 2163
+  },
+  "secret_scan": "pass",
+  "stack": {
+    "base": "6c077801ab7228e5c67c4122902c7554360c1ccc",
+    "feature": "e1549f0352daf927947103e1a0c8423c3697eddd",
+    "review_production_identity": "pass"
+  },
+  "stylelint": {
+    "baseline": 7,
+    "current": 7,
+    "removed": 0
+  },
+  "template_architecture": {
+    "critical_js_ids": 38,
+    "legacy_css_additions": 0,
+    "routes": 16
+  },
+  "typescript": {
+    "baseline": 248,
+    "current": 229,
+    "removed": 19
+  }
+}

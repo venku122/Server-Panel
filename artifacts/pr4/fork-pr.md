@@ -1,3 +1,9 @@
+## Remediation (2026-08-05)
+
+- Production: `1561ff8b7aab69e3c8af9ad08074acf32d9ab24c`; review: `dd2d722934ca8004f3f8634a91cf2673eec3ebbd`.
+- WAL is initialized/verified once, busy timeout is configurable per connection, and future-schema/downgrade recovery is actionable and documented.
+- 50-test PR gate, strict storage checks, and production/review identity: pass.
+
 ## Summary
 
 - add the file-backed `data/panel.sqlite3` path with configuration/environment override support;

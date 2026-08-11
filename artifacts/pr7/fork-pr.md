@@ -1,3 +1,9 @@
+## Remediation (2026-08-05)
+
+- Production: `25fb96e92bbd968c69abafb30b333a40011899f9`; review: `9d8562f7a204724c330515ab2f4e8d904bcb7a84`.
+- First writes capture a unique baseline; staged replacements compensate on metadata failure; exact absent startup values and multi-file restores are recoverable.
+- Concurrent version numbers, remote-error disclosure, no-op suppression, and restore lineage are verified by the 94-test PR gate.
+
 ## Summary
 
 - capture the authoritative pre-change baseline before the first managed dedicated, startup, or NOBlackBox mutation without duplicating baselines;

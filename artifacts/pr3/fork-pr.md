@@ -1,3 +1,10 @@
+## Remediation (2026-08-05)
+
+- Production: `ec581aa3374e1cace71cb6604e95847c4f7b3734`; review: `485a3d04466e3edd035acf1eeb799de0e53405ad`.
+- Redaction now handles complete, oversized, incomplete, multiple, RSA, EC, OpenSSH, and generic private-key blocks before truncation.
+- Foreground diagnostics retain a bounded 20-record history and background traffic cannot replace the latest operator record.
+- Final-tree Chromium: 24 assertions and 10 captures with no errors/overflow. Physical iOS Safari remains pending and is not claimed.
+
 ## Summary
 
 - add iPhone/compact-landscape drawer navigation, sticky server context, safe-area spacing, dynamic viewport units, and document-native scrolling;

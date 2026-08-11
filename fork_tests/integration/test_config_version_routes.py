@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from fork_tests.helpers.failures import inject_failure
 from server_panel.storage import connect, run_migrations
 from server_panel.storage.config_versions import ConfigVersionService
 
@@ -78,9 +79,7 @@ def test_metadata_failure_after_replace_restores_previous_file(
     service, config_path = prepare(panel_module, managed_servers, monkeypatch, tmp_path)
     config_path.write_text('{"ServerName":"Before"}\n', encoding="utf-8")
 
-    def fail_save_change(**_values):
-        raise RuntimeError("injected SQLite insert failure")
-
+    fail_save_change = inject_failure("sqlite insert/commit", error=RuntimeError("injected SQLite insert failure"))
     monkeypatch.setattr(service, "save_change", fail_save_change)
     response = client.post(
         "/api/dedicated-config",
@@ -183,9 +182,7 @@ def test_multifile_startup_restore_rolls_back_every_file_when_version_save_fails
         change_summary="Baseline",
     )
 
-    def fail_save(**_values):
-        raise RuntimeError("injected restore metadata failure")
-
+    fail_save = inject_failure("config version save", error=RuntimeError("injected restore metadata failure"))
     monkeypatch.setattr(service, "save", fail_save)
     with pytest.raises(RuntimeError, match="injected restore"):
         panel_module._restore_config_version_local(

@@ -46,7 +46,7 @@ def test_global_activity_renders_collapsed_redacted_timeline_and_filters(client,
     assert "route-secret" not in html
     assert 'class="detail-sheet"' in html
     assert 'class="payload-disclosure"' in html
-    assert 'class="diagnostics-disclosure audit-details" open' not in html
+    assert 'data-open-sheet="activity-detail-' in html
     assert 'name="action"' in html
 
 
@@ -177,5 +177,5 @@ def test_activity_exposes_jsonl_mirror_degradation_to_admin(client, panel_module
     html = response.get_data(as_text=True)
     assert response.status_code == 200
     assert "SQLite history is intact" in html
-    assert "Compatibility mirror degraded." in html
+    assert "Compatibility mirror degraded" in html
     assert "2 JSONL mirror operation(s) failed" in html

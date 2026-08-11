@@ -10,7 +10,7 @@ def test_global_shell_renders_drawer_dialog_and_closed_diagnostics(client) -> No
     assert 'id="app-dialog"' in html
 
 
-def test_server_shell_keeps_sticky_server_context_and_single_column_diagnostics(client) -> None:
+def test_server_shell_keeps_mobile_scope_and_settings_hierarchy(client) -> None:
     response = client.get("/servers/alpha-operations/settings")
     html = response.get_data(as_text=True)
     assert response.status_code == 200
