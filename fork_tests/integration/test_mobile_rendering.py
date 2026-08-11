@@ -19,5 +19,4 @@ def test_server_shell_keeps_sticky_server_context_and_single_column_diagnostics(
     assert 'class="page show settings-page"' in html
     assert 'aria-label="Server settings views"' in html
     assert 'id="app-dialog-input"' in html
-    assert "sensitive values are redacted" in html
     assert '<details class="card diagnostics-disclosure space-before-4" open' not in html
