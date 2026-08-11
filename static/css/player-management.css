@@ -19,6 +19,8 @@
 .compact-action > label { grid-column: 1 / -1; color: var(--muted); font-size: var(--font-size-sm); }
 .player-bulk-actions { display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); margin-top: var(--space-5); padding: var(--space-5); }
 .moderation-install-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); padding: var(--space-5); }
+.moderation-install-row > div:first-child { min-width: 0; }
+.moderation-install-row p { overflow-wrap: anywhere; }
 #mod-install-progress-meter { padding: 0 var(--space-5) var(--space-4); }
 .moderation-install-log { border-top: 1px solid var(--border); }
 .moderation-log { max-height: 13rem; overflow: auto; padding: 0 var(--space-5) var(--space-5); font-family: var(--font-mono); font-size: 11px; }
