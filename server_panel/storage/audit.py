@@ -294,6 +294,8 @@ class AuditRepository(Repository):
         outcome: str | None = None,
         actor: str | None = None,
         action: str | None = None,
+        query: str | None = None,
+        since: str | None = None,
         cursor: str | None = None,
         limit: int = 50,
     ) -> AuditPage:
@@ -311,6 +313,16 @@ class AuditRepository(Repository):
         if action:
             clauses.append("action = ?")
             parameters.append(_normalize_action(action))
+        if query:
+            needle = f"%{query.strip()}%"
+            clauses.append(
+                "(action LIKE ? OR actor LIKE ? OR summary LIKE ? OR correlation_id LIKE ? OR "
+                "COALESCE(server_id, '') LIKE ? OR COALESCE(target_id, '') LIKE ?)"
+            )
+            parameters.extend((needle, needle, needle, needle, needle, needle))
+        if since:
+            clauses.append("created_at >= ?")
+            parameters.append(since)
         decoded_cursor = _decode_cursor(cursor)
         direction = "before"
         if decoded_cursor is not None:
@@ -443,6 +455,8 @@ class AuditService:
         outcome: str | None = None,
         actor: str | None = None,
         action: str | None = None,
+        query: str | None = None,
+        since: str | None = None,
         cursor: str | None = None,
         limit: int = 50,
     ) -> list[dict[str, Any]]:
@@ -453,6 +467,8 @@ class AuditService:
                 outcome=outcome,
                 actor=actor,
                 action=action,
+                query=query,
+                since=since,
                 cursor=cursor,
                 limit=limit,
             )["events"],
@@ -465,6 +481,8 @@ class AuditService:
         outcome: str | None = None,
         actor: str | None = None,
         action: str | None = None,
+        query: str | None = None,
+        since: str | None = None,
         cursor: str | None = None,
         limit: int = 50,
     ) -> dict[str, Any]:
@@ -474,6 +492,8 @@ class AuditService:
             outcome=outcome,
             actor=actor,
             action=action,
+            query=query,
+            since=since,
             cursor=cursor,
             limit=limit,
         ).to_dict()
