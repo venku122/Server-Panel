@@ -1,22 +1,25 @@
 {% extends "base.html" %}
-{% from "components/navigation.html" import brand, global_navigation, global_settings_navigation %}
+{% from "components/navigation.html" import brand, global_navigation, global_settings_navigation, global_bottom_navigation %}
 {% from "components/page_header.html" import global_page_header %}
 {% block body_class %}panel-page global-page{% endblock %}
 {% block body %}
     <div class="shell global-shell">
         <header class="mobile-appbar">
-            <button class="btn ghost sidebar-toggle"
+            <span class="mobile-context"><span class="scope-kicker">Panel</span><strong>{{ page_title }}</strong></span>
+            <button class="icon-button"
                     type="button"
-                    aria-controls="panel-sidebar"
-                    aria-expanded="false">Menu</button>
-            <span class="mobile-context">Panel</span>
+                    data-open-find
+                    aria-label="Find servers and pages">⌕</button>
         </header>
         <button class="sidebar-backdrop"
                 type="button"
                 data-sidebar-close
                 aria-label="Close navigation"
                 hidden></button>
-        <aside class="sidebar" id="panel-sidebar" aria-label="Panel sidebar" tabindex="-1">
+        <aside class="sidebar"
+               id="panel-sidebar"
+               aria-label="Panel sidebar"
+               tabindex="-1">
             <div class="sidebar-head">
                 {{ brand() }}<button class="sidebar-collapse"
         id="sidebar-collapse"
@@ -57,6 +60,27 @@
         {% if active_page in ('ports', 'cluster', 'users', 'discord', 'about') %}</div>{% endif %}
     </main>
     </div>
+    {{ global_bottom_navigation(active_page) }}
+    <aside class="mobile-drawer"
+           id="more-drawer"
+           role="dialog"
+           aria-modal="true"
+           aria-labelledby="more-drawer-title"
+           hidden>
+        <header>
+            <div>
+                <span class="eyebrow">Panel</span>
+                <h2 id="more-drawer-title">More</h2>
+            </div>
+            <button class="icon-button"
+                    type="button"
+                    data-close-drawer
+                    aria-label="Close More">×</button>
+        </header>
+        <nav class="drawer-nav" aria-label="More panel navigation">
+            <a href="/deployment">Deployment</a><a href="/settings">Settings</a><a href="{{ url_for('logout') }}">Log out {{ current_user or '' }}</a>
+        </nav>
+    </aside>
     {% include "components/shell_overlays.html" %}
 {% endblock %}
 {% block scripts %}
