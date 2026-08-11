@@ -94,6 +94,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const sheet = document.getElementById(trigger.dataset.openSheet);
     if (!sheet) return;
     if (activeSheet) closeSheet({ restoreFocus: false });
+    // The backdrop is a body-level sibling. Promote the active sheet to that
+    // same overlay layer so ancestor stacking contexts cannot place it behind
+    // the backdrop or block its controls.
+    if (sheet.parentElement !== document.body) document.body.append(sheet);
     activeSheet = sheet;
     sheetTrigger = trigger;
     sheet.hidden = false;
