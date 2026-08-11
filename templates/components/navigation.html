@@ -5,7 +5,7 @@
 {%- endmacro %}
 {% macro brand() -%}
     <a class="brand"
-       href="{{ url_for('servers_index') }}"
+       href="{{ url_for("servers_index") }}"
        aria-label="Nuclear Option Server Panel — all servers">
         <span class="brand-mark" aria-hidden="true">N</span>
         <span class="brand-text">
@@ -73,6 +73,6 @@
                         {% if server.id == current_server.id %} selected{% endif %}>{{ server.name }}</option>
             {% endfor %}
         </select>
-        <a class="scope-back-link" href="{{ url_for('servers_index') }}">All servers</a>
+        <a class="scope-back-link" href="{{ url_for("servers_index") }}">All servers</a>
     </div>
 {%- endmacro %}

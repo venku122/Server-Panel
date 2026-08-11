@@ -14,10 +14,11 @@
         </section>
         <form class="resource-toolbar" method="get" action="/servers" role="search">
             <label class="search-field">
-                <span aria-hidden="true">⌕</span><span class="sr-only">Search servers</span><input type="search"
-       name="q"
-       value="{{ request.args.get('q', '') }}"
-       placeholder="Search servers by name or node">
+                <span aria-hidden="true">⌕</span><span class="sr-only">Search servers</span>
+                <input type="search"
+                       name="q"
+                       value="{{ request.args.get('q', '') }}"
+                       placeholder="Search servers by name or node">
             </label>
             <div class="filter-tabs" aria-label="Server state filter">
                 <a class="filter-tab{% if not request.args.get('state') %} active{% endif %}"

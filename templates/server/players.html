@@ -1,7 +1,11 @@
 {% extends "layouts/server.html" %}
 {% block panel_content %}
     <div class="page show" id="page-bans">
-        <nav class="page-tabs" aria-label="Player management views"><a class="active" href="/servers/{{ current_server.id }}/players" aria-current="page">Players</a><a href="/servers/{{ current_server.id }}/players/moderation">Moderation</a></nav>
+        <nav class="page-tabs" aria-label="Player management views">
+            <a class="active"
+               href="/servers/{{ current_server.id }}/players"
+               aria-current="page">Players</a><a href="/servers/{{ current_server.id }}/players/moderation">Moderation</a>
+        </nav>
         <div class="row">
             <div class="card">
                 <div class="card-h">
